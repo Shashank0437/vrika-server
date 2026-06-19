@@ -1,0 +1,91 @@
+"""Schemas for the license administration module."""
+
+from datetime import datetime
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class LicenseFeature(str, Enum):
+    ai_agent = "ai_agent"
+    network_scanner = "network_scanner"
+    malware_analysis = "malware_analysis"
+    forensics = "forensics"
+
+
+class LicenseStatus(str, Enum):
+    active = "active"
+    expired = "expired"
+    revoked = "revoked"
+
+
+# --- Customers ---
+
+
+class CustomerCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    email: str = Field(..., min_length=3, max_length=320)
+    organization: str = Field(..., min_length=1, max_length=200)
+
+
+class CustomerUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    email: Optional[str] = Field(None, min_length=3, max_length=320)
+    organization: Optional[str] = Field(None, min_length=1, max_length=200)
+
+
+class CustomerOut(BaseModel):
+    id: str
+    name: str
+    email: str
+    organization: str
+    created_at: datetime
+    licenses_count: int = 0
+
+
+# --- Licenses ---
+
+
+class LicenseGenerate(BaseModel):
+    customer_id: str
+    product: str = Field(default="vrika", min_length=1, max_length=100)
+    features: list[LicenseFeature]
+    max_users: int = Field(..., ge=1, le=100_000)
+    max_agents: int = Field(..., ge=1, le=10_000)
+    expires_at: str = Field(..., description="ISO date string (YYYY-MM-DD)")
+    machine_fingerprint: str = Field(..., min_length=4, max_length=512)
+
+
+class LicenseOut(BaseModel):
+    id: str
+    customer_id: str
+    customer_name: str
+    customer_email: str
+    product: str
+    features: list[LicenseFeature]
+    max_users: int
+    max_agents: int
+    machine_fingerprint: str
+    expires_at: datetime
+    status: LicenseStatus
+    created_at: datetime
+
+
+# --- Dashboard ---
+
+
+class LicenseActivityOut(BaseModel):
+    id: str
+    action: str
+    license_id: str
+    customer_name: str
+    timestamp: datetime
+
+
+class LicenseDashboardOut(BaseModel):
+    total_customers: int
+    active_licenses: int
+    expired_licenses: int
+    enabled_features: dict[str, int]
+    recent_activity: list[LicenseActivityOut]

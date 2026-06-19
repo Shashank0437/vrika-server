@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db import close_db, init_db
 from app.redis_client import close_redis
-from app.routers import admin, agent_chat, auth, contact, invitations, tenant, workspace_tools
+from app.routers import admin, agent_chat, auth, contact, invitations, license_admin, tenant, workspace_tools
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.include_router(contact.router)
 app.include_router(agent_chat.router)
 app.include_router(workspace_tools.router)
 app.include_router(workspace_tools.api_tools_router)
+app.include_router(license_admin.router)
 
 
 @app.get("/health")

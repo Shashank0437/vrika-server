@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     # Redis TTL for org invitation signup tokens (default 7 days, same as registration completion).
     invitation_token_ttl_seconds: int = 604800
 
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://localhost:3002"
 
     # NyxStrike agent (Flask) — proxied for workspace tools UI. Not exposed to browsers directly.
     agent_base_url: str = Field(

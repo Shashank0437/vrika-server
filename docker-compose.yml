@@ -63,9 +63,22 @@ services:
       context: ./client
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       PY_API_URL: http://api:8000
+      INTERNAL_API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  license-admin:
+    build:
+      context: ./license-admin-portal
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
       INTERNAL_API_URL: http://api:8000
     depends_on:
       api:

@@ -4,6 +4,9 @@ from app.config import get_settings
 from app.constants import (
     AGENT_CHAT_MESSAGES_COLLECTION,
     AGENT_CHAT_SESSIONS_COLLECTION,
+    LICENSE_ACTIVITY_COLLECTION,
+    LICENSE_CUSTOMERS_COLLECTION,
+    LICENSES_COLLECTION,
     ORG_TOOL_POLICY_COLLECTION,
     TOOL_EXECUTION_LOG_COLLECTION,
 )
@@ -54,6 +57,11 @@ async def init_db() -> None:
     )
     await db[AGENT_CHAT_MESSAGES_COLLECTION].create_index([("session_id", 1), ("created_at", 1)])
     await db[AGENT_CHAT_MESSAGES_COLLECTION].create_index([("organization_id", 1), ("user_id", 1)])
+    # License admin indexes
+    await db[LICENSE_CUSTOMERS_COLLECTION].create_index("email", unique=True)
+    await db[LICENSES_COLLECTION].create_index([("customer_id", 1), ("created_at", -1)])
+    await db[LICENSES_COLLECTION].create_index([("status", 1), ("expires_at", 1)])
+    await db[LICENSE_ACTIVITY_COLLECTION].create_index([("timestamp", -1)])
 
 
 async def close_db() -> None:
