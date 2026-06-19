@@ -19,7 +19,10 @@ from app.schemas.license_admin import (
     LicenseGenerate,
     LicenseOut,
     LicenseStatus,
+    MachineInfoUpload,
 )
+from app.services.license_signing import LicenseSigningService
+from app.services.machine_fingerprint import MachineFingerprintService
 
 router = APIRouter(prefix="/license-admin", tags=["license-admin"])
 
@@ -268,6 +271,26 @@ async def get_license(
     return _license_out(doc)
 
 
+@router.post("/machine-info/hash")
+async def hash_machine_info(
+    body: MachineInfoUpload,
+    user: dict = Depends(require_auth_user),
+) -> dict[str, str]:
+    """Upload machine-info.json contents and get back SHA256 fingerprint.
+
+    Admin uploads the machine-info.json collected from customer's server.
+    Returns the fingerprint hash to use in license generation.
+    """
+    _require_license_admin(user)
+
+    try:
+        fingerprint = MachineFingerprintService.generate_fingerprint(body.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"fingerprint": fingerprint}
+
+
 @router.post("/licenses/generate", response_model=LicenseOut, status_code=status.HTTP_201_CREATED)
 async def generate_license(
     body: LicenseGenerate,
@@ -341,27 +364,47 @@ async def download_license(
     user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> JSONResponse:
-    """Download license as JSON (public fields only — no signing keys exposed)."""
+    """Download signed license.json — production format with digital signature."""
     _require_license_admin(user)
     doc = await db[LICENSES_COLLECTION].find_one({"_id": _oid(license_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="License not found")
 
-    license_data = {
-        "license_id": str(doc["_id"]),
-        "customer": doc["customer_name"],
-        "organization": doc.get("customer_email", ""),
-        "product": doc["product"],
-        "features": doc["features"],
-        "limits": {
-            "max_users": doc["max_users"],
-            "max_agents": doc["max_agents"],
+    # Build license payload in production format
+    license_data: dict[str, Any] = {
+        "licenseId": f"LIC-{str(doc['_id'])}",
+        "customer": {
+            "name": doc["customer_name"],
+            "email": doc.get("customer_email", ""),
+            "organization": doc.get("customer_email", ""),
         },
-        "machine_fingerprint": doc["machine_fingerprint"],
-        "expires_at": doc["expires_at"].isoformat(),
-        "issued_at": doc["created_at"].isoformat(),
-        "status": doc["status"],
+        "machine": {
+            "fingerprint": doc["machine_fingerprint"],
+        },
+        "product": doc["product"],
+        "features": {
+            "aiAgent": "ai_agent" in doc["features"],
+            "networkScanner": "network_scanner" in doc["features"],
+            "malwareAnalysis": "malware_analysis" in doc["features"],
+            "forensics": "forensics" in doc["features"],
+        },
+        "limits": {
+            "maxUsers": doc["max_users"],
+            "maxAgents": doc["max_agents"],
+        },
+        "expiresAt": doc["expires_at"].isoformat(),
+        "issuedAt": doc["created_at"].isoformat(),
     }
+
+    # Sign the license payload
+    try:
+        signature = LicenseSigningService.sign_license(license_data)
+        license_data["signature"] = signature
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"License signing failed: {e}. Ensure private key is configured.",
+        )
 
     return JSONResponse(
         content=license_data,
@@ -369,3 +412,63 @@ async def download_license(
             "Content-Disposition": f'attachment; filename="license-{license_id}.json"',
         },
     )
+
+
+# --- License Validation (runs on customer's on-prem deployment) ---
+
+
+@router.post("/validate")
+async def validate_license_endpoint(
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate a license payload against current machine.
+
+    Called by the on-prem product at startup. No auth required.
+    Only needs the public key deployed with the product.
+
+    Body should contain:
+        - license: The full license.json content
+        - machine_info: Fresh machine-info collected on this machine
+    """
+    license_data = body.get("license", body)
+    machine_info_data = body.get("machine_info")
+
+    # Step 1: Verify signature
+    try:
+        sig_valid = LicenseSigningService.verify_signature(license_data)
+    except RuntimeError:
+        return {"valid": False, "error": "Public key not available for verification."}
+
+    if not sig_valid:
+        return {"valid": False, "error": "License signature is invalid. Possible tampering detected."}
+
+    # Step 2: Check machine fingerprint
+    machine_block = license_data.get("machine", {})
+    expected_fp = machine_block.get("fingerprint", "") if isinstance(machine_block, dict) else ""
+    if not expected_fp:
+        return {"valid": False, "error": "License has no machine fingerprint."}
+
+    if not machine_info_data:
+        return {"valid": False, "error": "No machine_info provided for validation."}
+
+    fp_valid = MachineFingerprintService.validate_fingerprint(expected_fp, machine_info_data)
+    if not fp_valid:
+        return {"valid": False, "error": "License not valid for this machine."}
+
+    # Step 3: Check expiry
+    expires_str = license_data.get("expiresAt", "")
+    if expires_str:
+        try:
+            expires = datetime.fromisoformat(expires_str).replace(tzinfo=timezone.utc)
+            if expires <= datetime.now(timezone.utc):
+                return {"valid": False, "error": f"License expired on {expires_str}."}
+        except ValueError:
+            return {"valid": False, "error": "Invalid expiry date format."}
+
+    return {
+        "valid": True,
+        "licenseId": license_data.get("licenseId", ""),
+        "features": license_data.get("features", {}),
+        "limits": license_data.get("limits", {}),
+        "expiresAt": expires_str,
+    }

@@ -89,3 +89,19 @@ class LicenseDashboardOut(BaseModel):
     expired_licenses: int
     enabled_features: dict[str, int]
     recent_activity: list[LicenseActivityOut]
+
+
+# --- Machine Info ---
+
+
+class MachineInfoUpload(BaseModel):
+    """Schema for machine-info.json uploaded by admin."""
+    machine_id: str = Field(default="", max_length=512)
+    bios_uuid: str = Field(default="", max_length=512)
+    cpu_vendor: str = Field(default="", max_length=256)
+    cpu_model: str = Field(default="", max_length=256)
+    cpu_family: str = Field(default="", max_length=64)
+    disk_serial: str = Field(default="", max_length=256)
+    hostname: str = Field(default="", max_length=256)
+    mac_address: str = Field(default="", max_length=64)
+    collected_at: Optional[str] = None

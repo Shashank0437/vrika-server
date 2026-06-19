@@ -119,6 +119,16 @@ class Settings(BaseSettings):
         "Reserve smart-scan-style meta-tools when the user wants a single orchestrated pass or when discrete scanners are not listed."
     )
 
+    # License signing keys (ECDSA P-256)
+    license_private_key_path: str = Field(
+        default="/app/keys/license_private.pem",
+        validation_alias=AliasChoices("LICENSE_PRIVATE_KEY_PATH"),
+    )
+    license_public_key_path: str = Field(
+        default="/app/keys/license_public.pem",
+        validation_alias=AliasChoices("LICENSE_PUBLIC_KEY_PATH"),
+    )
+
     @field_validator(
         "brevo_api_key",
         "brevo_sender_email",
