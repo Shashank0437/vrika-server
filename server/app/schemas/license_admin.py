@@ -18,6 +18,18 @@ class LicenseStatus(str, Enum):
     active = "active"
     expired = "expired"
     revoked = "revoked"
+    suspended = "suspended"
+
+
+class LicenseType(str, Enum):
+    trial = "trial"
+    standard = "standard"
+    enterprise = "enterprise"
+
+
+class ProductEdition(str, Enum):
+    standard = "standard"
+    enterprise = "enterprise"
 
 
 # --- Customers ---
@@ -50,6 +62,8 @@ class CustomerOut(BaseModel):
 class LicenseGenerate(BaseModel):
     customer_id: str
     product: str = Field(default="vrika", min_length=1, max_length=100)
+    edition: ProductEdition = ProductEdition.enterprise
+    license_type: LicenseType = LicenseType.enterprise
     features: list[LicenseFeature]
     max_users: int = Field(..., ge=1, le=100_000)
     max_agents: int = Field(..., ge=1, le=10_000)
@@ -63,6 +77,8 @@ class LicenseOut(BaseModel):
     customer_name: str
     customer_email: str
     product: str
+    edition: str = "enterprise"
+    license_type: str = "enterprise"
     features: list[LicenseFeature]
     max_users: int
     max_agents: int
@@ -70,6 +86,7 @@ class LicenseOut(BaseModel):
     expires_at: datetime
     status: LicenseStatus
     created_at: datetime
+    version: str = "1.0"
 
 
 # --- Dashboard ---

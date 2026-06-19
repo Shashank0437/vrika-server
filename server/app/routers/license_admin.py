@@ -72,6 +72,8 @@ def _license_out(doc: dict) -> LicenseOut:
         customer_name=doc.get("customer_name", ""),
         customer_email=doc.get("customer_email", ""),
         product=doc["product"],
+        edition=doc.get("edition", "enterprise"),
+        license_type=doc.get("license_type", "enterprise"),
         features=doc["features"],
         max_users=doc["max_users"],
         max_agents=doc["max_agents"],
@@ -79,6 +81,7 @@ def _license_out(doc: dict) -> LicenseOut:
         expires_at=exp,
         status=current_status,
         created_at=doc["created_at"],
+        version=doc.get("version", "1.0"),
     )
 
 
@@ -312,6 +315,9 @@ async def generate_license(
         raise HTTPException(status_code=400, detail="Expiry date must be in the future")
 
     doc: dict[str, Any] = {
+        "version": "1.0",
+        "license_type": body.license_type.value,
+        "edition": body.edition.value,
         "customer_id": customer["_id"],
         "customer_name": customer["name"],
         "customer_email": customer["email"],
@@ -322,6 +328,7 @@ async def generate_license(
         "machine_fingerprint": body.machine_fingerprint,
         "expires_at": expires,
         "status": "active",
+        "key_id": "prod-key-1",
         "created_at": datetime.now(timezone.utc),
         "created_by": str(user["_id"]),
     }
@@ -358,42 +365,107 @@ async def revoke_license(
     return _license_out(doc)
 
 
-@router.get("/licenses/{license_id}/download")
-async def download_license(
+@router.post("/licenses/{license_id}/suspend", response_model=LicenseOut)
+async def suspend_license(
     license_id: str,
     user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
+) -> LicenseOut:
+    _require_license_admin(user)
+    oid = _oid(license_id)
+    doc = await db[LICENSES_COLLECTION].find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="License not found")
+    if doc["status"] != "active":
+        raise HTTPException(status_code=400, detail=f"Can only suspend active licenses. Current: {doc['status']}")
+
+    await db[LICENSES_COLLECTION].update_one(
+        {"_id": oid},
+        {"$set": {"status": "suspended", "suspended_at": datetime.now(timezone.utc), "suspended_by": str(user["_id"])}},
+    )
+    doc["status"] = "suspended"
+
+    await _log_activity(db, "suspended", license_id, doc.get("customer_name", ""))
+
+    return _license_out(doc)
+
+
+@router.post("/licenses/{license_id}/reactivate", response_model=LicenseOut)
+async def reactivate_license(
+    license_id: str,
+    user: dict = Depends(require_auth_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> LicenseOut:
+    _require_license_admin(user)
+    oid = _oid(license_id)
+    doc = await db[LICENSES_COLLECTION].find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="License not found")
+    if doc["status"] != "suspended":
+        raise HTTPException(status_code=400, detail="Can only reactivate suspended licenses.")
+
+    await db[LICENSES_COLLECTION].update_one(
+        {"_id": oid},
+        {"$set": {"status": "active"}, "$unset": {"suspended_at": "", "suspended_by": ""}},
+    )
+    doc["status"] = "active"
+
+    await _log_activity(db, "reactivated", license_id, doc.get("customer_name", ""))
+
+    return _license_out(doc)
+
+
+@router.get("/licenses/{license_id}/download")
+async def download_license(
+    license_id: str,
+    format: str = "json",
+    user: dict = Depends(require_auth_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> JSONResponse:
-    """Download signed license.json — production format with digital signature."""
+    """Download signed license — enterprise format with digital signature.
+
+    Query params:
+        format: "json" (default) or "key" (same payload, .key extension)
+    """
     _require_license_admin(user)
     doc = await db[LICENSES_COLLECTION].find_one({"_id": _oid(license_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="License not found")
 
-    # Build license payload in production format
+    # Build enterprise license payload
     license_data: dict[str, Any] = {
+        "version": doc.get("version", "1.0"),
         "licenseId": f"LIC-{str(doc['_id'])}",
+        "licenseType": doc.get("license_type", "enterprise"),
         "customer": {
             "name": doc["customer_name"],
             "email": doc.get("customer_email", ""),
             "organization": doc.get("customer_email", ""),
         },
+        "product": {
+            "name": doc["product"],
+            "edition": doc.get("edition", "enterprise"),
+        },
         "machine": {
             "fingerprint": doc["machine_fingerprint"],
         },
-        "product": doc["product"],
         "features": {
-            "aiAgent": "ai_agent" in doc["features"],
-            "networkScanner": "network_scanner" in doc["features"],
-            "malwareAnalysis": "malware_analysis" in doc["features"],
-            "forensics": "forensics" in doc["features"],
+            "aiAgent": {"enabled": "ai_agent" in doc["features"]},
+            "networkScanner": {"enabled": "network_scanner" in doc["features"]},
+            "malwareAnalysis": {"enabled": "malware_analysis" in doc["features"]},
+            "forensics": {"enabled": "forensics" in doc["features"]},
         },
         "limits": {
             "maxUsers": doc["max_users"],
             "maxAgents": doc["max_agents"],
         },
-        "expiresAt": doc["expires_at"].isoformat(),
+        "status": doc.get("status", "active"),
         "issuedAt": doc["created_at"].isoformat(),
+        "expiresAt": doc["expires_at"].isoformat(),
+        "issuer": {
+            "name": "Vrika Security",
+            "keyId": doc.get("key_id", "prod-key-1"),
+        },
     }
 
     # Sign the license payload
@@ -406,10 +478,13 @@ async def download_license(
             detail=f"License signing failed: {e}. Ensure private key is configured.",
         )
 
+    ext = "key" if format == "key" else "json"
+    filename = f"vrika-license-{license_id}.{ext}"
+
     return JSONResponse(
         content=license_data,
         headers={
-            "Content-Disposition": f'attachment; filename="license-{license_id}.json"',
+            "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
 
@@ -437,23 +512,21 @@ async def validate_license_endpoint(
     try:
         sig_valid = LicenseSigningService.verify_signature(license_data)
     except RuntimeError:
-        return {"valid": False, "error": "Public key not available for verification."}
+        return {"valid": False, "error": "INVALID_SIGNATURE", "message": "Public key not available for verification."}
 
     if not sig_valid:
-        return {"valid": False, "error": "License signature is invalid. Possible tampering detected."}
+        return {"valid": False, "error": "INVALID_SIGNATURE", "message": "License signature is invalid. Possible tampering detected."}
 
-    # Step 2: Check machine fingerprint
-    machine_block = license_data.get("machine", {})
-    expected_fp = machine_block.get("fingerprint", "") if isinstance(machine_block, dict) else ""
-    if not expected_fp:
-        return {"valid": False, "error": "License has no machine fingerprint."}
-
-    if not machine_info_data:
-        return {"valid": False, "error": "No machine_info provided for validation."}
-
-    fp_valid = MachineFingerprintService.validate_fingerprint(expected_fp, machine_info_data)
-    if not fp_valid:
-        return {"valid": False, "error": "License not valid for this machine."}
+    # Step 2: Check license status
+    status = license_data.get("status", "active")
+    if status == "revoked":
+        return {"valid": False, "error": "LICENSE_REVOKED", "message": "This license has been revoked."}
+    if status == "suspended":
+        return {"valid": False, "error": "LICENSE_SUSPENDED", "message": "This license has been suspended. Contact your vendor."}
+    if status == "expired":
+        return {"valid": False, "error": "LICENSE_EXPIRED", "message": "This license is marked as expired."}
+    if status != "active":
+        return {"valid": False, "error": "LICENSE_INVALID_STATUS", "message": f"License status '{status}' is not valid."}
 
     # Step 3: Check expiry
     expires_str = license_data.get("expiresAt", "")
@@ -461,14 +534,39 @@ async def validate_license_endpoint(
         try:
             expires = datetime.fromisoformat(expires_str).replace(tzinfo=timezone.utc)
             if expires <= datetime.now(timezone.utc):
-                return {"valid": False, "error": f"License expired on {expires_str}."}
+                return {"valid": False, "error": "LICENSE_EXPIRED", "message": f"License expired on {expires_str}."}
         except ValueError:
-            return {"valid": False, "error": "Invalid expiry date format."}
+            return {"valid": False, "error": "LICENSE_EXPIRED", "message": "Invalid expiry date format."}
+
+    # Step 4: Check machine fingerprint
+    machine_block = license_data.get("machine", {})
+    expected_fp = machine_block.get("fingerprint", "") if isinstance(machine_block, dict) else ""
+    if not expected_fp:
+        return {"valid": False, "error": "MACHINE_MISMATCH", "message": "License has no machine fingerprint."}
+
+    if not machine_info_data:
+        return {"valid": False, "error": "MACHINE_MISMATCH", "message": "No machine_info provided for validation."}
+
+    fp_valid = MachineFingerprintService.validate_fingerprint(expected_fp, machine_info_data)
+    if not fp_valid:
+        return {"valid": False, "error": "MACHINE_MISMATCH", "message": "License not valid for this machine. Fingerprint mismatch."}
+
+    # Step 5: Extract features (support both old and new format)
+    raw_features = license_data.get("features", {})
+    enabled_features: dict[str, bool] = {}
+    for key, val in raw_features.items():
+        if isinstance(val, dict):
+            enabled_features[key] = val.get("enabled", False)
+        else:
+            enabled_features[key] = bool(val)
 
     return {
         "valid": True,
         "licenseId": license_data.get("licenseId", ""),
-        "features": license_data.get("features", {}),
+        "licenseType": license_data.get("licenseType", "enterprise"),
+        "product": license_data.get("product", {}),
+        "features": enabled_features,
         "limits": license_data.get("limits", {}),
         "expiresAt": expires_str,
+        "status": "active",
     }
