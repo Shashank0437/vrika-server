@@ -1,0 +1,8 @@
+{
+  "name": "Vrika License Admin",
+  "short_name": "VrikaAdmin",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fdfcff",
+  "theme_color": "#684cb6"
+}
