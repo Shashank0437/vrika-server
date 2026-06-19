@@ -87,4 +87,8 @@ services:
 
 volumes:
   cipherstrike_mongo:
+    external: true
+    name: cipher-web_cipherstrike_mongo
   cipherstrike_redis:
+    external: true
+    name: cipher-web_cipherstrike_redis
