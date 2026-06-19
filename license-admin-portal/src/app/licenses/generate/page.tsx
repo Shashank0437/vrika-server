@@ -74,14 +74,15 @@ export default function LicenseGeneratePage() {
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownload = async (format: "json" | "key" = "json") => {
     if (!generated) return;
     try {
-      const blob = await licensesApi.download(generated.id);
+      const blob = await licensesApi.download(generated.id, format);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `license-${generated.id}.json`;
+      const ext = format === "key" ? "key" : "json";
+      a.download = `vrika-license-${generated.id}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -120,11 +121,18 @@ export default function LicenseGeneratePage() {
 
           <div className="mt-6 flex justify-center gap-3">
             <button
-              onClick={handleDownload}
+              onClick={() => handleDownload("json")}
               className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary transition hover:opacity-90"
             >
               <MaterialSymbol name="download" className="text-base" filled />
-              Download license.json
+              Download .json
+            </button>
+            <button
+              onClick={() => handleDownload("key")}
+              className="flex items-center gap-2 rounded-lg border border-primary px-5 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10"
+            >
+              <MaterialSymbol name="key" className="text-base" filled />
+              Download .key
             </button>
             <button
               onClick={() => setGenerated(null)}

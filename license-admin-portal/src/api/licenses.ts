@@ -64,8 +64,9 @@ export const licensesApi = {
     return data;
   },
 
-  async download(id: string): Promise<Blob> {
+  async download(id: string, format: "json" | "key" = "json"): Promise<Blob> {
     const { data } = await apiClient.get(`/license-admin/licenses/${id}/download`, {
+      params: { format },
       responseType: "blob",
     });
     return data;

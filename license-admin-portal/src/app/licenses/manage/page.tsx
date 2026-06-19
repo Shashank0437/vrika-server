@@ -57,13 +57,14 @@ export default function LicenseManagePage() {
     }
   };
 
-  const handleDownload = async (id: string) => {
+  const handleDownload = async (id: string, format: "json" | "key" = "json") => {
     try {
-      const blob = await licensesApi.download(id);
+      const blob = await licensesApi.download(id, format);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `license-${id}.json`;
+      const ext = format === "key" ? "key" : "json";
+      a.download = `vrika-license-${id}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -140,11 +141,18 @@ export default function LicenseManagePage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => handleDownload(lic.id)}
+                        onClick={() => handleDownload(lic.id, "json")}
                         className="rounded p-1.5 text-on-surface-variant transition hover:bg-surface-container hover:text-primary"
-                        title="Download"
+                        title="Download .json"
                       >
                         <MaterialSymbol name="download" className="text-lg" />
+                      </button>
+                      <button
+                        onClick={() => handleDownload(lic.id, "key")}
+                        className="rounded p-1.5 text-on-surface-variant transition hover:bg-surface-container hover:text-primary"
+                        title="Download .key"
+                      >
+                        <MaterialSymbol name="key" className="text-lg" />
                       </button>
                       {lic.status === "active" && (
                         <button
