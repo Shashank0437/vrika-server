@@ -250,18 +250,56 @@ export default function LicenseGeneratePage() {
           />
         </div>
 
-        {/* Fingerprint */}
+        {/* Fingerprint — upload machine-info.json */}
         <div>
           <label className={labelCls}>Machine Fingerprint</label>
-          <input
-            type="text"
-            required
-            value={form.machine_fingerprint}
-            onChange={(e) => setForm({ ...form, machine_fingerprint: e.target.value })}
-            className={inputCls}
-            placeholder="Enter machine fingerprint hash"
-          />
-          <p className="mt-1 text-xs text-on-surface-variant">Unique identifier for the target deployment machine</p>
+          <div className="mt-1 space-y-3">
+            {/* Upload button */}
+            <div className="flex items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-outline-variant bg-surface-container px-4 py-2.5 text-sm font-medium text-on-surface-variant transition hover:border-primary hover:text-on-surface">
+                <MaterialSymbol name="upload_file" className="text-lg" filled />
+                Upload machine-info.json
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      const machineInfo = JSON.parse(text);
+                      setError(null);
+                      // Call backend to hash
+                      const { fingerprint } = await licensesApi.hashMachineInfo(machineInfo);
+                      setForm((f) => ({ ...f, machine_fingerprint: fingerprint }));
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Failed to process machine-info.json");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {form.machine_fingerprint && (
+                <span className="flex items-center gap-1 text-xs text-tertiary">
+                  <MaterialSymbol name="check_circle" className="text-sm" filled />
+                  Fingerprint generated
+                </span>
+              )}
+            </div>
+            {/* Display fingerprint hash */}
+            <input
+              type="text"
+              required
+              readOnly
+              value={form.machine_fingerprint}
+              className={`${inputCls} bg-surface-container font-mono text-xs`}
+              placeholder="SHA256 fingerprint will appear here after upload"
+            />
+            <p className="text-xs text-on-surface-variant">
+              Upload the machine-info.json file collected from the customer&apos;s server
+            </p>
+          </div>
         </div>
 
         <button

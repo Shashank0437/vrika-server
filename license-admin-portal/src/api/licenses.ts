@@ -76,6 +76,11 @@ export const licensesApi = {
     return data;
   },
 
+  async hashMachineInfo(machineInfo: Record<string, string>): Promise<{ fingerprint: string }> {
+    const { data } = await apiClient.post("/license-admin/machine-info/hash", machineInfo);
+    return data;
+  },
+
   async listByCustomer(customerId: string): Promise<License[]> {
     const { data } = await apiClient.get(`/license-admin/customers/${customerId}/licenses`);
     return data;
