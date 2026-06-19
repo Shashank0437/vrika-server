@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db import get_database
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import require_auth_user
 from app.schemas.license_admin import (
     CustomerCreate,
     CustomerOut,
@@ -95,7 +95,7 @@ async def _log_activity(
 
 @router.get("/dashboard", response_model=LicenseDashboardOut)
 async def license_dashboard(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> LicenseDashboardOut:
     _require_license_admin(user)
@@ -143,7 +143,7 @@ async def license_dashboard(
 
 @router.get("/customers", response_model=list[CustomerOut])
 async def list_customers(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[CustomerOut]:
     _require_license_admin(user)
@@ -158,7 +158,7 @@ async def list_customers(
 @router.get("/customers/{customer_id}", response_model=CustomerOut)
 async def get_customer(
     customer_id: str,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> CustomerOut:
     _require_license_admin(user)
@@ -172,7 +172,7 @@ async def get_customer(
 @router.post("/customers", response_model=CustomerOut, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     body: CustomerCreate,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> CustomerOut:
     _require_license_admin(user)
@@ -196,7 +196,7 @@ async def create_customer(
 async def update_customer(
     customer_id: str,
     body: CustomerUpdate,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> CustomerOut:
     _require_license_admin(user)
@@ -218,7 +218,7 @@ async def update_customer(
 @router.delete("/customers/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_customer(
     customer_id: str,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> None:
     _require_license_admin(user)
@@ -236,7 +236,7 @@ async def delete_customer(
 
 @router.get("/licenses", response_model=list[LicenseOut])
 async def list_licenses(
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[LicenseOut]:
     _require_license_admin(user)
@@ -247,7 +247,7 @@ async def list_licenses(
 @router.get("/customers/{customer_id}/licenses", response_model=list[LicenseOut])
 async def list_customer_licenses(
     customer_id: str,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[LicenseOut]:
     _require_license_admin(user)
@@ -258,7 +258,7 @@ async def list_customer_licenses(
 @router.get("/licenses/{license_id}", response_model=LicenseOut)
 async def get_license(
     license_id: str,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> LicenseOut:
     _require_license_admin(user)
@@ -271,7 +271,7 @@ async def get_license(
 @router.post("/licenses/generate", response_model=LicenseOut, status_code=status.HTTP_201_CREATED)
 async def generate_license(
     body: LicenseGenerate,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> LicenseOut:
     _require_license_admin(user)
@@ -313,7 +313,7 @@ async def generate_license(
 @router.post("/licenses/{license_id}/revoke", response_model=LicenseOut)
 async def revoke_license(
     license_id: str,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> LicenseOut:
     _require_license_admin(user)
@@ -338,7 +338,7 @@ async def revoke_license(
 @router.get("/licenses/{license_id}/download")
 async def download_license(
     license_id: str,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> JSONResponse:
     """Download license as JSON (public fields only — no signing keys exposed)."""
