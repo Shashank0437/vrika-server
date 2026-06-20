@@ -143,6 +143,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="shrink-0 space-y-0 border-t border-outline-variant px-2 pb-3 pt-3">
+          {license?.valid && license.licenseType && (
+            <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-container px-4 py-2">
+              <MaterialSymbol name="verified" className="text-lg text-primary" filled />
+              <span className="text-xs font-semibold capitalize text-on-surface-variant">
+                {license.licenseType.replace("_", " ")}
+              </span>
+            </div>
+          )}
           <Link
             href={`/coming-soon/documentation?${COMING_SOON_FROM_DASHBOARD_QUERY}`}
             className={
