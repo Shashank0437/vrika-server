@@ -52,7 +52,7 @@ services:
       # Agent runs on the host in this setup; pass the host-reachable Redis URL to /api/internal/tool-run.
       AGENT_TOOL_STREAM_REDIS_URL: redis://127.0.0.1:6379/0
     volumes:
-      - license-keys:/app/keys
+      - ./server/keys:/app/keys
     depends_on:
       mongo:
         condition: service_healthy
@@ -94,4 +94,3 @@ volumes:
   cipherstrike_redis:
     external: true
     name: cipher-web_cipherstrike_redis
-  license-keys:
