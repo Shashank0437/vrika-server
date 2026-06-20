@@ -1596,7 +1596,12 @@ async def list_agent_chat_org_tools_catalog(
     *,
     organization_id: ObjectId,
 ) -> list[dict[str, str]] | None:
-    """[{name, description}, ...] sorted by name; None if agent unreachable."""
+    """[{name, description}, ...] sorted by name; None if agent unreachable.
+
+    Only returns tools that are allowed by the current license.
+    """
+    from app.services.license_runtime import license_runtime
+
     ctx = await _load_chat_tool_maps(settings, db, organization_id=organization_id)
     if ctx is None:
         return None
@@ -1604,6 +1609,8 @@ async def list_agent_chat_org_tools_catalog(
     rows: list[dict[str, str]] = []
     for name in sorted(by_name.keys()):
         if name in _CHAT_TOOLS_HIDE_FROM_ORG_PICKER:
+            continue
+        if not license_runtime.is_tool_allowed(name):
             continue
         item = by_name[name]
         rows.append({"name": name, "description": str(item.get("desc") or "").strip()})
