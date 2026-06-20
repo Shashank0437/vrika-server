@@ -1559,12 +1559,16 @@ async def _load_chat_tool_maps(
     *,
     organization_id: ObjectId,
 ) -> tuple[dict[str, dict[str, Any]], list[dict[str, str]]] | None:
-    """Agent catalog intersected with org-enabled chat tools that report installed on the agent host. None if agent unreachable."""
+    """Agent catalog intersected with org-enabled chat tools that report installed on the agent host. None if agent unreachable.
+
+    Also filters out tools not included in the current license.
+    """
     try:
         health, catalog = await fetch_agent_health_and_catalog(settings)
     except AgentUnreachableError:
         return None
 
+    from app.services.license_runtime import license_runtime
     from app.services.organization_tools import get_disabled_tool_names
 
     disabled = await get_disabled_tool_names(db, organization_id)
@@ -1581,6 +1585,8 @@ async def _load_chat_tool_maps(
         if not name or name in disabled or name in _CHAT_TOOL_BLOCKLIST:
             continue
         if not tool_installed_from_agent_health(health, item):
+            continue
+        if not license_runtime.is_tool_allowed(name):
             continue
         by_name[name] = item
         desc = str(item.get("desc") or "").strip()
