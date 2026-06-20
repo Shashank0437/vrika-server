@@ -153,7 +153,7 @@ class Settings(BaseSettings):
     )
     # If True, block app startup when license is invalid. If False, start in degraded mode.
     license_enforce_on_startup: bool = Field(
-        default=True,
+        default=False,
         validation_alias=AliasChoices("LICENSE_ENFORCE_ON_STARTUP"),
     )
 

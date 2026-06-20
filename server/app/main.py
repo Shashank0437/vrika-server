@@ -22,12 +22,15 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     try:
         await license_runtime.initialize()
-        # Start background license monitor (re-validates every N minutes)
         await license_runtime.start_monitor()
     except RuntimeError as e:
         logger.critical(str(e))
         if settings.license_enforce_on_startup:
             raise
+        logger.warning("Starting in DEGRADED MODE — license is not valid.")
+    except Exception as e:
+        logger.error(f"License initialization error: {e}")
+        logger.warning("Starting in DEGRADED MODE — license check failed.")
 
     yield
 
