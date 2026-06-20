@@ -41,6 +41,15 @@ logger = logging.getLogger(__name__)
 
 PENETRATION_REPORT_TOOL_NAME = "penetration-report"
 
+# Tools always allowed regardless of license (reporting utilities, not security tools)
+_LICENSE_EXEMPT_TOOLS = frozenset({PENETRATION_REPORT_TOOL_NAME})
+
+
+def _is_license_exempt(tool_name: str) -> bool:
+    """Return True if the tool should bypass license checks."""
+    return tool_name.strip() in _LICENSE_EXEMPT_TOOLS
+
+
 # Tools that only derive artifacts from chat/session state (no host probes). Any session owner runs
 # these immediately when tool_execution_mode is ask_permission — avoids infosec-style approval UX.
 AGENT_CHAT_TOOLS_SKIP_APPROVAL_PROMPT: frozenset[str] = frozenset({PENETRATION_REPORT_TOOL_NAME})
@@ -572,6 +581,14 @@ _TOOL_PICK_QUESTION_RE = re.compile(
     r"\b(which|what)\s+(tool|tools)\b|\b(tool|tools)\s+(should|can|do|would)\s+i\b",
     re.IGNORECASE,
 )
+_REPORT_REQUEST_RE = re.compile(
+    r"\b(generate|create|make|build|give|download|export|write)\s+(a\s+|the\s+|me\s+|my\s+)?"
+    r"(downloadable\s+)?(report|pdf|penetration\s+report|pentest\s+report|security\s+report|executive\s+summary)\b|"
+    r"\b(report|pdf)\s+(generation|download|export)\b|"
+    r"\bwrite[\s-]?up\s+(the\s+)?findings\b",
+    re.IGNORECASE,
+)
+
 _EXPLICIT_RUN_TOOL_RE = re.compile(
     r"\b(run|execute|launch|start)\s+(the\s+)?(scan|tool|test|pentest|nikto|nuclei|nmap|httpx)\b|"
     r"\b(scan|pentest)\s+(this|the|that)\b|"
@@ -1586,7 +1603,8 @@ async def _load_chat_tool_maps(
             continue
         if not tool_installed_from_agent_health(health, item):
             continue
-        if not license_runtime.is_tool_allowed(name):
+        # penetration-report is always allowed (reporting utility, not a licensed tool)
+        if not _is_license_exempt(name) and not license_runtime.is_tool_allowed(name):
             continue
         by_name[name] = item
         desc = str(item.get("desc") or "").strip()
@@ -1929,6 +1947,18 @@ async def plan_router_turn(
             router_reply=None,
         )
 
+    # Short-circuit: if user explicitly asks for a report, pick penetration-report directly
+    if not explicit and _REPORT_REQUEST_RE.search(user_message) and PENETRATION_REPORT_TOOL_NAME in by_name:
+        meta["tool_selection"] = "report_shortcircuit"
+        logger.info("agent_chat: report request detected, forcing penetration-report tool")
+        return await _bridge_fetch_tool_schemas(
+            settings,
+            [by_name[PENETRATION_REPORT_TOOL_NAME]],
+            timeout_seconds=settings.agent_timeout_seconds,
+            meta=meta,
+            router_reply=None,
+        )
+
     router_context = _build_router_context(rows, current_user_message=user_message)
     try:
         route_intent_payload: dict[str, Any] = {
@@ -1991,6 +2021,22 @@ async def plan_router_turn(
     names = raw_route.get("tool_names") or []
     if not isinstance(names, list):
         names = []
+
+    # Safety net: router said "reporting" but picked wrong tools → force penetration-report
+    rc = meta.get("router_category")
+    if rc == "reporting" and PENETRATION_REPORT_TOOL_NAME in by_name:
+        report_already = any(str(n).strip() == PENETRATION_REPORT_TOOL_NAME for n in names if isinstance(n, str))
+        if not report_already:
+            logger.info("agent_chat: router category=reporting but wrong tools picked; forcing penetration-report")
+            meta["tool_selection"] = "report_category_override"
+            return await _bridge_fetch_tool_schemas(
+                settings,
+                [by_name[PENETRATION_REPORT_TOOL_NAME]],
+                timeout_seconds=settings.agent_timeout_seconds,
+                meta=meta,
+                router_reply=None,
+            )
+
     tools_objs = []
     unlicensed_names: list[str] = []
     for n in names:
@@ -2182,8 +2228,8 @@ async def stream_cipherstrike_turn(
                     )
                     # Filter out tools not included in the license
                     from app.services.license_runtime import license_runtime as _lr_batch
-                    _unlicensed_batch = [str(c.get("tool_name") or "") for c in calls if not _lr_batch.is_tool_allowed(str(c.get("tool_name") or "").strip())]
-                    calls = [c for c in calls if _lr_batch.is_tool_allowed(str(c.get("tool_name") or "").strip())]
+                    _unlicensed_batch = [str(c.get("tool_name") or "") for c in calls if not _is_license_exempt(str(c.get("tool_name") or "").strip()) and not _lr_batch.is_tool_allowed(str(c.get("tool_name") or "").strip())]
+                    calls = [c for c in calls if _is_license_exempt(str(c.get("tool_name") or "").strip()) or _lr_batch.is_tool_allowed(str(c.get("tool_name") or "").strip())]
                     if not calls and _unlicensed_batch:
                         _ul_names = ", ".join(f"**{n}**" for n in _unlicensed_batch)
                         _ul_msg = f"The following tools are not included in your license: {_ul_names}. Contact your administrator to upgrade your license."
@@ -2297,7 +2343,7 @@ async def stream_cipherstrike_turn(
                         continue
                     # License check: block tool if not included in license
                     from app.services.license_runtime import license_runtime as _lr
-                    if not _lr.is_tool_allowed(tool_name.strip()):
+                    if not _is_license_exempt(tool_name.strip()) and not _lr.is_tool_allowed(tool_name.strip()):
                         logger.info(
                             "stream_cipherstrike_turn: tool %r blocked by license", tool_name,
                         )
@@ -2824,7 +2870,7 @@ async def execute_tool_slots_follow_up(
                     "progress_line": None,
                 },
             )
-        elif d == "approve" and not license_runtime.is_tool_allowed(tn):
+        elif d == "approve" and not _is_license_exempt(tn) and not license_runtime.is_tool_allowed(tn):
             ts = _utc_now_iso()
             row.update(
                 {
@@ -2866,7 +2912,7 @@ async def execute_tool_slots_follow_up(
         for s in working_slots
         if str(s.get("human_decision") or "").lower() == "approve"
         and str(s.get("tool_name") or "").strip() not in disabled
-        and license_runtime.is_tool_allowed(str(s.get("tool_name") or "").strip())
+        and (_is_license_exempt(str(s.get("tool_name") or "").strip()) or license_runtime.is_tool_allowed(str(s.get("tool_name") or "").strip()))
     ]
 
     batch_filter = (
@@ -3610,8 +3656,8 @@ async def stream_follow_up_after_tool(
                     )
                     # Filter out tools not included in the license
                     from app.services.license_runtime import license_runtime as _lr_fu
-                    _ul_fu = [str(c.get("tool_name") or "") for c in calls if not _lr_fu.is_tool_allowed(str(c.get("tool_name") or "").strip())]
-                    calls = [c for c in calls if _lr_fu.is_tool_allowed(str(c.get("tool_name") or "").strip())]
+                    _ul_fu = [str(c.get("tool_name") or "") for c in calls if not _is_license_exempt(str(c.get("tool_name") or "").strip()) and not _lr_fu.is_tool_allowed(str(c.get("tool_name") or "").strip())]
+                    calls = [c for c in calls if _is_license_exempt(str(c.get("tool_name") or "").strip()) or _lr_fu.is_tool_allowed(str(c.get("tool_name") or "").strip())]
                     if not calls and _ul_fu:
                         _ul_fu_names = ", ".join(f"**{n}**" for n in _ul_fu)
                         _ul_fu_msg = f"The following tools are not included in your license: {_ul_fu_names}. Contact your administrator to upgrade your license."
@@ -3752,7 +3798,7 @@ async def stream_follow_up_after_tool(
                         continue
                     # License check: block unlicensed tools
                     from app.services.license_runtime import license_runtime as _lr_fu2
-                    if not _lr_fu2.is_tool_allowed(tool_name.strip()):
+                    if not _is_license_exempt(tool_name.strip()) and not _lr_fu2.is_tool_allowed(tool_name.strip()):
                         logger.info("stream_follow_up_after_tool: tool %r blocked by license", tool_name)
                         _lic_msg = f"Tool **{tool_name}** is not included in your license. Contact your administrator to upgrade your license."
                         yield f"data: {_lic_msg}\n\n"

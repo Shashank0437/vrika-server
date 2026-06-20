@@ -923,9 +923,10 @@ async def tool_confirm_stream(
                 yield "data: [DONE]\n\n"
                 return
 
-            # License-based tool restriction
+            # License-based tool restriction (exempt report tools)
             from app.services.license_runtime import license_runtime
-            if not license_runtime.is_tool_allowed(tool_name.strip()):
+            from app.services.agent_chat import _is_license_exempt
+            if not _is_license_exempt(tool_name.strip()) and not license_runtime.is_tool_allowed(tool_name.strip()):
                 yield f'data: [ERROR] Tool \'{tool_name}\' is not included in your license. Contact your administrator to upgrade your license.\n\n'
                 yield "data: [DONE]\n\n"
                 return
