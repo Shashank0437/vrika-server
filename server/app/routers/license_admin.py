@@ -299,7 +299,7 @@ async def hash_machine_info(
 @router.get("/available-tools")
 async def list_available_tools(
     user: dict = Depends(require_auth_user),
-) -> list[dict[str, str]]:
+):
     """Return list of all tools from the agent catalog for license tool selection.
 
     Returns [{name, description, category, active}, ...] sorted by name.
@@ -315,12 +315,17 @@ async def list_available_tools(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Agent unreachable: {e.message}",
         )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch tool catalog: {str(e)}",
+        )
 
     raw_tools = catalog.get("tools")
     if not isinstance(raw_tools, list):
         return []
 
-    tools: list[dict[str, str]] = []
+    tools = []
     for item in raw_tools:
         if not isinstance(item, dict):
             continue
@@ -329,9 +334,9 @@ async def list_available_tools(
             continue
         tools.append({
             "name": name,
-            "description": str(item.get("desc") or "").strip(),
+            "description": str(item.get("desc") or item.get("description") or "").strip(),
             "category": str(item.get("category") or "uncategorized"),
-            "active": tool_installed_from_agent_health(health, item),
+            "active": str(tool_installed_from_agent_health(health, item)),
         })
 
     tools.sort(key=lambda t: t["name"])
