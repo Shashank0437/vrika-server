@@ -2,16 +2,17 @@ import apiClient from "./client";
 
 export type LicenseFeature = "ai_agent" | "network_scanner" | "malware_analysis" | "forensics";
 
+export type LicenseType = "free_trial" | "standard" | "premium" | "enterprise";
+
 export type License = {
   id: string;
   customer_id: string;
   customer_name: string;
   customer_email: string;
   product: string;
+  license_type: LicenseType;
   features: LicenseFeature[];
   allowed_tools: string[];
-  max_users: number;
-  max_agents: number;
   machine_fingerprint: string;
   expires_at: string;
   status: "active" | "expired" | "revoked" | "suspended";
@@ -21,10 +22,9 @@ export type License = {
 export type LicenseGenerate = {
   customer_id: string;
   product: string;
+  license_type: LicenseType;
   features: LicenseFeature[];
   allowed_tools: string[];
-  max_users: number;
-  max_agents: number;
   expires_at: string;
   machine_fingerprint: string;
 };

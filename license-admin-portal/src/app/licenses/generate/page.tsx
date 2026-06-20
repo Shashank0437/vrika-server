@@ -31,10 +31,9 @@ export default function LicenseGeneratePage() {
   const [form, setForm] = useState<LicenseGenerate>({
     customer_id: preselectedCustomer,
     product: "vrika",
+    license_type: "enterprise",
     features: [],
     allowed_tools: [],
-    max_users: 10,
-    max_agents: 5,
     expires_at: "",
     machine_fingerprint: "",
   });
@@ -247,30 +246,19 @@ export default function LicenseGeneratePage() {
           </div>
         </div>
 
-        {/* Limits */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelCls}>Maximum Users</label>
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.max_users}
-              onChange={(e) => setForm({ ...form, max_users: parseInt(e.target.value) || 1 })}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Maximum Agents</label>
-            <input
-              type="number"
-              min={1}
-              required
-              value={form.max_agents}
-              onChange={(e) => setForm({ ...form, max_agents: parseInt(e.target.value) || 1 })}
-              className={inputCls}
-            />
-          </div>
+        {/* License Type */}
+        <div>
+          <label className={labelCls}>License Type</label>
+          <select
+            value={form.license_type}
+            onChange={(e) => setForm({ ...form, license_type: e.target.value as LicenseGenerate["license_type"] })}
+            className={inputCls}
+          >
+            <option value="free_trial">Free Trial</option>
+            <option value="standard">Standard</option>
+            <option value="premium">Premium</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
         </div>
 
         {/* Allowed Tools */}

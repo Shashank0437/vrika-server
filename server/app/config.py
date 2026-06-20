@@ -139,16 +139,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MACHINE_INFO_PATH"),
     )
     license_check_interval_minutes: int = Field(
-        default=1,
+        default=15,
         ge=1,
-        le=60,
+        le=15,
         validation_alias=AliasChoices("LICENSE_CHECK_INTERVAL_MINUTES"),
     )
     # How often to regenerate the hardware fingerprint (hours)
     license_fingerprint_refresh_hours: int = Field(
-        default=0,
+        default=6,
         ge=0,
-        le=168,
+        le=6,
         validation_alias=AliasChoices("LICENSE_FINGERPRINT_REFRESH_HOURS"),
     )
     # If True, block app startup when license is invalid. If False, start in degraded mode.

@@ -22,8 +22,9 @@ class LicenseStatus(str, Enum):
 
 
 class LicenseType(str, Enum):
-    trial = "trial"
+    free_trial = "free_trial"
     standard = "standard"
+    premium = "premium"
     enterprise = "enterprise"
 
 
@@ -66,8 +67,6 @@ class LicenseGenerate(BaseModel):
     license_type: LicenseType = LicenseType.enterprise
     features: list[LicenseFeature]
     allowed_tools: list[str] = Field(default_factory=list, description="Tool names the customer is licensed to use. Empty = all tools allowed.")
-    max_users: int = Field(..., ge=1, le=100_000)
-    max_agents: int = Field(..., ge=1, le=10_000)
     expires_at: str = Field(..., description="ISO date string (YYYY-MM-DD)")
     machine_fingerprint: str = Field(..., min_length=4, max_length=512)
 
@@ -82,8 +81,6 @@ class LicenseOut(BaseModel):
     license_type: str = "enterprise"
     features: list[LicenseFeature]
     allowed_tools: list[str] = Field(default_factory=list)
-    max_users: int
-    max_agents: int
     machine_fingerprint: str
     expires_at: datetime
     status: LicenseStatus
