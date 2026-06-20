@@ -1562,12 +1562,6 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
               }
             >
               <div ref={scrollContentRef}>
-              {actionErr ? (
-                <div className="mb-4 rounded-xl border border-error/40 bg-error/10 px-4 py-3 text-[13px] text-error">
-                  {actionErr}
-                </div>
-              ) : null}
-
               {!hasThread ? (
                 <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-1 sm:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
                   <div className="flex w-full flex-col items-center text-center">
@@ -2168,6 +2162,11 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
 
             {hasThread ? (
               <div className="shrink-0 border-t border-outline-variant/50 px-3 py-4 sm:px-5 sm:py-5 lg:px-7">
+                {actionErr ? (
+                  <div className="mx-auto mb-3 w-[min(100%,60%)] min-w-0 rounded-xl border border-error/40 bg-error/10 px-4 py-3 text-[13px] text-error">
+                    {actionErr}
+                  </div>
+                ) : null}
                 {agentActivelyWorking ? (
                   <div className="mx-auto mb-2 w-[min(100%,60%)] min-w-0">
                     <AgentWorkingComposerStrip />
