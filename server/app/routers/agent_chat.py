@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any, AsyncIterator
 
 from bson import ObjectId
@@ -667,6 +668,53 @@ async def post_message_stream(
                 return
 
             tool_schemas = rt.schemas if (rt.intent == "operational" or rt.schemas) else None
+
+            # If the user explicitly asked to run a tool but no schemas were
+            # resolved, the tool is either org-disabled or not in the license.
+            # Return a clear error instead of sending to the LLM which outputs raw JSON.
+            if not tool_schemas and _EXPLICIT_RUN_TOOL_RE.search(user_msg):
+                # Try to extract tool name(s) the user mentioned
+                _mentioned = set()
+                for _m in re.finditer(
+                    r"\b(nmap|nikto|nuclei|httpx|subfinder|amass|ffuf|gobuster|sqlmap|"
+                    r"whatweb|wpscan|fierce|masscan|dirsearch|hydra|john|hashcat|"
+                    r"metasploit|burpsuite|zap|wireshark|aircrack|recon-ng|theharvester|"
+                    r"shodan|censys|dnsenum|dnsrecon|enum4linux|smbclient|crackmapexec|"
+                    r"responder|impacket|bloodhound|mimikatz|feroxbuster|arjun|paramspider)\b",
+                    user_msg,
+                    re.IGNORECASE,
+                ):
+                    _mentioned.add(_m.group(0).lower())
+                if _mentioned:
+                    _tool_list = ", ".join(sorted(_mentioned))
+                    _unavail_text = (
+                        f"The following tools are not available: {_tool_list}. "
+                        "They may be disabled by your organization or not included in your license. "
+                        "Contact your administrator for access."
+                    )
+                else:
+                    _unavail_text = (
+                        "The requested tool is not available. "
+                        "It may be disabled by your organization or not included in your license. "
+                        "Contact your administrator for access."
+                    )
+                step = 72
+                for i in range(0, len(_unavail_text), step):
+                    chunk = _unavail_text[i : i + step]
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                    await asyncio.sleep(0)
+                await insert_message(
+                    db,
+                    organization_id=user["organization_id"],
+                    user_id=user["_id"],
+                    session_id=sid,
+                    role="assistant",
+                    content=_unavail_text,
+                    routing=routing_hints_from_plan_meta(rt.meta),
+                )
+                yield "data: [DONE]\n\n"
+                return
+
             tenant_roles = list(user.get("roles") or [])
             auto_accept = body.tool_execution_mode == "auto_accept"
             async for chunk in stream_cipherstrike_turn(
