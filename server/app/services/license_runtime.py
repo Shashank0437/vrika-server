@@ -533,14 +533,15 @@ class LicenseRuntimeManager:
 
         Returns True if:
         - License is valid AND allowed_tools is empty (all tools allowed)
-        - License is valid AND tool_name is in allowed_tools list
+        - License is valid AND tool_name is in allowed_tools list (case-insensitive)
         """
         if not self._state.valid:
             return False
         # Empty list = all tools allowed (no restriction)
         if not self._state.allowed_tools:
             return True
-        return tool_name in self._state.allowed_tools
+        tool_lower = tool_name.strip().lower()
+        return any(t.strip().lower() == tool_lower for t in self._state.allowed_tools)
 
     def get_allowed_tools(self) -> list[str]:
         """Return list of allowed tool names. Empty = all allowed."""

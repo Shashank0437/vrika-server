@@ -1908,11 +1908,17 @@ async def plan_router_turn(
                 seen_o.add(n)
                 ordered.append(n)
         if not ordered:
+            unavail = [n for n in explicit if n not in by_name]
+            unavail_msg = (
+                f"The following tools are not available: {', '.join(unavail)}. "
+                "They may be disabled by your organization or not included in your license. "
+                "Contact your administrator for access."
+            ) if unavail else "The requested tools could not be resolved."
             return RouterTurnResult(
-                "operational",
+                "conversational",
                 None,
-                None,
-                {**meta, "explicit_tools_unresolved": True},
+                unavail_msg,
+                {**meta, "explicit_tools_unresolved": True, "unavailable_tools": unavail},
             )
         tools_objs = [by_name[n] for n in ordered]
         return await _bridge_fetch_tool_schemas(
@@ -1986,9 +1992,25 @@ async def plan_router_turn(
     if not isinstance(names, list):
         names = []
     tools_objs = []
+    unlicensed_names: list[str] = []
     for n in names:
-        if isinstance(n, str) and n.strip() in by_name:
+        if not isinstance(n, str) or not n.strip():
+            continue
+        if n.strip() in by_name:
             tools_objs.append(by_name[n.strip()])
+        else:
+            # Tool was selected by router but not in by_name (likely filtered by license)
+            unlicensed_names.append(n.strip())
+    if not tools_objs and unlicensed_names:
+        # All router-selected tools are unavailable (org-disabled or not in license)
+        ul_list = ", ".join(unlicensed_names)
+        license_msg = (
+            f"The following tools are not available: {ul_list}. "
+            "They may be disabled by your organization or not included in your license. "
+            "Contact your administrator for access."
+        )
+        meta["unavailable_tools"] = unlicensed_names
+        return RouterTurnResult("conversational", None, license_msg, meta)
     if not tools_objs:
         fb = _fallback_security_tool_names(by_name, max_pick)
         if fb:
