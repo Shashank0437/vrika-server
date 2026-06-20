@@ -621,6 +621,27 @@ async def post_message_stream(
                 rt=rt,
             )
 
+            # If tools were blocked (org-disabled or license), always show the error
+            # regardless of _EXPLICIT_RUN_TOOL_RE matching.
+            if rt.meta.get("unavailable_tools") and rt.intent == "conversational" and (rt.router_reply or "").strip():
+                text = rt.router_reply.strip()
+                step = 72
+                for i in range(0, len(text), step):
+                    chunk = text[i : i + step]
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                    await asyncio.sleep(0)
+                await insert_message(
+                    db,
+                    organization_id=user["organization_id"],
+                    user_id=user["_id"],
+                    session_id=sid,
+                    role="assistant",
+                    content=text,
+                    routing=routing_hints_from_plan_meta(rt.meta),
+                )
+                yield "data: [DONE]\n\n"
+                return
+
             if (
                 rt.intent == "conversational"
                 and (rt.router_reply or "").strip()
