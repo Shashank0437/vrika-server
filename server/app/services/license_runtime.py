@@ -189,7 +189,7 @@ class LicenseRuntimeManager:
                 self._state = await self._validate_license_async()
 
                 if self._state.valid:
-                    logger.debug(
+                    logger.info(
                         f"License check OK — {self._state.days_remaining} days remaining"
                     )
                     # Record successful check time

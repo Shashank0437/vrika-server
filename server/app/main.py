@@ -11,6 +11,7 @@ from app.services.license_runtime import license_runtime
 
 import logging
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
