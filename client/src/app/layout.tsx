@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { GlobalPendingApiOverlay } from "@/components/global/GlobalPendingApiOverlay";
 import { AuthProvider } from "@/lib/auth-context";
+import { LicenseProvider } from "@/lib/license-context";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -38,7 +39,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <LicenseProvider>{children}</LicenseProvider>
+        </AuthProvider>
         <GlobalPendingApiOverlay />
       </body>
     </html>

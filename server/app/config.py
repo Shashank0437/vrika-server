@@ -129,6 +129,34 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("LICENSE_PUBLIC_KEY_PATH"),
     )
 
+    # Runtime license validation (on-prem deployment)
+    license_file_path: str = Field(
+        default="/app/keys/vrika-license.key",
+        validation_alias=AliasChoices("LICENSE_FILE_PATH"),
+    )
+    machine_info_path: str = Field(
+        default="/app/keys/machine-info.json",
+        validation_alias=AliasChoices("MACHINE_INFO_PATH"),
+    )
+    license_check_interval_minutes: int = Field(
+        default=15,
+        ge=1,
+        le=1440,
+        validation_alias=AliasChoices("LICENSE_CHECK_INTERVAL_MINUTES"),
+    )
+    # How often to regenerate the hardware fingerprint (hours)
+    license_fingerprint_refresh_hours: int = Field(
+        default=6,
+        ge=1,
+        le=168,
+        validation_alias=AliasChoices("LICENSE_FINGERPRINT_REFRESH_HOURS"),
+    )
+    # If True, block app startup when license is invalid. If False, start in degraded mode.
+    license_enforce_on_startup: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("LICENSE_ENFORCE_ON_STARTUP"),
+    )
+
     @field_validator(
         "brevo_api_key",
         "brevo_sender_email",

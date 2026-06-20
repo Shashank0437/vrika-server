@@ -5,9 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo } from "react";
 import { DashboardHeaderProfile } from "@/components/dashboard/DashboardHeaderProfile";
+import { LicenseErrorScreen } from "@/components/dashboard/LicenseErrorScreen";
+import { LicenseWarningBanner } from "@/components/dashboard/LicenseWarningBanner";
 import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { useAuth } from "@/lib/auth-context";
+import { useLicense } from "@/lib/license-context";
 import { COMING_SOON_FROM_DASHBOARD_QUERY } from "@/lib/coming-soon-routes";
 
 type NavMain = {
@@ -60,6 +63,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { license, loading: licenseLoading, hasFeature } = useLicense();
   const isAdmin = !!(user?.roles?.includes("tenant_admin"));
 
   useEffect(() => {
@@ -173,6 +177,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-background">
+        <LicenseWarningBanner />
         <header className="sticky top-0 z-40 flex items-center justify-end border-b border-outline-variant bg-background/90 px-6 py-3 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             {user.organization_name && (
@@ -193,6 +198,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </header>
         <main className="min-h-full flex-1 p-6">{children}</main>
       </div>
+
+      {/* License error overlay (blocks entire UI if license invalid) */}
+      <LicenseErrorScreen />
     </div>
   );
 }
