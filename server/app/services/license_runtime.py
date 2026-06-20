@@ -28,6 +28,7 @@ import json
 import logging
 import subprocess
 import hashlib
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from enum import Enum
@@ -48,6 +49,7 @@ class LicenseErrorCode(str, Enum):
     MACHINE_MISMATCH = "MACHINE_MISMATCH"
     FEATURE_DISABLED = "FEATURE_DISABLED"
     LICENSE_INVALID = "LICENSE_INVALID"
+    CLOCK_TAMPERED = "CLOCK_TAMPERED"
 
 
 @dataclass
@@ -81,6 +83,8 @@ class LicenseRuntimeManager:
         self._fingerprint_generated_at: Optional[datetime] = None
         self._monitor_task: Optional[asyncio.Task] = None
         self._initialized = False
+        self._boot_monotonic: float = time.monotonic()
+        self._boot_wall: datetime = datetime.now(timezone.utc)
 
     @property
     def state(self) -> LicenseState:
@@ -109,8 +113,8 @@ class LicenseRuntimeManager:
         # Step 1: Generate and cache machine fingerprint
         await self._refresh_fingerprint()
 
-        # Step 2: Full validation
-        state = self._validate_license()
+        # Step 2: Full validation (includes clock tamper detection)
+        state = await self._validate_license_async()
         self._state = state
         self._initialized = True
 
@@ -122,6 +126,8 @@ class LicenseRuntimeManager:
             features_str = ", ".join(f for f, v in state.features.items() if v)
             logger.info(f"  Features: {features_str}")
             logger.info("=" * 60)
+            # Record successful validation time in MongoDB
+            await self._record_validation_time()
         else:
             logger.error(f"✗ License INVALID — {state.error_code}: {state.error_message}")
             logger.error("=" * 60)
@@ -178,14 +184,16 @@ class LicenseRuntimeManager:
                     logger.info("Regenerating machine fingerprint (periodic refresh)...")
                     await self._refresh_fingerprint()
 
-                # Re-validate license
+                # Re-validate license (includes clock tamper detection)
                 old_valid = self._state.valid
-                self._state = self._validate_license()
+                self._state = await self._validate_license_async()
 
                 if self._state.valid:
                     logger.debug(
                         f"License check OK — {self._state.days_remaining} days remaining"
                     )
+                    # Record successful check time
+                    await self._record_validation_time()
                 else:
                     logger.warning(
                         f"License check FAILED — {self._state.error_code}: "
@@ -328,6 +336,30 @@ class LicenseRuntimeManager:
 
         days_remaining = (expires_at - now).days
 
+        # Step 4b: Clock tamper detection — issuedAt is inside the signature,
+        # so if system time is before the license was issued, the clock was rolled back.
+        issued_str = license_data.get("issuedAt", "")
+        if issued_str:
+            try:
+                issued_at = datetime.fromisoformat(issued_str)
+                if issued_at.tzinfo is None:
+                    issued_at = issued_at.replace(tzinfo=timezone.utc)
+                if now < issued_at:
+                    return LicenseState(
+                        error_code=LicenseErrorCode.CLOCK_TAMPERED,
+                        error_message=(
+                            f"System clock appears to be set before the license issue date "
+                            f"({issued_str}). This may indicate clock tampering. "
+                            f"Please correct the system time."
+                        ),
+                        license_id=license_id,
+                        customer_name=customer_name,
+                        expires_at=expires_str,
+                        last_validated_at=now_str,
+                    )
+            except ValueError:
+                pass  # Invalid issuedAt format — skip this check
+
         # Step 5: Validate machine fingerprint
         machine_block = license_data.get("machine", {})
         expected_fp = machine_block.get("fingerprint", "") if isinstance(machine_block, dict) else ""
@@ -391,12 +423,120 @@ class LicenseRuntimeManager:
             _raw_data=license_data,
         )
 
+    async def _validate_license_async(self) -> LicenseState:
+        """Async wrapper: runs basic validation + MongoDB clock tamper check."""
+        state = self._validate_license()
+        if not state.valid:
+            return state
+
+        # Additional async clock tamper checks
+        tamper_result = await self._check_clock_tamper()
+        if tamper_result:
+            return tamper_result
+
+        return state
+
+    # ------------------------------------------------------------------
+    # Clock tamper detection (MongoDB + monotonic uptime)
+    # ------------------------------------------------------------------
+
+    async def _get_db(self):
+        """Get async MongoDB database reference."""
+        from app.db import get_database
+        return await get_database()
+
+    async def _record_validation_time(self) -> None:
+        """Store current UTC timestamp in MongoDB as the last known good time."""
+        try:
+            db = await self._get_db()
+            now = datetime.now(timezone.utc)
+            await db["_license_clock_state"].update_one(
+                {"_id": "clock_state"},
+                {
+                    "$set": {
+                        "last_validated_at": now,
+                        "monotonic_at_validation": time.monotonic(),
+                    },
+                    "$setOnInsert": {"created_at": now},
+                },
+                upsert=True,
+            )
+        except Exception as e:
+            logger.debug(f"Could not record validation time in DB: {e}")
+
+    async def _check_clock_tamper(self) -> Optional[LicenseState]:
+        """Detect system clock rollback using MongoDB stored time + monotonic uptime.
+
+        Returns LicenseState with CLOCK_TAMPERED if tampering detected, else None.
+        """
+        now = datetime.now(timezone.utc)
+        now_str = now.isoformat()
+
+        # --- Check 1: Monotonic uptime consistency ---
+        # If the wall clock went backward but monotonic time advanced, clock was changed.
+        elapsed_monotonic = time.monotonic() - self._boot_monotonic
+        expected_wall = self._boot_wall + timedelta(seconds=elapsed_monotonic)
+        # Allow 5 minutes of drift for NTP adjustments
+        drift = (expected_wall - now).total_seconds()
+        if drift > 300:  # Wall clock is >5 min behind where it should be
+            logger.warning(
+                f"Clock drift detected: monotonic says {elapsed_monotonic:.0f}s since boot, "
+                f"but wall clock is {drift:.0f}s behind expected. Possible clock rollback."
+            )
+            return LicenseState(
+                error_code=LicenseErrorCode.CLOCK_TAMPERED,
+                error_message=(
+                    "System clock inconsistency detected. "
+                    f"Wall clock is {int(drift)}s behind expected time based on system uptime. "
+                    "Please ensure the system clock is correct."
+                ),
+                license_id=self._state.license_id,
+                customer_name=self._state.customer_name,
+                last_validated_at=now_str,
+            )
+
+        # --- Check 2: MongoDB stored last-validated time ---
+        try:
+            db = await self._get_db()
+            doc = await db["_license_clock_state"].find_one({"_id": "clock_state"})
+            if doc and doc.get("last_validated_at"):
+                last_known: datetime = doc["last_validated_at"]
+                if last_known.tzinfo is None:
+                    last_known = last_known.replace(tzinfo=timezone.utc)
+                # If current time is more than 5 minutes before last known time → rollback
+                if now < (last_known - timedelta(minutes=5)):
+                    delta = (last_known - now).total_seconds()
+                    logger.warning(
+                        f"Clock rollback detected via DB: current={now.isoformat()}, "
+                        f"last_known={last_known.isoformat()}, gap={delta:.0f}s"
+                    )
+                    return LicenseState(
+                        error_code=LicenseErrorCode.CLOCK_TAMPERED,
+                        error_message=(
+                            f"System clock appears to have been rolled back. "
+                            f"Current time is {int(delta)}s behind the last known validation time. "
+                            "Please correct the system clock."
+                        ),
+                        license_id=self._state.license_id,
+                        customer_name=self._state.customer_name,
+                        last_validated_at=now_str,
+                    )
+        except Exception as e:
+            # DB unreachable — skip this check but don't block
+            logger.debug(f"Clock tamper DB check skipped: {e}")
+
+        return None
+
     # ------------------------------------------------------------------
     # Machine fingerprint (cached)
     # ------------------------------------------------------------------
 
     async def _refresh_fingerprint(self) -> None:
-        """Generate machine fingerprint from machine-info.json or live collection."""
+        """Generate machine fingerprint from machine-info.json or live collection.
+
+        Also verifies that key hardware fields in machine-info.json match the
+        actual hardware — prevents copying files to a different machine.
+        """
         settings = get_settings()
         machine_info_path = settings.machine_info_path
 
@@ -405,6 +545,19 @@ class LicenseRuntimeManager:
             raw = Path(machine_info_path).read_text(encoding="utf-8")
             machine_info = json.loads(raw)
             from app.services.machine_fingerprint import MachineFingerprintService
+
+            # Verify file matches actual hardware (anti-copy protection)
+            live_info = self._collect_machine_info_live()
+            mismatch = self._verify_hardware_match(machine_info, live_info)
+            if mismatch:
+                logger.error(
+                    f"Hardware mismatch detected: {mismatch}. "
+                    "License files may have been copied from another machine."
+                )
+                self._cached_fingerprint = "__HARDWARE_MISMATCH__"
+                self._fingerprint_generated_at = datetime.now(timezone.utc)
+                return
+
             self._cached_fingerprint = MachineFingerprintService.generate_fingerprint(machine_info)
             self._fingerprint_generated_at = datetime.now(timezone.utc)
             logger.info(f"Machine fingerprint loaded from {machine_info_path}: {self._cached_fingerprint[:16]}...")
@@ -424,6 +577,39 @@ class LicenseRuntimeManager:
         except Exception as e:
             logger.error(f"Failed to generate machine fingerprint: {e}")
             self._cached_fingerprint = ""
+
+    @staticmethod
+    def _verify_hardware_match(file_info: dict[str, Any], live_info: dict[str, Any]) -> str:
+        """Verify that machine-info.json matches actual hardware.
+
+        Checks key immutable hardware identifiers. Returns empty string if OK,
+        or a description of the mismatch.
+        """
+        checks = [
+            ("machine_id", "Machine ID"),
+            ("bios_uuid", "BIOS UUID"),
+            ("mac_address", "MAC Address"),
+            ("disk_serial", "Disk Serial"),
+        ]
+
+        mismatches = []
+        for key, label in checks:
+            file_val = str(file_info.get(key) or "").strip().lower()
+            live_val = str(live_info.get(key) or "").strip().lower()
+            # Skip if live collection couldn't get the value (empty/permission denied)
+            if not live_val:
+                continue
+            # Skip if file doesn't have this field
+            if not file_val:
+                continue
+            if file_val != live_val:
+                mismatches.append(f"{label} (file={file_val[:12]}... vs live={live_val[:12]}...)")
+
+        # Require at least 2 mismatches to flag — single mismatch could be
+        # a hardware replacement (e.g., new NIC, new disk)
+        if len(mismatches) >= 2:
+            return "; ".join(mismatches)
+        return ""
 
     @staticmethod
     def _collect_machine_info_live() -> dict[str, Any]:
