@@ -73,8 +73,8 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void fetchLicense();
 
-    // Re-check every 5 minutes (frontend poll — backend does real validation)
-    const interval = setInterval(() => void fetchLicense(), 5 * 60 * 1000);
+    // Re-check every 1 minute (lightweight — reads in-memory state on backend)
+    const interval = setInterval(() => void fetchLicense(), 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchLicense]);
 
