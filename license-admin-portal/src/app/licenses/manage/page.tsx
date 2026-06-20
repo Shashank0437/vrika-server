@@ -7,10 +7,11 @@ import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { licensesApi, type License } from "@/api/licenses";
 
 function StatusBadge({ status }: { status: License["status"] }) {
-  const styles = {
+  const styles: Record<string, string> = {
     active: "bg-tertiary-container text-on-tertiary-container",
     expired: "bg-surface-variant text-on-surface-variant",
     revoked: "bg-red-50 text-red-800",
+    suspended: "bg-amber-50 text-amber-800",
   };
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${styles[status]}`}>
