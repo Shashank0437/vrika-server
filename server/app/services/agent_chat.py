@@ -2039,6 +2039,10 @@ async def maybe_upgrade_router_result_for_llm(
     rt: RouterTurnResult,
 ) -> RouterTurnResult:
     """Re-route or attach fallback schemas when the first router pass would stream the LLM without tool schemas."""
+    # If tools were explicitly blocked (org-disabled / license), do not try to recover —
+    # the conversational reply already contains the user-facing error message.
+    if rt.meta.get("unavailable_tools"):
+        return rt
     if _looks_like_tool_pick_question(user_message):
         return rt
     explicit = bool(explicit_tool_names)
