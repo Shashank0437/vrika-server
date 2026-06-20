@@ -2154,6 +2154,30 @@ async def stream_cipherstrike_turn(
                         only_tool_names=batch_only_tool_names,
                         exclude_tool_names=batch_exclude_tool_names,
                     )
+                    # Filter out tools not included in the license
+                    from app.services.license_runtime import license_runtime as _lr_batch
+                    _unlicensed_batch = [str(c.get("tool_name") or "") for c in calls if not _lr_batch.is_tool_allowed(str(c.get("tool_name") or "").strip())]
+                    calls = [c for c in calls if _lr_batch.is_tool_allowed(str(c.get("tool_name") or "").strip())]
+                    if not calls and _unlicensed_batch:
+                        _ul_names = ", ".join(f"**{n}**" for n in _unlicensed_batch)
+                        _ul_msg = f"The following tools are not included in your license: {_ul_names}. Contact your administrator to upgrade your license."
+                        await insert_message(
+                            db,
+                            organization_id=organization_id,
+                            user_id=user_id,
+                            session_id=session_id,
+                            role="assistant",
+                            content=_ul_msg,
+                            thinking_content="".join(thinking_chunks) or None,
+                            routing=routing,
+                            input_tokens=actual_input_tokens,
+                            output_tokens=actual_output_tokens,
+                        )
+                        thinking_chunks.clear()
+                        assistant_chunks.clear()
+                        yield f"data: {_ul_msg}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
                     slots = []
                     lines: list[str] = []
                     for i, c in enumerate(calls):
@@ -2245,6 +2269,30 @@ async def stream_cipherstrike_turn(
                         )
                         skip_outer_yield = True
                         continue
+                    # License check: block tool if not included in license
+                    from app.services.license_runtime import license_runtime as _lr
+                    if not _lr.is_tool_allowed(tool_name.strip()):
+                        logger.info(
+                            "stream_cipherstrike_turn: tool %r blocked by license", tool_name,
+                        )
+                        _license_err_content = f"Tool **{tool_name}** is not included in your license. Contact your administrator to upgrade your license."
+                        _lr_mid = await insert_message(
+                            db,
+                            organization_id=organization_id,
+                            user_id=user_id,
+                            session_id=session_id,
+                            role="assistant",
+                            content=_license_err_content,
+                            thinking_content="".join(thinking_chunks) or None,
+                            routing=routing,
+                            input_tokens=actual_input_tokens,
+                            output_tokens=actual_output_tokens,
+                        )
+                        thinking_chunks.clear()
+                        assistant_chunks.clear()
+                        yield f"data: {_license_err_content}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
                     single_auto = auto_accept_tools or _agent_chat_skip_tool_approval_prompt(tool_name)
                     logger.info(
                         "stream_cipherstrike_turn: [TOOL_CALL_PENDING] tool=%r args_keys=%s endpoint=%r auto_accept=%s skip_prompt=%s -> %s_path",
@@ -3534,7 +3582,16 @@ async def stream_follow_up_after_tool(
                         only_tool_names=batch_only_tool_names,
                         exclude_tool_names=batch_exclude_tool_names,
                     )
-                    # Drop calls that duplicate tools already executed in this snapshot.
+                    # Filter out tools not included in the license
+                    from app.services.license_runtime import license_runtime as _lr_fu
+                    _ul_fu = [str(c.get("tool_name") or "") for c in calls if not _lr_fu.is_tool_allowed(str(c.get("tool_name") or "").strip())]
+                    calls = [c for c in calls if _lr_fu.is_tool_allowed(str(c.get("tool_name") or "").strip())]
+                    if not calls and _ul_fu:
+                        _ul_fu_names = ", ".join(f"**{n}**" for n in _ul_fu)
+                        _ul_fu_msg = f"The following tools are not included in your license: {_ul_fu_names}. Contact your administrator to upgrade your license."
+                        yield f"data: {_ul_fu_msg}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
                     calls = [
                         c for c in calls
                         if isinstance(c, dict) and not _is_duplicate_tool_call(
@@ -3667,6 +3724,14 @@ async def stream_follow_up_after_tool(
                         )
                         skip_outer_yield = True
                         continue
+                    # License check: block unlicensed tools
+                    from app.services.license_runtime import license_runtime as _lr_fu2
+                    if not _lr_fu2.is_tool_allowed(tool_name.strip()):
+                        logger.info("stream_follow_up_after_tool: tool %r blocked by license", tool_name)
+                        _lic_msg = f"Tool **{tool_name}** is not included in your license. Contact your administrator to upgrade your license."
+                        yield f"data: {_lic_msg}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
                     await _persist_partial_before_tool()
                     single_auto = auto_accept_tools or _agent_chat_skip_tool_approval_prompt(tool_name)
                     if single_auto and tool_name.strip():
