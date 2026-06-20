@@ -9,11 +9,12 @@ export type License = {
   customer_email: string;
   product: string;
   features: LicenseFeature[];
+  allowed_tools: string[];
   max_users: number;
   max_agents: number;
   machine_fingerprint: string;
   expires_at: string;
-  status: "active" | "expired" | "revoked";
+  status: "active" | "expired" | "revoked" | "suspended";
   created_at: string;
 };
 
@@ -21,6 +22,7 @@ export type LicenseGenerate = {
   customer_id: string;
   product: string;
   features: LicenseFeature[];
+  allowed_tools: string[];
   max_users: number;
   max_agents: number;
   expires_at: string;
@@ -84,6 +86,11 @@ export const licensesApi = {
 
   async listByCustomer(customerId: string): Promise<License[]> {
     const { data } = await apiClient.get(`/license-admin/customers/${customerId}/licenses`);
+    return data;
+  },
+
+  async availableTools(): Promise<{ name: string; description: string; category: string; active: boolean }[]> {
+    const { data } = await apiClient.get("/license-admin/available-tools");
     return data;
   },
 };

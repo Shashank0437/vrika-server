@@ -64,6 +64,7 @@ class LicenseState:
     edition: str = ""
     features: dict[str, bool] = field(default_factory=dict)
     limits: dict[str, int] = field(default_factory=dict)
+    allowed_tools: list[str] = field(default_factory=list)
     expires_at: str = ""
     days_remaining: int = 0
     last_validated_at: Optional[str] = None
@@ -369,6 +370,10 @@ class LicenseRuntimeManager:
 
         limits = license_data.get("limits", {})
 
+        # Extract allowed tools list
+        raw_tools = license_data.get("allowedTools", [])
+        allowed_tools = [str(t) for t in raw_tools] if isinstance(raw_tools, list) else []
+
         return LicenseState(
             valid=True,
             license_id=license_id,
@@ -379,6 +384,7 @@ class LicenseRuntimeManager:
             edition=edition,
             features=features,
             limits=limits,
+            allowed_tools=allowed_tools,
             expires_at=expires_str,
             days_remaining=days_remaining,
             last_validated_at=now_str,
@@ -522,6 +528,26 @@ class LicenseRuntimeManager:
             return []
         return [k for k, v in self._state.features.items() if v]
 
+    def is_tool_allowed(self, tool_name: str) -> bool:
+        """Check if a specific tool is allowed by the license.
+
+        Returns True if:
+        - License is valid AND allowed_tools is empty (all tools allowed)
+        - License is valid AND tool_name is in allowed_tools list
+        """
+        if not self._state.valid:
+            return False
+        # Empty list = all tools allowed (no restriction)
+        if not self._state.allowed_tools:
+            return True
+        return tool_name in self._state.allowed_tools
+
+    def get_allowed_tools(self) -> list[str]:
+        """Return list of allowed tool names. Empty = all allowed."""
+        if not self._state.valid:
+            return []
+        return list(self._state.allowed_tools)
+
     def get_status_response(self) -> dict[str, Any]:
         """Build the response payload for GET /api/license/status."""
         s = self._state
@@ -550,6 +576,7 @@ class LicenseRuntimeManager:
             "edition": s.edition,
             "features": features,
             "limits": s.limits,
+            "allowedTools": s.allowed_tools,
             "expiresAt": s.expires_at,
             "daysRemaining": s.days_remaining,
             "lastChecked": s.last_validated_at,

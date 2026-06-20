@@ -25,6 +25,7 @@ export type LicenseStatus = {
   edition?: string;
   features?: LicenseFeatures;
   limits?: { maxUsers?: number; maxAgents?: number };
+  allowedTools?: string[];
   expiresAt?: string;
   daysRemaining?: number;
   lastChecked?: string;
@@ -39,6 +40,8 @@ type LicenseContextValue = {
   isLicenseValid: () => boolean;
   /** Check if a specific feature is enabled */
   hasFeature: (featureName: string) => boolean;
+  /** Check if a specific tool is allowed by the license */
+  isToolAllowed: (toolName: string) => boolean;
   /** Get a limit value */
   getLimit: (limitName: string, fallback?: number) => number;
   /** Force re-fetch license status */
@@ -88,6 +91,16 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
     [license],
   );
 
+  const isToolAllowed = useCallback(
+    (toolName: string): boolean => {
+      if (!license?.valid) return false;
+      // Empty array = all tools allowed
+      if (!license.allowedTools || license.allowedTools.length === 0) return true;
+      return license.allowedTools.includes(toolName);
+    },
+    [license],
+  );
+
   const getLimit = useCallback(
     (limitName: string, fallback = 0): number => {
       if (!license?.valid || !license.limits) return fallback;
@@ -102,10 +115,11 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
       loading,
       isLicenseValid,
       hasFeature,
+      isToolAllowed,
       getLimit,
       refreshLicense: fetchLicense,
     }),
-    [license, loading, isLicenseValid, hasFeature, getLimit, fetchLicense],
+    [license, loading, isLicenseValid, hasFeature, isToolAllowed, getLimit, fetchLicense],
   );
 
   return <LicenseContext.Provider value={value}>{children}</LicenseContext.Provider>;

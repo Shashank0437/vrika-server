@@ -854,6 +854,13 @@ async def tool_confirm_stream(
                 yield "data: [DONE]\n\n"
                 return
 
+            # License-based tool restriction
+            from app.services.license_runtime import license_runtime
+            if not license_runtime.is_tool_allowed(tool_name.strip()):
+                yield f'data: [ERROR] Tool \'{tool_name}\' is not included in your license. Contact your administrator to upgrade your license.\n\n'
+                yield "data: [DONE]\n\n"
+                return
+
             if agent_path_not_allowed(endpoint):
                 yield "data: [ERROR] Tool endpoint is not allowed.\n\n"
                 yield "data: [DONE]\n\n"

@@ -40,6 +40,7 @@ class WorkspaceToolCard(BaseModel):
     endpoint: str
     method: str
     active: bool
+    licensed: bool = Field(default=True, description="Whether this tool is included in the current license.")
     health_bars: int = Field(ge=1, le=5)
     effectiveness: float | None = None
     params: dict[str, Any] = Field(default_factory=dict)

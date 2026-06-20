@@ -23,6 +23,7 @@ from app.schemas.license_admin import (
 )
 from app.services.license_signing import LicenseSigningService
 from app.services.machine_fingerprint import MachineFingerprintService
+from app.services.agent_client import AgentUnreachableError, fetch_agent_health_and_catalog, tool_installed_from_agent_health
 
 router = APIRouter(prefix="/license-admin", tags=["license-admin"])
 
@@ -75,6 +76,7 @@ def _license_out(doc: dict) -> LicenseOut:
         edition=doc.get("edition", "enterprise"),
         license_type=doc.get("license_type", "enterprise"),
         features=doc["features"],
+        allowed_tools=doc.get("allowed_tools", []),
         max_users=doc["max_users"],
         max_agents=doc["max_agents"],
         machine_fingerprint=doc["machine_fingerprint"],
@@ -294,6 +296,48 @@ async def hash_machine_info(
     return {"fingerprint": fingerprint}
 
 
+@router.get("/available-tools")
+async def list_available_tools(
+    user: dict = Depends(require_auth_user),
+) -> list[dict[str, str]]:
+    """Return list of all tools from the agent catalog for license tool selection.
+
+    Returns [{name, description, category, active}, ...] sorted by name.
+    """
+    _require_license_admin(user)
+    from app.config import get_settings
+    settings = get_settings()
+
+    try:
+        health, catalog = await fetch_agent_health_and_catalog(settings)
+    except AgentUnreachableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Agent unreachable: {e.message}",
+        )
+
+    raw_tools = catalog.get("tools")
+    if not isinstance(raw_tools, list):
+        return []
+
+    tools: list[dict[str, str]] = []
+    for item in raw_tools:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        tools.append({
+            "name": name,
+            "description": str(item.get("desc") or "").strip(),
+            "category": str(item.get("category") or "uncategorized"),
+            "active": tool_installed_from_agent_health(health, item),
+        })
+
+    tools.sort(key=lambda t: t["name"])
+    return tools
+
+
 @router.post("/licenses/generate", response_model=LicenseOut, status_code=status.HTTP_201_CREATED)
 async def generate_license(
     body: LicenseGenerate,
@@ -323,6 +367,7 @@ async def generate_license(
         "customer_email": customer["email"],
         "product": body.product,
         "features": [f.value for f in body.features],
+        "allowed_tools": body.allowed_tools,
         "max_users": body.max_users,
         "max_agents": body.max_agents,
         "machine_fingerprint": body.machine_fingerprint,
@@ -459,6 +504,7 @@ async def download_license(
             "maxUsers": doc["max_users"],
             "maxAgents": doc["max_agents"],
         },
+        "allowedTools": doc.get("allowed_tools", []),
         "status": doc.get("status", "active"),
         "issuedAt": doc["created_at"].isoformat(),
         "expiresAt": doc["expires_at"].isoformat(),

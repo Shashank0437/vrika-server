@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { LoaderSvg } from "@/components/ui/LoaderSvg";
@@ -32,17 +32,28 @@ export default function LicenseGeneratePage() {
     customer_id: preselectedCustomer,
     product: "vrika",
     features: [],
+    allowed_tools: [],
     max_users: 10,
     max_agents: 5,
     expires_at: "",
     machine_fingerprint: "",
   });
 
+  const [toolSearch, setToolSearch] = useState("");
+  const [toolDropdownOpen, setToolDropdownOpen] = useState(false);
+  const [availableTools, setAvailableTools] = useState<{ name: string; description: string; category: string; active: boolean }[]>([]);
+  const [loadingTools, setLoadingTools] = useState(true);
+
   useEffect(() => {
     customersApi
       .list()
       .then(setCustomers)
       .finally(() => setLoadingCustomers(false));
+    licensesApi
+      .availableTools()
+      .then(setAvailableTools)
+      .catch(() => setAvailableTools([]))
+      .finally(() => setLoadingTools(false));
   }, []);
 
   useEffect(() => {
@@ -59,6 +70,17 @@ export default function LicenseGeneratePage() {
         : [...f.features, feature],
     }));
   };
+
+  const filteredAvailableTools = useMemo(() => {
+    const q = toolSearch.toLowerCase();
+    return availableTools.filter(
+      (t) =>
+        !form.allowed_tools.includes(t.name) &&
+        (t.name.toLowerCase().includes(q) ||
+          t.description.toLowerCase().includes(q) ||
+          t.category.toLowerCase().includes(q))
+    );
+  }, [availableTools, form.allowed_tools, toolSearch]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,6 +139,12 @@ export default function LicenseGeneratePage() {
               <span className="text-on-surface-variant">Features</span>
               <span className="font-medium text-on-surface">{generated.features.join(", ")}</span>
             </div>
+            {generated.allowed_tools.length > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-on-surface-variant">Tools</span>
+                <span className="font-medium text-on-surface">{generated.allowed_tools.length} tools licensed</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 flex justify-center gap-3">
@@ -243,6 +271,140 @@ export default function LicenseGeneratePage() {
               className={inputCls}
             />
           </div>
+        </div>
+
+        {/* Allowed Tools */}
+        <div>
+          <label className={labelCls}>Allowed Tools</label>
+          <p className="mt-0.5 text-xs text-on-surface-variant">
+            Select which tools the customer can use. Leave empty to allow all tools.
+          </p>
+
+          {/* Selected tools chips */}
+          {form.allowed_tools.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {form.allowed_tools.map((tool) => (
+                <span
+                  key={tool}
+                  className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary-container px-3 py-1 text-xs font-medium text-on-primary-container"
+                >
+                  <MaterialSymbol name="construction" className="text-sm" />
+                  {tool}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, allowed_tools: f.allowed_tools.filter((t) => t !== tool) }))
+                    }
+                    className="ml-0.5 text-on-primary-container/60 transition hover:text-error"
+                  >
+                    <MaterialSymbol name="close" className="text-sm" />
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, allowed_tools: [] }))}
+                className="rounded-full px-2 py-1 text-xs text-on-surface-variant transition hover:text-error"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+
+          {/* Searchable dropdown */}
+          <div className="relative mt-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <MaterialSymbol name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-on-surface-variant" />
+                <input
+                  type="text"
+                  value={toolSearch}
+                  onChange={(e) => {
+                    setToolSearch(e.target.value);
+                    setToolDropdownOpen(true);
+                  }}
+                  onFocus={() => setToolDropdownOpen(true)}
+                  className={`${inputCls} pl-9`}
+                  placeholder="Search tools by name, category..."
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  // Select all filtered tools
+                  const newTools = filteredAvailableTools.map((t) => t.name);
+                  setForm((f) => ({ ...f, allowed_tools: [...new Set([...f.allowed_tools, ...newTools])] }));
+                  setToolDropdownOpen(false);
+                }}
+                className="shrink-0 rounded-lg border border-outline-variant bg-surface-container px-3 py-2 text-xs font-medium text-on-surface-variant transition hover:border-primary hover:text-on-surface"
+                title="Select all visible tools"
+              >
+                Select All
+              </button>
+            </div>
+
+            {toolDropdownOpen && (
+              <>
+                {/* Backdrop to close dropdown */}
+                <div className="fixed inset-0 z-10" onClick={() => setToolDropdownOpen(false)} />
+                <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg">
+                  {loadingTools ? (
+                    <div className="flex items-center gap-2 px-4 py-3 text-sm text-on-surface-variant">
+                      <LoaderSvg className="size-4" /> Loading tools…
+                    </div>
+                  ) : filteredAvailableTools.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-on-surface-variant">
+                      {availableTools.length === 0
+                        ? "No tools available (agent may be unreachable)"
+                        : "No matching tools found"}
+                    </div>
+                  ) : (
+                    filteredAvailableTools.map((tool) => (
+                      <button
+                        key={tool.name}
+                        type="button"
+                        onClick={() => {
+                          setForm((f) => ({ ...f, allowed_tools: [...f.allowed_tools, tool.name] }));
+                          setToolSearch("");
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-surface-container"
+                      >
+                        <MaterialSymbol
+                          name={tool.active ? "check_circle" : "cancel"}
+                          className={`shrink-0 text-lg ${tool.active ? "text-tertiary" : "text-on-surface-variant/50"}`}
+                          filled
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-on-surface">{tool.name}</span>
+                            <span className="rounded-full bg-primary-container px-2 py-0.5 text-[10px] font-bold uppercase text-on-primary-container">
+                              {tool.category}
+                            </span>
+                          </div>
+                          {tool.description && (
+                            <p className="mt-0.5 truncate text-xs text-on-surface-variant">{tool.description}</p>
+                          )}
+                        </div>
+                        <MaterialSymbol name="add" className="shrink-0 text-base text-on-surface-variant" />
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {form.allowed_tools.length === 0 && (
+            <p className="mt-2 flex items-center gap-1 text-xs text-tertiary">
+              <MaterialSymbol name="info" className="text-sm" />
+              No tools specified — all tools will be allowed
+            </p>
+          )}
+          {form.allowed_tools.length > 0 && (
+            <p className="mt-2 text-xs text-on-surface-variant">
+              {form.allowed_tools.length} tool{form.allowed_tools.length === 1 ? "" : "s"} selected
+            </p>
+          )}
         </div>
 
         {/* Expiry */}

@@ -2677,6 +2677,7 @@ async def execute_tool_slots_follow_up(
             return
 
     from app.services.organization_tools import get_disabled_tool_names
+    from app.services.license_runtime import license_runtime
 
     disabled = await get_disabled_tool_names(db, organization_id)
 
@@ -2736,6 +2737,24 @@ async def execute_tool_slots_follow_up(
                     "progress_line": None,
                 },
             )
+        elif d == "approve" and not license_runtime.is_tool_allowed(tn):
+            ts = _utc_now_iso()
+            row.update(
+                {
+                    "run_status": "skipped",
+                    "run_started_at": ts,
+                    "run_finished_at": ts,
+                    "stdout_tail": f"Tool '{tn}' is not included in your license. Contact your administrator to upgrade.",
+                    "stderr_tail": None,
+                    "stdout_truncated": False,
+                    "stderr_truncated": False,
+                    "exit_code": None,
+                    "http_status": None,
+                    "execution_log_tail": None,
+                    "execution_log_truncated": False,
+                    "progress_line": None,
+                },
+            )
         elif d == "approve":
             row.update(
                 {
@@ -2760,6 +2779,7 @@ async def execute_tool_slots_follow_up(
         for s in working_slots
         if str(s.get("human_decision") or "").lower() == "approve"
         and str(s.get("tool_name") or "").strip() not in disabled
+        and license_runtime.is_tool_allowed(str(s.get("tool_name") or "").strip())
     ]
 
     batch_filter = (

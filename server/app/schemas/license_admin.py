@@ -65,6 +65,7 @@ class LicenseGenerate(BaseModel):
     edition: ProductEdition = ProductEdition.enterprise
     license_type: LicenseType = LicenseType.enterprise
     features: list[LicenseFeature]
+    allowed_tools: list[str] = Field(default_factory=list, description="Tool names the customer is licensed to use. Empty = all tools allowed.")
     max_users: int = Field(..., ge=1, le=100_000)
     max_agents: int = Field(..., ge=1, le=10_000)
     expires_at: str = Field(..., description="ISO date string (YYYY-MM-DD)")
@@ -80,6 +81,7 @@ class LicenseOut(BaseModel):
     edition: str = "enterprise"
     license_type: str = "enterprise"
     features: list[LicenseFeature]
+    allowed_tools: list[str] = Field(default_factory=list)
     max_users: int
     max_agents: int
     machine_fingerprint: str

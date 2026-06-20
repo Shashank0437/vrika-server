@@ -37,6 +37,7 @@ from app.services.organization_tools import (
     insert_execution_log,
     list_execution_logs,
 )
+from app.services.license_runtime import license_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,11 @@ async def _workspace_tools_payload_for_org(db: AsyncIOMotorDatabase, organizatio
     )
 
     all_cards = _build_cards(health, catalog)
+
+    # Mark each tool's license status
+    for card in all_cards:
+        card.licensed = license_runtime.is_tool_allowed(card.name)
+
     allowed = [c for c in all_cards if c.name not in disabled]
     blocked = [c for c in all_cards if c.name in disabled]
 
@@ -303,6 +309,13 @@ async def workspace_tool_run(
     disabled = await get_disabled_tool_names(db, org_id)
     if body.tool_name.strip() in disabled:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="This tool is disabled for your organization")
+
+    # License-based tool restriction
+    if not license_runtime.is_tool_allowed(body.tool_name.strip()):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail=f"Tool '{body.tool_name}' is not included in your license. Contact your administrator to upgrade.",
+        )
 
     try:
         path = normalize_agent_tool_path(body.endpoint)

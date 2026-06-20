@@ -32,6 +32,8 @@ export type WorkspaceToolCard = {
   endpoint: string;
   method: string;
   active: boolean;
+  /** Whether this tool is included in the current license. */
+  licensed: boolean;
   health_bars: number;
   effectiveness: number | null;
   /** NyxStrike catalog `params` (required-parameter schema). */

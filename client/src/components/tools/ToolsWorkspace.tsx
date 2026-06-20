@@ -543,6 +543,21 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
                     <p className="mt-3 flex-1 text-[13px] leading-snug text-on-surface-variant line-clamp-2">{teaser || "—"}</p>
                     <p className="mt-3 text-[12px] font-medium text-error">Not available for runners—restore to allow use.</p>
                   </div>
+                ) : t.licensed === false ? (
+                  <div className="flex min-h-[8rem] flex-1 flex-col rounded-t-2xl px-5 py-4 opacity-60">
+                    <div className="flex items-start justify-between gap-2">
+                      <h2 className="text-[17px] font-bold leading-snug tracking-tight text-on-surface">{t.name}</h2>
+                      <MaterialSymbol name="lock" className="shrink-0 text-2xl text-on-surface-variant" filled />
+                    </div>
+                    <span className="mt-3 inline-flex w-fit rounded-full bg-primary-container px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-on-primary-container">
+                      {formatToolCategoryLabel(t.category)}
+                    </span>
+                    <p className="mt-3 flex-1 text-[13px] leading-snug text-on-surface-variant line-clamp-2">{teaser || "—"}</p>
+                    <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-3 py-2">
+                      <MaterialSymbol name="license" className="shrink-0 text-base text-amber-600" filled />
+                      <p className="text-[12px] font-medium text-amber-700 dark:text-amber-400">Not included in your license. Contact your administrator to upgrade.</p>
+                    </div>
+                  </div>
                 ) : (
                   <button
                     type="button"
