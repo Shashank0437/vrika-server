@@ -143,14 +143,6 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="shrink-0 space-y-0 border-t border-outline-variant px-2 pb-3 pt-3">
-          {license?.valid && license.licenseType && (
-            <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-container px-4 py-2">
-              <MaterialSymbol name="verified" className="text-lg text-primary" filled />
-              <span className="text-xs font-semibold capitalize text-on-surface-variant">
-                {license.licenseType.replace("_", " ")}
-              </span>
-            </div>
-          )}
           <Link
             href={`/coming-soon/documentation?${COMING_SOON_FROM_DASHBOARD_QUERY}`}
             className={
@@ -188,6 +180,17 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         <LicenseWarningBanner />
         <header className="sticky top-0 z-40 flex items-center justify-end border-b border-outline-variant bg-background/90 px-6 py-3 backdrop-blur-sm">
           <div className="flex items-center gap-3">
+            {license?.valid && license.licenseType && (
+              <>
+                <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1">
+                  <MaterialSymbol name="shield" className="text-sm text-primary" filled />
+                  <span className="text-[11px] font-semibold capitalize text-primary">
+                    {license.licenseType.replace("_", " ")}
+                  </span>
+                </div>
+                <span className="mx-0.5 h-5 w-px bg-outline-variant" aria-hidden="true" />
+              </>
+            )}
             {user.organization_name && (
               <>
                 <div className="flex items-center gap-2">
