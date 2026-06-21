@@ -598,6 +598,40 @@ _EXPLICIT_RUN_TOOL_RE = re.compile(
 _SKIPPED_TOOL_RE = re.compile(r"\[Skipped \*\*([^*]+)\*\* — operator rejected\]", re.IGNORECASE)
 _EXECUTED_TOOL_RE = re.compile(r"\[Tool executed: \*\*([^*]+)\*\*\]", re.IGNORECASE)
 
+# Well-known tool names that users might reference by name in messages
+_KNOWN_TOOL_NAMES = frozenset({
+    "nmap", "nuclei", "nikto", "httpx", "whatweb", "ffuf", "gobuster",
+    "sqlmap", "subfinder", "amass", "burp", "dirsearch", "wpscan",
+    "feroxbuster", "masscan", "rustscan", "testssl", "sslscan",
+    "dnsx", "katana", "gau", "waybackurls", "arjun", "paramspider",
+})
+
+# Regex to detect "run/use/execute <tool>" patterns
+_USER_MENTIONED_TOOL_RE = re.compile(
+    r"\b(?:run|use|execute|launch|start|try)\s+(?:the\s+)?(\w+)\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_mentioned_but_filtered_tools(
+    user_message: str, by_name: dict[str, dict[str, Any]]
+) -> list[str]:
+    """Detect tool names the user explicitly mentioned that are NOT in the available catalog.
+
+    Returns list of tool names that were filtered (by license or org).
+    Only flags names from _KNOWN_TOOL_NAMES to avoid false positives.
+    """
+    mentioned: list[str] = []
+    seen: set[str] = set()
+    for m in _USER_MENTIONED_TOOL_RE.finditer(user_message):
+        name = m.group(1).strip().lower()
+        if name in seen:
+            continue
+        seen.add(name)
+        if name in _KNOWN_TOOL_NAMES and name not in by_name:
+            mentioned.append(name)
+    return mentioned
+
 _FALLBACK_SECURITY_TOOLS_ORDER = (
     "httpx",
     "whatweb",
@@ -1958,6 +1992,19 @@ async def plan_router_turn(
             meta=meta,
             router_reply=None,
         )
+
+    # Check if user explicitly mentioned a tool name that was filtered out (license/org-disabled)
+    if not explicit:
+        _mentioned_unlicensed = _detect_mentioned_but_filtered_tools(user_message, by_name)
+        if _mentioned_unlicensed:
+            ul_list = ", ".join(_mentioned_unlicensed)
+            license_msg = (
+                f"The following tools are not available: {ul_list}. "
+                "They may be disabled by your organization or not included in your license. "
+                "Contact your administrator for access."
+            )
+            meta["unavailable_tools"] = _mentioned_unlicensed
+            return RouterTurnResult("conversational", None, license_msg, meta)
 
     router_context = _build_router_context(rows, current_user_message=user_message)
     try:
