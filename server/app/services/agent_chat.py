@@ -648,8 +648,9 @@ def _detect_mentioned_but_filtered_tools(
 ) -> list[str]:
     """Detect tool names the user explicitly mentioned that are NOT in the available catalog.
 
-    Returns list of tool names that were filtered (by license or org).
-    Checks against all_installed (full catalog before filtering) to avoid false positives.
+    Returns list of tool names that were filtered (by license or org or blocklist).
+    Checks against all_installed (full catalog before filtering) and _KNOWN_TOOL_NAMES.
+    Also catches internal tool names (containing underscores) not in available catalog.
     Handles common misspellings via _TOOL_NAME_ALIASES.
     """
     mentioned: list[str] = []
@@ -662,13 +663,16 @@ def _detect_mentioned_but_filtered_tools(
             continue
         canonical = _normalize_tool_mention(raw)
         low = raw.lower()
-        # Check: either it resolves via alias, or it's directly in the full catalog
+        # Check: resolves via alias, in full catalog, or looks like internal tool name
         tool_name = canonical or (low if low in all_lower else None)
+        # Internal tool names contain underscores (e.g. ai_analyze_session)
+        if not tool_name and "_" in low and len(low) > 4:
+            tool_name = low
         if not tool_name or tool_name in seen:
             continue
         seen.add(tool_name)
-        # Only flag if tool EXISTS in full catalog but NOT in available (filtered) catalog
-        if (tool_name in all_lower or tool_name in _KNOWN_TOOL_NAMES) and tool_name not in by_name:
+        # Flag if tool is NOT in available catalog (by_name)
+        if tool_name not in by_name:
             mentioned.append(tool_name)
     return mentioned
 
