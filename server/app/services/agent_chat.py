@@ -644,26 +644,32 @@ def _normalize_tool_mention(name: str) -> str | None:
 
 
 def _detect_mentioned_but_filtered_tools(
-    user_message: str, by_name: dict[str, dict[str, Any]]
+    user_message: str, by_name: dict[str, dict[str, Any]], all_installed: frozenset[str]
 ) -> list[str]:
     """Detect tool names the user explicitly mentioned that are NOT in the available catalog.
 
     Returns list of tool names that were filtered (by license or org).
-    Only flags names from _KNOWN_TOOL_NAMES to avoid false positives.
+    Checks against all_installed (full catalog before filtering) to avoid false positives.
     Handles common misspellings via _TOOL_NAME_ALIASES.
     """
     mentioned: list[str] = []
     seen: set[str] = set()
+    # Build lowercase lookup for all_installed (tool names may have mixed case)
+    all_lower = {n.lower(): n for n in all_installed}
     for m in _USER_MENTIONED_TOOL_RE.finditer(user_message):
         raw = (m.group(1) or m.group(2) or "").strip()
         if not raw:
             continue
         canonical = _normalize_tool_mention(raw)
-        if not canonical or canonical in seen:
+        low = raw.lower()
+        # Check: either it resolves via alias, or it's directly in the full catalog
+        tool_name = canonical or (low if low in all_lower else None)
+        if not tool_name or tool_name in seen:
             continue
-        seen.add(canonical)
-        if canonical not in by_name:
-            mentioned.append(canonical)
+        seen.add(tool_name)
+        # Only flag if tool EXISTS in full catalog but NOT in available (filtered) catalog
+        if (tool_name in all_lower or tool_name in _KNOWN_TOOL_NAMES) and tool_name not in by_name:
+            mentioned.append(tool_name)
     return mentioned
 
 _FALLBACK_SECURITY_TOOLS_ORDER = (
@@ -1643,10 +1649,12 @@ async def _load_chat_tool_maps(
     db: AsyncIOMotorDatabase,
     *,
     organization_id: ObjectId,
-) -> tuple[dict[str, dict[str, Any]], list[dict[str, str]]] | None:
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, str]], frozenset[str]] | None:
     """Agent catalog intersected with org-enabled chat tools that report installed on the agent host. None if agent unreachable.
 
     Also filters out tools not included in the current license.
+    Returns (by_name, router_catalog, all_installed_names) where all_installed_names
+    includes tools that were filtered by license/org (for detection purposes).
     """
     try:
         health, catalog = await fetch_agent_health_and_catalog(settings)
@@ -1663,13 +1671,18 @@ async def _load_chat_tool_maps(
 
     by_name: dict[str, dict[str, Any]] = {}
     router_catalog: list[dict[str, str]] = []
+    all_installed_names: set[str] = set()
     for item in raw_tools:
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or "").strip()
-        if not name or name in disabled or name in _CHAT_TOOL_BLOCKLIST:
+        if not name or name in _CHAT_TOOL_BLOCKLIST:
             continue
         if not tool_installed_from_agent_health(health, item):
+            continue
+        # Track all installed tool names (before license/org filtering)
+        all_installed_names.add(name)
+        if name in disabled:
             continue
         # penetration-report is always allowed (reporting utility, not a licensed tool)
         if not _is_license_exempt(name) and not license_runtime.is_tool_allowed(name):
@@ -1679,7 +1692,7 @@ async def _load_chat_tool_maps(
         router_catalog.append({"name": name, "desc": _truncate_desc(desc, 100)})
 
     router_catalog.sort(key=lambda x: x["name"])
-    return by_name, router_catalog
+    return by_name, router_catalog, frozenset(all_installed_names)
 
 
 async def list_agent_chat_org_tools_catalog(
@@ -1697,7 +1710,7 @@ async def list_agent_chat_org_tools_catalog(
     ctx = await _load_chat_tool_maps(settings, db, organization_id=organization_id)
     if ctx is None:
         return None
-    by_name, _router_catalog = ctx
+    by_name, _router_catalog, _all = ctx
     rows: list[dict[str, str]] = []
     for name in sorted(by_name.keys()):
         if name in _CHAT_TOOLS_HIDE_FROM_ORG_PICKER:
@@ -1942,7 +1955,7 @@ async def plan_router_turn(
         ctx_pick = await _load_chat_tool_maps(settings, db, organization_id=organization_id)
         if ctx_pick is None:
             return RouterTurnResult("conversational", None, None, {**meta_pick, "error": "Agent catalog unreachable"})
-        _by_pick, router_catalog_pick = ctx_pick
+        _by_pick, router_catalog_pick, _all_pick = ctx_pick
         meta_pick.update(await _fetch_keyword_category_hint(settings, user_message))
         try:
             route_intent_pick_payload: dict[str, Any] = {
@@ -1981,7 +1994,7 @@ async def plan_router_turn(
     if ctx is None:
         logger.warning("agent_chat catalog unreachable")
         return RouterTurnResult("operational", None, None, {"success": False, "error": "Agent catalog unreachable"})
-    by_name, router_catalog = ctx
+    by_name, router_catalog, all_installed = ctx
     meta.update(await _fetch_keyword_category_hint(settings, user_message))
 
     if explicit:
@@ -2029,7 +2042,7 @@ async def plan_router_turn(
 
     # Check if user explicitly mentioned a tool name that was filtered out (license/org-disabled)
     if not explicit:
-        _mentioned_unlicensed = _detect_mentioned_but_filtered_tools(user_message, by_name)
+        _mentioned_unlicensed = _detect_mentioned_but_filtered_tools(user_message, by_name, all_installed)
         if _mentioned_unlicensed:
             ul_list = ", ".join(_mentioned_unlicensed)
             license_msg = (
@@ -2218,7 +2231,7 @@ async def maybe_upgrade_router_result_for_llm(
         meta["router_recovery"] = "failed_no_catalog"
         return RouterTurnResult(rt.intent, rt.schemas, rt.router_reply, meta)
 
-    by_name, _ = ctx
+    by_name, _, _all_inst = ctx
     max_pick = max(1, settings.agent_router_max_tools)
     objs = _annotate_fallback_tool_objs(by_name, max_pick, meta, "schema_recovery_fallback")
     if not objs:
