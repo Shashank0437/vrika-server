@@ -606,11 +606,41 @@ _KNOWN_TOOL_NAMES = frozenset({
     "dnsx", "katana", "gau", "waybackurls", "arjun", "paramspider",
 })
 
-# Regex to detect "run/use/execute <tool>" patterns
+# Common misspellings / abbreviations → canonical tool name
+_TOOL_NAME_ALIASES: dict[str, str] = {
+    "nucli": "nuclei",
+    "nuclai": "nuclei",
+    "nuclie": "nuclei",
+    "nulcei": "nuclei",
+    "neclei": "nuclei",
+    "nmpa": "nmap",
+    "nikito": "nikto",
+    "nkto": "nikto",
+    "httppx": "httpx",
+    "htpx": "httpx",
+    "gobustr": "gobuster",
+    "sqlmp": "sqlmap",
+    "subfnder": "subfinder",
+    "whatwb": "whatweb",
+    "wpsacn": "wpscan",
+}
+
+# Regex to detect "run/use/execute <tool>" patterns or bare tool name + "on/scan/against"
 _USER_MENTIONED_TOOL_RE = re.compile(
-    r"\b(?:run|use|execute|launch|start|try)\s+(?:the\s+)?(\w+)\b",
+    r"\b(?:run|use|execute|launch|start|try)\s+(?:the\s+)?(\w+)\b|"
+    r"\b(\w+)\s+(?:on|scan|against|for)\s+",
     re.IGNORECASE,
 )
+
+
+def _normalize_tool_mention(name: str) -> str | None:
+    """Normalize a user-mentioned tool name (handles typos). Returns canonical name or None."""
+    low = name.lower().strip()
+    if low in _KNOWN_TOOL_NAMES:
+        return low
+    if low in _TOOL_NAME_ALIASES:
+        return _TOOL_NAME_ALIASES[low]
+    return None
 
 
 def _detect_mentioned_but_filtered_tools(
@@ -620,16 +650,20 @@ def _detect_mentioned_but_filtered_tools(
 
     Returns list of tool names that were filtered (by license or org).
     Only flags names from _KNOWN_TOOL_NAMES to avoid false positives.
+    Handles common misspellings via _TOOL_NAME_ALIASES.
     """
     mentioned: list[str] = []
     seen: set[str] = set()
     for m in _USER_MENTIONED_TOOL_RE.finditer(user_message):
-        name = m.group(1).strip().lower()
-        if name in seen:
+        raw = (m.group(1) or m.group(2) or "").strip()
+        if not raw:
             continue
-        seen.add(name)
-        if name in _KNOWN_TOOL_NAMES and name not in by_name:
-            mentioned.append(name)
+        canonical = _normalize_tool_mention(raw)
+        if not canonical or canonical in seen:
+            continue
+        seen.add(canonical)
+        if canonical not in by_name:
+            mentioned.append(canonical)
     return mentioned
 
 _FALLBACK_SECURITY_TOOLS_ORDER = (
