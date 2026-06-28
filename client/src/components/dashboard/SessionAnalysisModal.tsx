@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Psychology } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 
 type SessionAnalysisModalProps = {

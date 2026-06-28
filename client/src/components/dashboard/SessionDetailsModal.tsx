@@ -1,7 +1,6 @@
 "use client";
 
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
-import { formatDate } from "@/lib/utils"; // Assuming a common util exists or just use internal helper
 import type { AgentChatSessionIntelligence } from "@/lib/agentChat";
 
 type SessionDetailsModalProps = {
