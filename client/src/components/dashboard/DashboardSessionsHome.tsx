@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { SessionAnalysisModal } from "@/components/dashboard/SessionAnalysisModal";
+import { SessionDetailsModal } from "@/components/dashboard/SessionDetailsModal";
 import {
   analyzeAgentChatSession,
   downloadAgentChatAttachment,
@@ -569,127 +570,11 @@ export function DashboardSessionsHome() {
         </div>
       </div>
 
-      {selected ? (
-        <section className="mt-6 rounded-2xl border border-outline-variant bg-surface px-6 py-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Session intelligence</p>
-              <h2 className="mt-2 text-xl font-bold text-on-surface">{selected.title}</h2>
-              <p className="mt-2 max-w-3xl text-[14px] leading-relaxed text-on-surface-variant">{selected.summary}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedId(null)}
-              className="self-start rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-high"
-              title="Close details"
-            >
-              <MaterialSymbol name="close" />
-            </button>
-          </div>
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            <div>
-              <h3 className="text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Tools</h3>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {selected.tools_used.map((tool) => (
-                  <span key={tool} className="rounded-lg bg-surface-container-high px-2 py-1 text-[12px] font-semibold">
-                    {tool}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Targets</h3>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(selected.targets.length ? selected.targets : ["unknown"]).map((target) => (
-                  <span key={target} className="rounded-lg bg-surface-container-high px-2 py-1 text-[12px] font-semibold">
-                    {target}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Metadata</h3>
-              <p className="mt-2 text-[13px] text-on-surface-variant">
-                Breach time {selected.average_time_to_breach} · Updated {formatDate(selected.updated_at)}
-                {selected.executed_by ? ` · Executed by: ${selected.executed_by}` : ""}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={reportBusyId === selected.session_id}
-                  onClick={() => handleReportAction(selected)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-[12px] font-bold text-on-primary hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <MaterialSymbol
-                    name={
-                      reportBusyId === selected.session_id
-                        ? "progress_activity"
-                        : latestReportAttachment(selected)
-                          ? "picture_as_pdf"
-                          : "note_add"
-                    }
-                    className={`text-base text-on-primary ${reportBusyId === selected.session_id ? "animate-spin" : ""}`}
-                    filled
-                  />
-                  {reportBusyId === selected.session_id
-                    ? "Generating PDF…"
-                    : latestReportAttachment(selected)
-                      ? "Download PDF"
-                      : "Generate PDF"}
-                </button>
-                {latestReportAttachment(selected) ? (
-                  <button
-                    type="button"
-                    disabled={reportBusyId === selected.session_id}
-                    onClick={() => generateReport(selected)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-outline-variant px-3 py-2 text-[12px] font-bold text-on-surface hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <MaterialSymbol name="published_with_changes" className="text-base" filled />
-                    Regenerate PDF
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-5 lg:grid-cols-2">
-            <div>
-              <h3 className="text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Findings summary</h3>
-              <div className="mt-3 space-y-3">
-                {selected.findings.length === 0 ? (
-                  <p className="text-[13px] text-on-surface-variant">No evidence-backed vulnerabilities were extracted.</p>
-                ) : (
-                  selected.findings.slice(0, 6).map((finding) => (
-                    <div key={finding.id} className="rounded-xl border border-outline-variant px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-lg bg-surface-container-high px-2 py-0.5 text-[11px] font-bold">
-                          {finding.severity}
-                        </span>
-                        <p className="text-[14px] font-bold text-on-surface">{finding.name}</p>
-                      </div>
-                      <p className="mt-2 text-[13px] text-on-surface-variant">{finding.details}</p>
-                      <p className="mt-2 line-clamp-2 text-[12px] text-on-surface-variant">Evidence: {finding.evidence}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-[13px] font-bold uppercase tracking-wider text-on-surface-variant">Timeline</h3>
-              <div className="mt-3 space-y-3">
-                {selected.timeline.slice(-8).map((event, idx) => (
-                  <div key={`${event.timestamp}-${event.type}-${idx}`} className="border-l-2 border-primary/30 pl-3">
-                    <p className="text-[12px] font-semibold text-on-surface-variant">{formatDate(event.timestamp)}</p>
-                    <p className="mt-1 text-[14px] font-bold text-on-surface">{event.title}</p>
-                    {event.details ? <p className="mt-1 text-[12px] text-on-surface-variant">{event.details}</p> : null}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
+      <SessionDetailsModal
+        open={!!selectedId}
+        onClose={() => setSelectedId(null)}
+        session={selected}
+      />
 
       <SessionAnalysisModal
         open={analysisModalOpen}
