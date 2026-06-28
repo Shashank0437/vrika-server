@@ -748,6 +748,8 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const followupGenKeyRef = useRef<Record<string, string>>({});
   const [toolPickerOpen, setToolPickerOpen] = useState(false);
   const [orgToolsRows, setOrgToolsRows] = useState<{ name: string; description: string }[]>([]);
+  const [agentReachable, setAgentReachable] = useState(true);
+  const [agentStatus, setAgentStatus] = useState<string | null>("healthy");
   const [orgToolsLoading, setOrgToolsLoading] = useState(false);
   const [orgToolsErr, setOrgToolsErr] = useState<string | null>(null);
   const [pickerSearch, setPickerSearch] = useState("");
@@ -1102,8 +1104,10 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
     setOrgToolsLoading(true);
     setOrgToolsErr(null);
     try {
-      const rows = await fetchAgentChatOrgTools();
-      setOrgToolsRows(rows);
+      const res = await fetchAgentChatOrgTools();
+      setOrgToolsRows(res.tools);
+      setAgentReachable(res.agent_reachable);
+      setAgentStatus(res.agent_status || null);
     } catch (e) {
       setOrgToolsErr(formatChatError(e));
     } finally {
@@ -1144,7 +1148,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
 
 
   const onCardClick = useCallback((seed: string) => {
-    setPrompt((p) => (p.trim() ? `${p.trim()} ${seed}` : seed));
+    setPrompt(seed);
   }, []);
 
   const handleDeleteSession = useCallback(
@@ -1959,11 +1963,17 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
           <div className="flex shrink-0 items-center gap-4">
             <div className="hidden items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1.5 sm:flex">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                {agentReachable ? (
+                  <>
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 opacity-60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  </>
+                ) : (
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                )}
               </span>
               <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
-                System health: nominal
+                System health: {agentReachable ? (agentStatus || "nominal") : "unreachable"}
               </span>
             </div>
             <DashboardHeaderProfile user={user} />

@@ -1636,11 +1636,20 @@ async def list_agent_chat_org_tools_catalog(
     db: AsyncIOMotorDatabase,
     *,
     organization_id: ObjectId,
-) -> list[dict[str, str]] | None:
-    """[{name, description}, ...] sorted by name; None if agent unreachable."""
+) -> tuple[list[dict[str, str]], bool, str | None]:
+    """([{name, description}, ...], reachable, status)"""
+    try:
+        health, _catalog = await fetch_agent_health_and_catalog(settings)
+        reachable = True
+        status = str(health.get("status") or "healthy")
+    except AgentUnreachableError:
+        return [], False, "unreachable"
+
     ctx = await _load_chat_tool_maps(settings, db, organization_id=organization_id)
     if ctx is None:
-        return None
+        # reachable but _load_chat_tool_maps failed (shouldn't happen if we just succeeded above)
+        return [], True, status
+
     by_name, _router_catalog = ctx
     rows: list[dict[str, str]] = []
     for name in sorted(by_name.keys()):
@@ -1648,7 +1657,7 @@ async def list_agent_chat_org_tools_catalog(
             continue
         item = by_name[name]
         rows.append({"name": name, "description": str(item.get("desc") or "").strip()})
-    return rows
+    return rows, reachable, status
 
 
 def _tool_objs_from_classify_meta(

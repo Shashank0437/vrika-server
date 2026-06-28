@@ -64,6 +64,8 @@ class AgentChatOrgToolRow(BaseModel):
 
 class AgentChatOrgToolsOut(BaseModel):
     tools: list[AgentChatOrgToolRow]
+    agent_reachable: bool = True
+    agent_status: str | None = "healthy"
 
 
 class AgentChatAttachmentOut(BaseModel):

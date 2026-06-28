@@ -148,6 +148,12 @@ export type AgentChatOrgToolRow = {
   description: string;
 };
 
+export type AgentChatOrgToolsResponse = {
+  tools: AgentChatOrgToolRow[];
+  agent_reachable: boolean;
+  agent_status?: string;
+};
+
 export type AgentChatContextPayload = {
   page?: string;
   session_id?: string;
@@ -334,12 +340,11 @@ export async function downloadAgentChatAttachment(
   return { blob, filename };
 }
 
-export async function fetchAgentChatOrgTools(): Promise<AgentChatOrgToolRow[]> {
+export async function fetchAgentChatOrgTools(): Promise<AgentChatOrgToolsResponse> {
   const res = await fetch(`${getApiBase()}${PREFIX}/org-tools`, { headers: bearerHeaders() });
   const text = await res.text();
   if (!res.ok) throw new ApiError(detailFromResponseBody(text, res.statusText), res.status, text);
-  const j = JSON.parse(text) as { tools?: AgentChatOrgToolRow[] };
-  return Array.isArray(j.tools) ? j.tools : [];
+  return JSON.parse(text) as AgentChatOrgToolsResponse;
 }
 
 /** Concatenate `data:` lines for one SSE event block (per HTML Standard). */

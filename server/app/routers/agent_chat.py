@@ -252,17 +252,16 @@ async def agent_chat_org_tools(
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> AgentChatOrgToolsOut:
     settings = get_settings()
-    rows = await list_agent_chat_org_tools_catalog(
+    rows, reachable, agent_status = await list_agent_chat_org_tools_catalog(
         settings,
         db,
         organization_id=user["organization_id"],
     )
-    if rows is None:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Agent catalog unreachable",
-        )
-    return AgentChatOrgToolsOut(tools=[AgentChatOrgToolRow(**r) for r in rows])
+    return AgentChatOrgToolsOut(
+        tools=[AgentChatOrgToolRow(**r) for r in rows],
+        agent_reachable=reachable,
+        agent_status=agent_status,
+    )
 
 
 @router.get("/attack-chain-plans", response_model=AttackChainPlansOut)
