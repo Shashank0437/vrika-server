@@ -81,7 +81,7 @@ class Settings(BaseSettings):
         default=1800.0,
         validation_alias=AliasChoices("AGENT_TOOL_RUN_TIMEOUT_SECONDS"),
     )
-    # Agent bridge (Flask /api/cipherstrike/*) — optional shared secret with NyxStrike CIPHERSTRIKE_BRIDGE_SECRET.
+    # Agent bridge (Flask /api/cipherstrike/*) — optional shared secret with NyxStrike VRIKA_BRIDGE_SECRET.
     cipherstrike_bridge_secret: str = ""
     agent_llm_stream_timeout_seconds: float = Field(
         default=600.0,

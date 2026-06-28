@@ -44,7 +44,7 @@ def _headers(settings: Settings) -> dict[str, str]:
         h["Authorization"] = f"Bearer {tok}"
     bridge = settings.cipherstrike_bridge_secret.strip() if settings.cipherstrike_bridge_secret else ""
     if bridge:
-        h["X-CipherStrike-Bridge-Secret"] = bridge
+        h["X-Vrika-Bridge-Secret"] = bridge
     return h
 
 
