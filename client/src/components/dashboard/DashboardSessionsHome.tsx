@@ -448,7 +448,7 @@ export function DashboardSessionsHome() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="inline-flex gap-2 text-on-surface-variant">
-                          <Tooltip content={reportAvailable(r) ? "Description and report" : "Description"}>
+                          <Tooltip content={reportAvailable(r) ? "Description and report" : "Description"} align="right">
                             <button
                               type="button"
                               onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
@@ -458,7 +458,7 @@ export function DashboardSessionsHome() {
                             </button>
                           </Tooltip>
 
-                          <Tooltip content={analyzeBusyId === r.session_id ? "Analyzing session…" : "Run AI Analysis"}>
+                          <Tooltip content={analyzeBusyId === r.session_id ? "Analyzing session…" : "Run AI Analysis"} align="right">
                             <button
                               type="button"
                               disabled={analyzeBusyId === r.session_id}
@@ -473,7 +473,7 @@ export function DashboardSessionsHome() {
                             </button>
                           </Tooltip>
 
-                          <Tooltip content="Terminal">
+                          <Tooltip content="Terminal" align="right">
                             <Link
                               href={`/dashboard/scan?chat_id=${encodeURIComponent(r.session_id)}`}
                               className="rounded-lg p-2 hover:bg-primary-container hover:text-primary"
@@ -483,6 +483,7 @@ export function DashboardSessionsHome() {
                           </Tooltip>
 
                           <Tooltip
+                            align="right"
                             content={
                               reportBusy
                                 ? "Generating PDF report…"
@@ -510,7 +511,7 @@ export function DashboardSessionsHome() {
                           </Tooltip>
 
                           {reportAttachment ? (
-                            <Tooltip content="Regenerate PDF report">
+                            <Tooltip content="Regenerate PDF report" align="right">
                               <button
                                 type="button"
                                 disabled={reportBusy}
