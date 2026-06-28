@@ -688,12 +688,58 @@ async def analyze_agent_chat_session_route(
     if not sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
 
+    # Fetch all messages to extract tool outputs
+    rows = await list_messages(
+        db,
+        organization_id=user["organization_id"],
+        user_id=user["_id"],
+        session_id=sid,
+        limit=200,
+    )
+
+    # Extract tool run logs from the transcript
+    logs: list[dict[str, Any]] = []
+    for r in rows:
+        if r.get("role") == "assistant" and r.get("tool_call"):
+            tc = r["tool_call"]
+            # Try to find the corresponding tool response
+            tool_name = tc.get("tool_name")
+            call_id = r.get("_id")
+            
+            # Find the tool response message following this assistant message
+            # In Vrika, we usually have role=tool messages linked by tool_call_id or sequence
+            # But simple heuristic: find role=tool with same tool_name that comes after
+            pass
+
+        if r.get("role") == "tool":
+            content = str(r.get("content") or "").strip()
+            tool_name = str(r.get("tool_name") or "unknown")
+            # We don't always have params in the tool message, but they might be in the preceding assistant message
+            # For now, just send the content as stdout
+            logs.append({
+                "tool": tool_name,
+                "stdout": content,
+                "timestamp": str(r.get("created_at") or ""),
+                "params": {}, # Optional for analysis
+                "return_code": 0
+            })
+
+    intel = sess.get("session_intelligence") if isinstance(sess.get("session_intelligence"), dict) else {}
+    targets = intel.get("targets") if isinstance(intel, dict) else []
+    target = str(targets[0]).strip() if isinstance(targets, list) and targets else ""
+    objective = str(intel.get("objective") or sess.get("title") or "").strip()
+
     try:
-        # ai_analyze_session tool call
+        # ai_analyze_session tool call with provided logs
         result_text, _meta, http_status = await _run_one_tool_detailed(
             settings,
             "/api/intelligence/analyze-session",
-            {"session_id": str(sid)},
+            {
+                "session_id": str(sid),
+                "logs": logs,
+                "target": target,
+                "objective": objective
+            },
         )
         if http_status != 200:
             raise HTTPException(http_status, detail=result_text)

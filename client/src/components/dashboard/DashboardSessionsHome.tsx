@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
+import { Tooltip } from "@/components/ui/Tooltip";
 import {
   analyzeAgentChatSession,
   downloadAgentChatAttachment,
@@ -447,44 +448,42 @@ export function DashboardSessionsHome() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="inline-flex gap-2 text-on-surface-variant">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
-                            className="rounded-lg p-2 hover:bg-primary-container hover:text-primary"
-                            title={reportAvailable(r) ? "Description and report" : "Description"}
-                          >
-                            <MaterialSymbol name="description" filled />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={analyzeBusyId === r.session_id}
-                            onClick={() => handleAnalyze(r)}
-                            className="rounded-lg p-2 hover:bg-primary-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                            title={analyzeBusyId === r.session_id ? "Analyzing session…" : "Run AI Analysis"}
-                          >
-                            <MaterialSymbol
-                              name={analyzeBusyId === r.session_id ? "progress_activity" : "psychology"}
-                              className={analyzeBusyId === r.session_id ? "animate-spin" : ""}
-                              filled
-                            />
-                          </button>
-                          <Link
-                            href={`/dashboard/scan?chat_id=${encodeURIComponent(r.session_id)}`}
-                            className="rounded-lg p-2 hover:bg-primary-container hover:text-primary"
-                            title="Terminal"
-                          >
-                            <MaterialSymbol name="terminal" filled />
-                          </Link>
-                          <button
-                            type="button"
-                            disabled={reportBusy}
-                            onClick={() => handleReportAction(r)}
-                            className={`rounded-lg p-2 hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-40 ${
-                              reportAttachment
-                                ? "text-emerald-700 hover:text-emerald-800"
-                                : "text-primary hover:text-primary"
-                            }`}
-                            title={
+                          <Tooltip content={reportAvailable(r) ? "Description and report" : "Description"}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
+                              className="rounded-lg p-2 hover:bg-primary-container hover:text-primary"
+                            >
+                              <MaterialSymbol name="description" filled />
+                            </button>
+                          </Tooltip>
+
+                          <Tooltip content={analyzeBusyId === r.session_id ? "Analyzing session…" : "Run AI Analysis"}>
+                            <button
+                              type="button"
+                              disabled={analyzeBusyId === r.session_id}
+                              onClick={() => handleAnalyze(r)}
+                              className="rounded-lg p-2 hover:bg-primary-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <MaterialSymbol
+                                name={analyzeBusyId === r.session_id ? "progress_activity" : "psychology"}
+                                className={analyzeBusyId === r.session_id ? "animate-spin" : ""}
+                                filled
+                              />
+                            </button>
+                          </Tooltip>
+
+                          <Tooltip content="Terminal">
+                            <Link
+                              href={`/dashboard/scan?chat_id=${encodeURIComponent(r.session_id)}`}
+                              className="rounded-lg p-2 hover:bg-primary-container hover:text-primary"
+                            >
+                              <MaterialSymbol name="terminal" filled />
+                            </Link>
+                          </Tooltip>
+
+                          <Tooltip
+                            content={
                               reportBusy
                                 ? "Generating PDF report…"
                                 : reportAttachment
@@ -492,22 +491,35 @@ export function DashboardSessionsHome() {
                                   : "Generate PDF report"
                             }
                           >
-                            <MaterialSymbol
-                              name={reportBusy ? "progress_activity" : reportAttachment ? "picture_as_pdf" : "note_add"}
-                              className={reportBusy ? "animate-spin" : ""}
-                              filled
-                            />
-                          </button>
-                          {reportAttachment ? (
                             <button
                               type="button"
                               disabled={reportBusy}
-                              onClick={() => generateReport(r)}
-                              className="rounded-lg p-2 text-primary hover:bg-primary-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                              title="Regenerate PDF report"
+                              onClick={() => handleReportAction(r)}
+                              className={`rounded-lg p-2 hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-40 ${
+                                reportAttachment
+                                  ? "text-emerald-700 hover:text-emerald-800"
+                                  : "text-primary hover:text-primary"
+                              }`}
                             >
-                              <MaterialSymbol name="published_with_changes" filled />
+                              <MaterialSymbol
+                                name={reportBusy ? "progress_activity" : reportAttachment ? "picture_as_pdf" : "note_add"}
+                                className={reportBusy ? "animate-spin" : ""}
+                                filled
+                              />
                             </button>
+                          </Tooltip>
+
+                          {reportAttachment ? (
+                            <Tooltip content="Regenerate PDF report">
+                              <button
+                                type="button"
+                                disabled={reportBusy}
+                                onClick={() => generateReport(r)}
+                                className="rounded-lg p-2 text-primary hover:bg-primary-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <MaterialSymbol name="published_with_changes" filled />
+                              </button>
+                            </Tooltip>
                           ) : null}
                         </div>
                       </td>
