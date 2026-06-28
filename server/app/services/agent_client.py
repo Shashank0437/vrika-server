@@ -42,7 +42,7 @@ def _headers(settings: Settings) -> dict[str, str]:
     tok = settings.agent_api_token.strip() if settings.agent_api_token else ""
     if tok:
         h["Authorization"] = f"Bearer {tok}"
-    bridge = settings.cipherstrike_bridge_secret.strip() if settings.cipherstrike_bridge_secret else ""
+    bridge = settings.vrika_bridge_secret.strip() if settings.vrika_bridge_secret else ""
     if bridge:
         h["X-Vrika-Bridge-Secret"] = bridge
     return h
