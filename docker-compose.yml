@@ -47,7 +47,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Agent runs separately (~/nyxstrike docker compose); API reaches it on the host.
       AGENT_MICROSERVICE_URL: http://host.docker.internal:8888
-      AGENT_TOOL_STREAM_REDIS_URL: redis://redis:6379/0
+      AGENT_TOOL_STREAM_REDIS_URL: redis://host.docker.internal:6379/0
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
