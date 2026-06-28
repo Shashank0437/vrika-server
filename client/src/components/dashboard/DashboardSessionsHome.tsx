@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { SessionAnalysisModal } from "@/components/dashboard/SessionAnalysisModal";
 import {
   analyzeAgentChatSession,
   downloadAgentChatAttachment,
@@ -120,6 +121,10 @@ export function DashboardSessionsHome() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [analyzeBusyId, setAnalyzeBusyId] = useState<string | null>(null);
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [analysisSummary, setAnalysisSummary] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisTitle, setAnalysisTitle] = useState("");
   const [reportError, setReportError] = useState<string | null>(null);
 
   async function load(silent = false) {
@@ -186,12 +191,26 @@ export function DashboardSessionsHome() {
 
   async function handleAnalyze(row: AgentChatSessionIntelligence) {
     setAnalyzeBusyId(row.session_id);
+    setAnalysisModalOpen(true);
+    setAnalysisSummary(null);
+    setAnalysisError(null);
+    setAnalysisTitle(row.title);
     setReportError(null);
     try {
-      await analyzeAgentChatSession(row.session_id);
+      const res = await analyzeAgentChatSession(row.session_id);
+      if (res.success && res.result) {
+        try {
+          const parsed = JSON.parse(res.result);
+          setAnalysisSummary(parsed.summary || "No summary provided by AI.");
+        } catch {
+          setAnalysisSummary(res.result);
+        }
+      }
       await load(true);
     } catch (e) {
-      setReportError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setAnalysisError(msg);
+      setReportError(msg);
     } finally {
       setAnalyzeBusyId(null);
     }
@@ -671,6 +690,15 @@ export function DashboardSessionsHome() {
           </div>
         </section>
       ) : null}
+
+      <SessionAnalysisModal
+        open={analysisModalOpen}
+        onClose={() => setAnalysisModalOpen(false)}
+        loading={!!analyzeBusyId}
+        summary={analysisSummary}
+        error={analysisError}
+        title={analysisTitle}
+      />
     </div>
   );
 }
