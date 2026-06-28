@@ -673,6 +673,36 @@ async def generate_agent_chat_session_report(
     }
 
 
+@router.post("/sessions/{session_id}/analyze")
+async def analyze_agent_chat_session_route(
+    session_id: str,
+    user: dict = Depends(require_auth_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """Trigger AI analysis for an existing session."""
+    settings = get_settings()
+    sid = _oid(session_id)
+    sess = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+    )
+    if not sess:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    try:
+        # ai_analyze_session tool call
+        result_text, _meta, http_status = await _run_one_tool_detailed(
+            settings,
+            "/api/intelligence/analyze-session",
+            {"session_id": str(sid)},
+        )
+        if http_status != 200:
+            raise HTTPException(http_status, detail=result_text)
+        return {"success": True, "result": result_text}
+    except Exception as exc:
+        logger.exception("AI analysis failed for session_id=%s", session_id)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+
 @router.post("/sessions/{session_id}/messages")
 async def post_message_stream(
     session_id: str,
@@ -904,6 +934,7 @@ async def post_message_stream(
             llm_messages = build_llm_messages_from_history(
                 settings,
                 rows,
+                session_id=str(sid),
                 extra_system="\n\n".join(extra_system_parts) if extra_system_parts else None,
                 conversation_summary=summary_str,
                 base_system_prompt=base_system_prompt,

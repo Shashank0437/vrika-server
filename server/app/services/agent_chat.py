@@ -388,10 +388,6 @@ def _parse_think_token_payload(rest: str) -> str:
 _CHAT_TOOL_BLOCKLIST = frozenset(
     {
         "ai_analyze_session",
-        "ai_recon_session",
-        "ai_vuln_session",
-        "ai_profiling_session",
-        "ai_osint_session",
     },
 )
 
@@ -416,6 +412,8 @@ _CHAT_ROUTING_CATEGORY_SLUGS = frozenset(
         "database",
         "active_directory",
         "vulnerability_intelligence",
+        "intelligence",
+        "ai_assist",
         "reporting",
     },
 )
@@ -1418,19 +1416,17 @@ def build_llm_messages_from_history(
     settings: Settings,
     rows: list[dict[str, Any]],
     *,
+    session_id: str | None = None,
     extra_system: str | None = None,
     conversation_summary: str | None = None,
     base_system_prompt: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Reconstruct an OpenAI-compatible message list from persisted Mongo rows.
-
-    Critical: assistant messages with structured tool_call/tool_calls are emitted in
-    OpenAI's native `tool_calls` shape (NOT as stringified markdown text). This prevents
-    the model from imitating its own previous "[Tool executed: ...]" markdown as plain
-    text on subsequent turns. Legacy rows (pre-refactor) with markdown content get the
-    markdown stripped before being fed to the LLM.
-    """
+    """Reconstruct an OpenAI-compatible message list from persisted Mongo rows."""
     base = (base_system_prompt or settings.agent_chat_system_prompt).strip()
+    if session_id:
+        base += f"\n\nCurrent Session ID: {session_id}"
+        base += "\nYou can use ai_analyze_session(session_id=...) to perform a deep analysis of all tool outputs in this session."
+
     messages: list[dict[str, Any]] = [{"role": "system", "content": base}]
     if conversation_summary and conversation_summary.strip():
         messages.append(

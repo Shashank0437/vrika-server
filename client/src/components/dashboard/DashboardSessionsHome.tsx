@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import {
+  analyzeAgentChatSession,
   downloadAgentChatAttachment,
   generateAgentChatSessionReport,
   listAgentChatSessionIntelligence,
@@ -117,6 +118,7 @@ export function DashboardSessionsHome() {
   const [sortMode, setSortMode] = useState<"newest" | "oldest">("newest");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
+  const [analyzeBusyId, setAnalyzeBusyId] = useState<string | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
 
   async function load(silent = false) {
@@ -179,6 +181,19 @@ export function DashboardSessionsHome() {
       return;
     }
     await generateReport(row);
+  }
+
+  async function handleAnalyze(row: AgentChatSessionIntelligence) {
+    setAnalyzeBusyId(row.session_id);
+    setReportError(null);
+    try {
+      await analyzeAgentChatSession(row.session_id);
+      await load(true);
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAnalyzeBusyId(null);
+    }
   }
 
   const metrics = useMemo(() => {
@@ -439,6 +454,19 @@ export function DashboardSessionsHome() {
                             title={reportAvailable(r) ? "Description and report" : "Description"}
                           >
                             <MaterialSymbol name="description" filled />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={analyzeBusyId === r.session_id}
+                            onClick={() => handleAnalyze(r)}
+                            className="rounded-lg p-2 hover:bg-primary-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                            title={analyzeBusyId === r.session_id ? "Analyzing session…" : "Run AI Analysis"}
+                          >
+                            <MaterialSymbol
+                              name={analyzeBusyId === r.session_id ? "progress_activity" : "psychology"}
+                              className={analyzeBusyId === r.session_id ? "animate-spin" : ""}
+                              filled
+                            />
                           </button>
                           <Link
                             href={`/dashboard/scan?chat_id=${encodeURIComponent(r.session_id)}`}
