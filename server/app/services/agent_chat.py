@@ -2095,7 +2095,7 @@ async def plan_router_turn(
     explicit_tool_names: list[str] | None = None,
     rows: list[dict[str, Any]] | None = None,
 ) -> RouterTurnResult:
-    """CipherStrike router — replaces classify-task; returns schemas for main LLM or conversational branch."""
+    """Vrika router — replaces classify-task; returns schemas for main LLM or conversational branch."""
     meta: dict[str, Any] = {}
     max_pick = max(1, settings.agent_router_max_tools)
     explicit: list[str] = []

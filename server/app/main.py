@@ -17,7 +17,7 @@ async def lifespan(_: FastAPI):
     await close_redis()
 
 
-app = FastAPI(title="CipherStrike API", lifespan=lifespan)
+app = FastAPI(title="Vrika API", lifespan=lifespan)
 
 settings = get_settings()
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]

@@ -19,7 +19,7 @@ class ServerToolsSummary(BaseModel):
 
 
 class WorkspaceServerStatus(BaseModel):
-    cipherstrike_api: str = Field(default="ok", description="CipherStrike FastAPI surface status")
+    cipherstrike_api: str = Field(default="ok", description="Vrika FastAPI surface status")
     agent_reachable: bool
     agent_status: str | None = None
     agent_message: str | None = None
@@ -49,7 +49,7 @@ class WorkspaceToolCard(BaseModel):
     safety: str = ""
     documentation_url: str = Field(
         default="",
-        description="Curated upstream docs URL from NyxStrike tool_web_sources (empty for CipherStrike-only tools).",
+        description="Curated upstream docs URL from NyxStrike tool_web_sources (empty for Vrika-only tools).",
     )
     parameter_documentation: dict[str, Any] = Field(
         default_factory=dict,

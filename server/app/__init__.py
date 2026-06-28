@@ -1,1 +1,1 @@
-# CipherStrike API application
+# Vrika API application

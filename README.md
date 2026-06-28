@@ -1,4 +1,4 @@
-# CipherStrike
+# Vrika
 
 Monorepo with a **Next.js** client (`client/`) and **FastAPI** API (`server/`), backed by **MongoDB** and **Redis**.
 

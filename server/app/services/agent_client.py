@@ -1,4 +1,4 @@
-"""HTTP helpers for the NyxStrike / CipherStrike agent (Flask microservice)."""
+"""HTTP helpers for the NyxStrike / Vrika agent (Flask microservice)."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ async def fetch_agent_health_and_catalog(settings: Settings) -> tuple[dict[str, 
     return health_r.json(), catalog_r.json()
 
 
-# Categories implemented on the CipherStrike server (no host binary) — same default as workspace tool cards
+# Categories implemented on the Vrika server (no host binary) — same default as workspace tool cards
 # when /health has no probe entry for a catalog id.
 _AGENT_SERVER_LAYER_CATEGORIES = frozenset({"intelligence", "ai_assist", "vulnerability_intelligence"})
 

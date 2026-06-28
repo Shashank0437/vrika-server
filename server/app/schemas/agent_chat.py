@@ -1,4 +1,4 @@
-"""Pydantic models for Mongo-backed agent chat (CipherStrike API)."""
+"""Pydantic models for Mongo-backed agent chat (Vrika API)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# CipherStrike API
+# Vrika API
 
 FastAPI backend for registration approval (**Brevo** email), JWT login, and per-tenant RBAC. Intended to run on **port 8000** with the Next.js client proxying `/be/*` to this service ([`client/next.config.ts`](../client/next.config.ts)).
 
@@ -33,7 +33,7 @@ FastAPI backend for registration approval (**Brevo** email), JWT login, and per-
 
 - Create an API key in [Brevo](https://app.brevo.com) → **SMTP & API** → **API keys** → **`BREVO_API_KEY`** in `.env`.
 - **`BREVO_SENDER_EMAIL`** must be an address (or domain) **verified as a sender** in Brevo.
-- **`BREVO_SENDER_NAME`** defaults to `CipherStrike` (display name in inboxes).
+- **`BREVO_SENDER_NAME`** defaults to `Vrika` (display name in inboxes).
 
 The backend calls **POST `https://api.brevo.com/v3/smtp/email`** (`htmlContent` + `textContent`).
 

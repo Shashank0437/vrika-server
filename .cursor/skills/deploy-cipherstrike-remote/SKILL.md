@@ -1,10 +1,10 @@
 ---
 name: deploy-cipherstrike-remote
-description: Deploys the CipherStrike web stack on the LAN workstation via SSH, git pull, and Docker Compose rebuild. Use when the user asks to deploy to the cipherstrike remote server, cipher-web host, tls@192.168.9.188, or production-like Docker deployment after pushing to main.
+description: Deploys the Vrika web stack on the LAN workstation via SSH, git pull, and Docker Compose rebuild. Use when the user asks to deploy to the cipherstrike remote server, cipher-web host, tls@192.168.9.188, or production-like Docker deployment after pushing to main.
 disable-model-invocation: true
 ---
 
-# Deploy CipherStrike remote (cipher-web)
+# Deploy Vrika remote (cipher-web)
 
 ## Target environment
 
