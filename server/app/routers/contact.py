@@ -48,7 +48,9 @@ async def submit_contact(body: ContactSubmissionIn) -> dict:
         team_to_emails=admins,
     )
 
-    thanks_subject, thanks_html, thanks_text = render_contact_thanks_email(first_name=body.first_name.strip())
+    thanks_subject, thanks_html, thanks_text = render_contact_thanks_email(
+        first_name=body.first_name.strip()
+    )
 
     try:
         # Single Brevo send: all admins in the `to` array (everyone sees each other on To: for reference).
@@ -87,4 +89,7 @@ async def submit_contact(body: ContactSubmissionIn) -> dict:
             "hint": EMAIL_HINT,
         }
 
-    return {"detail": "Message sent. Check your inbox for a confirmation.", "confirmation_sent": True}
+    return {
+        "detail": "Message sent. Check your inbox for a confirmation.",
+        "confirmation_sent": True,
+    }

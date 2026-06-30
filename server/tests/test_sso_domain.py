@@ -1,6 +1,10 @@
 """SSO domain helpers — unit tests (no SAML/xmlsec required)."""
 
-from app.services.sso_domain import extract_email_domain, normalize_domain, sso_discover_payload
+from app.services.sso_domain import (
+    extract_email_domain,
+    normalize_domain,
+    sso_discover_payload,
+)
 
 
 def test_extract_email_domain() -> None:

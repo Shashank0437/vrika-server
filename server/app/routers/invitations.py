@@ -23,7 +23,9 @@ async def preview_invitation(
     key = f"{ORG_INVITE_REDIS_PREFIX}{token}"
     raw = await r.get(key)
     if not raw:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invitation link")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invitation link"
+        )
 
     try:
         oid = ObjectId(raw)
@@ -42,7 +44,11 @@ async def preview_invitation(
 
     inviter = await db.users.find_one({"_id": inv["invited_by"]})
     if inviter:
-        inviter_display = (inviter.get("username") or "").strip() or inviter.get("email") or "A teammate"
+        inviter_display = (
+            (inviter.get("username") or "").strip()
+            or inviter.get("email")
+            or "A teammate"
+        )
     else:
         inviter_display = "A teammate"
 

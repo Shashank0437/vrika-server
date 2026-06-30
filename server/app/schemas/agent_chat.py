@@ -90,7 +90,9 @@ class AgentChatMessageOut(BaseModel):
 
 
 class AgentChatToolDecisionsPatch(BaseModel):
-    decisions: dict[str, str] = Field(..., description='Slot index string → "approve" or "reject"')
+    decisions: dict[str, str] = Field(
+        ..., description='Slot index string → "approve" or "reject"'
+    )
 
 
 class AgentChatSendBody(BaseModel):
@@ -112,7 +114,9 @@ class AgentChatSendBody(BaseModel):
     attack_chain_operator_note: str = Field(default="", max_length=4000)
     attack_chain_executive_summary: str = Field(default="", max_length=8000)
     attack_chain_paths: list[str] = Field(default_factory=list, max_length=8)
-    attack_chain_phases: list[dict[str, Any]] = Field(default_factory=list, max_length=16)
+    attack_chain_phases: list[dict[str, Any]] = Field(
+        default_factory=list, max_length=16
+    )
     attack_chain_planner_source: str = Field(default="", max_length=32)
     specialist_agent_id: str = Field(default="", max_length=32)
     specialist_agent_params: dict[str, Any] = Field(default_factory=dict)

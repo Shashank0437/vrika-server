@@ -41,7 +41,9 @@ async def _reject_if_sso_enforced(
 ) -> None:
     cfg = await lookup_sso_config_for_email(db, email)
     if cfg and cfg.get("enforced"):
-        provider = cfg.get("provider_display_name") or cfg.get("domain") or "your organization"
+        provider = (
+            cfg.get("provider_display_name") or cfg.get("domain") or "your organization"
+        )
         raise HTTPException(
             status_code,
             detail=f"Password {action} is disabled for this domain. Sign in with {provider} instead.",
@@ -49,11 +51,16 @@ async def _reject_if_sso_enforced(
 
 
 @router.post("/register-request", status_code=status.HTTP_201_CREATED)
-async def register_request(body: RegisterRequestIn, db: AsyncIOMotorDatabase = Depends(get_database)) -> dict:
+async def register_request(
+    body: RegisterRequestIn, db: AsyncIOMotorDatabase = Depends(get_database)
+) -> dict:
     email_norm = body.email.lower().strip()
     existing_user = await db.users.find_one({"email": email_norm})
     if existing_user:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="An account with this email already exists")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists",
+        )
 
     dup_pending = await db.registration_requests.find_one(
         {"email": email_norm, "status": {"$in": [PENDING, APPROVED]}},
@@ -75,7 +82,9 @@ async def register_request(body: RegisterRequestIn, db: AsyncIOMotorDatabase = D
         "updated_at": now,
     }
     await db.registration_requests.insert_one(doc)
-    return {"detail": "Registration request received. You will receive an email when an administrator approves it."}
+    return {
+        "detail": "Registration request received. You will receive an email when an administrator approves it."
+    }
 
 
 @router.post("/complete-registration", response_model=TokenOut)
@@ -87,7 +96,9 @@ async def complete_registration(
     key = f"{REG_COMPLETE_REDIS_PREFIX}{body.token}"
     raw = await r.get(key)
     if not raw:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token"
+        )
 
     try:
         request_id = ObjectId(raw)
@@ -97,21 +108,34 @@ async def complete_registration(
     req = await db.registration_requests.find_one({"_id": request_id})
     if not req:
         await r.delete(key)
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Registration request not found")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Registration request not found"
+        )
 
     if req["status"] == COMPLETED:
         await r.delete(key)
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="This registration was already completed")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="This registration was already completed",
+        )
 
     if req["status"] != APPROVED:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Registration is not ready for password setup")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Registration is not ready for password setup",
+        )
 
     email_norm = req["email"]
     if await db.users.find_one({"email": email_norm}):
         await r.delete(key)
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="An account with this email already exists")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists",
+        )
 
-    await _reject_if_sso_enforced(db, email_norm, action="registration", status_code=status.HTTP_400_BAD_REQUEST)
+    await _reject_if_sso_enforced(
+        db, email_norm, action="registration", status_code=status.HTTP_400_BAD_REQUEST
+    )
     if req.get("organization_id"):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -181,7 +205,9 @@ async def complete_invitation(
     key = f"{ORG_INVITE_REDIS_PREFIX}{body.token}"
     raw = await r.get(key)
     if not raw:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invitation link")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invitation link"
+        )
 
     try:
         invite_id = ObjectId(raw)
@@ -195,7 +221,9 @@ async def complete_invitation(
 
     if inv["status"] != INVITE_PENDING:
         await r.delete(key)
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="This invitation is no longer valid")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="This invitation is no longer valid"
+        )
 
     email_norm = inv["email"]
     if await db.users.find_one({"email": email_norm}):
@@ -250,13 +278,17 @@ async def complete_invitation(
 
 
 @router.post("/login", response_model=TokenOut)
-async def login(body: LoginIn, db: AsyncIOMotorDatabase = Depends(get_database)) -> TokenOut:
+async def login(
+    body: LoginIn, db: AsyncIOMotorDatabase = Depends(get_database)
+) -> TokenOut:
     email_norm = body.email.lower().strip()
     await _reject_if_sso_enforced(db, email_norm, action="sign-in")
 
     user = await db.users.find_one({"email": email_norm})
     if not user:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password"
+        )
 
     pwd_hash = user.get("password_hash")
     if not pwd_hash:
@@ -268,7 +300,9 @@ async def login(body: LoginIn, db: AsyncIOMotorDatabase = Depends(get_database))
         )
 
     if not verify_password(body.password, pwd_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password"
+        )
 
     oid = user["_id"]
     org_id = user["organization_id"]
@@ -336,7 +370,9 @@ async def change_password(
         )
 
     if not verify_password(body.current_password, pwd_hash):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect"
+        )
 
     if body.current_password == body.new_password:
         raise HTTPException(

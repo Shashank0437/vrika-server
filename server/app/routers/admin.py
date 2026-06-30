@@ -21,10 +21,15 @@ PENDING = "pending"
 APPROVED = "approved"
 
 
-async def require_admin_key(x_admin_key: str | None = Header(None, alias="X-Admin-Key")) -> None:
+async def require_admin_key(
+    x_admin_key: str | None = Header(None, alias="X-Admin-Key"),
+) -> None:
     s = get_settings()
     if not s.admin_api_key:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail="Admin key is not configured on this server")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin key is not configured on this server",
+        )
     if not x_admin_key or x_admin_key != s.admin_api_key:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
@@ -69,7 +74,9 @@ async def approve_registration_request(
 
     req = await db.registration_requests.find_one({"_id": oid})
     if not req:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Registration request not found")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail="Registration request not found"
+        )
     if req["status"] != PENDING:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -96,7 +103,9 @@ async def approve_registration_request(
             req["email"],
             request_id,
         )
-        await send_transactional_email_one(to_email=req["email"], subject=subject, html=html, text=text)
+        await send_transactional_email_one(
+            to_email=req["email"], subject=subject, html=html, text=text
+        )
     except Exception:
         logger.exception("Failed to send approval email via Brevo")
         await r.delete(redis_key)

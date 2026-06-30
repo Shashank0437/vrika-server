@@ -24,7 +24,9 @@ async def lookup_sso_config(db: AsyncIOMotorDatabase, domain: str) -> dict | Non
     return cfg
 
 
-async def lookup_sso_config_for_email(db: AsyncIOMotorDatabase, email: str) -> dict | None:
+async def lookup_sso_config_for_email(
+    db: AsyncIOMotorDatabase, email: str
+) -> dict | None:
     domain = extract_email_domain(email)
     if not domain:
         return None
@@ -43,6 +45,8 @@ def sso_discover_payload(cfg: dict | None) -> dict:
     return {
         "sso_available": True,
         "sso_required": enforced,
-        "provider_display_name": cfg.get("provider_display_name") or cfg.get("domain") or "",
+        "provider_display_name": cfg.get("provider_display_name")
+        or cfg.get("domain")
+        or "",
         "domain": cfg.get("domain") or "",
     }

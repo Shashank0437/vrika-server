@@ -55,7 +55,9 @@ def subagent_prompt_snippet(
     filename = mapping.get(phase_key)
     if not filename:
         return ""
-    body = load_agent_markdown(agent_id, filename, specialists_dir=specialists_dir) or ""
+    body = (
+        load_agent_markdown(agent_id, filename, specialists_dir=specialists_dir) or ""
+    )
     if not body:
         return ""
     header = f"ACTIVE SUBAGENT ({filename.replace('.md', '')} — phase {phase_key}):\n"

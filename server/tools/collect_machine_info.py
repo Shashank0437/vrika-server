@@ -31,9 +31,7 @@ from urllib.error import HTTPError, URLError
 def _run(cmd: list, fallback: str = "") -> str:
     """Run a command and return stripped stdout, or fallback on failure."""
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=10
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         return result.stdout.strip() if result.returncode == 0 else fallback
     except Exception:
         return fallback
@@ -75,15 +73,13 @@ def collect_machine_info() -> dict:
 
     if system == "Linux":
         # Machine ID
-        info["machine_id"] = (
-            _read_file("/etc/machine-id")
-            or _read_file("/var/lib/dbus/machine-id")
+        info["machine_id"] = _read_file("/etc/machine-id") or _read_file(
+            "/var/lib/dbus/machine-id"
         )
 
         # BIOS UUID (may need sudo)
-        info["bios_uuid"] = (
-            _read_file("/sys/class/dmi/id/product_uuid")
-            or _run(["sudo", "dmidecode", "-s", "system-uuid"])
+        info["bios_uuid"] = _read_file("/sys/class/dmi/id/product_uuid") or _run(
+            ["sudo", "dmidecode", "-s", "system-uuid"]
         )
 
         # CPU info from /proc/cpuinfo
@@ -100,9 +96,7 @@ def collect_machine_info() -> dict:
             pass
 
         # Disk serial
-        info["disk_serial"] = _run(
-            ["lsblk", "-ndo", "SERIAL", "/dev/sda"]
-        ) or _run(
+        info["disk_serial"] = _run(["lsblk", "-ndo", "SERIAL", "/dev/sda"]) or _run(
             ["lsblk", "-ndo", "SERIAL", "/dev/nvme0n1"]
         )
 
@@ -119,15 +113,22 @@ def collect_machine_info() -> dict:
         info["cpu_model"] = _run(["sysctl", "-n", "machdep.cpu.brand_string"])
         info["cpu_family"] = _run(["sysctl", "-n", "machdep.cpu.family"])
 
-        info["disk_serial"] = _run([
-            "bash", "-c",
-            "system_profiler SPSerialATADataType 2>/dev/null "
-            "| grep 'Serial Number' | head -1 | awk -F': ' '{print $2}'"
-        ])
+        info["disk_serial"] = _run(
+            [
+                "bash",
+                "-c",
+                "system_profiler SPSerialATADataType 2>/dev/null "
+                "| grep 'Serial Number' | head -1 | awk -F': ' '{print $2}'",
+            ]
+        )
 
     elif system == "Windows":
         info["machine_id"] = _run(
-            ["powershell", "-Command", "(Get-CimInstance Win32_ComputerSystemProduct).UUID"]
+            [
+                "powershell",
+                "-Command",
+                "(Get-CimInstance Win32_ComputerSystemProduct).UUID",
+            ]
         )
         info["bios_uuid"] = _run(
             ["powershell", "-Command", "(Get-CimInstance Win32_BIOS).SerialNumber"]
@@ -139,11 +140,18 @@ def collect_machine_info() -> dict:
             ["powershell", "-Command", "(Get-CimInstance Win32_Processor).Name"]
         )
         info["cpu_family"] = _run(
-            ["powershell", "-Command", "([string](Get-CimInstance Win32_Processor).Family)"]
+            [
+                "powershell",
+                "-Command",
+                "([string](Get-CimInstance Win32_Processor).Family)",
+            ]
         )
         info["disk_serial"] = _run(
-            ["powershell", "-Command",
-             "(Get-CimInstance Win32_DiskDrive | Select -First 1).SerialNumber"]
+            [
+                "powershell",
+                "-Command",
+                "(Get-CimInstance Win32_DiskDrive | Select -First 1).SerialNumber",
+            ]
         )
 
     return info
@@ -175,24 +183,25 @@ def main():
         description="Collect machine info and push to Vrika Admin portal"
     )
     parser.add_argument(
-        "--customer-id", required=True,
-        help="Customer ID from admin portal"
+        "--customer-id", required=True, help="Customer ID from admin portal"
     )
     parser.add_argument(
-        "--api-url", required=True,
-        help="Admin API base URL (e.g. https://admin.example.com/be)"
+        "--api-url",
+        required=True,
+        help="Admin API base URL (e.g. https://admin.example.com/be)",
     )
     parser.add_argument(
-        "--token", required=True,
-        help="JWT auth token from admin portal"
+        "--token", required=True, help="JWT auth token from admin portal"
     )
     parser.add_argument(
-        "--save-local", action="store_true",
-        help="Also save machine-info.json in current directory"
+        "--save-local",
+        action="store_true",
+        help="Also save machine-info.json in current directory",
     )
     parser.add_argument(
-        "--output-dir", default="/vrika-server/server/tools",
-        help="Directory to save machine-info.json (default: /vrika-server/server/tools)"
+        "--output-dir",
+        default="/vrika-server/server/tools",
+        help="Directory to save machine-info.json (default: /vrika-server/server/tools)",
     )
     args = parser.parse_args()
 
@@ -212,7 +221,6 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
-
 
     # Always save to output directory
     out_dir = Path(args.output_dir)

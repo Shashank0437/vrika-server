@@ -26,10 +26,8 @@ _CATEGORY_TO_SKILL_SLUG: dict[str, str] = {
     "osint": "subdomain-enum",
     "exploitation": "exploitation",
     "binary": "binary-analysis",
-    "cloud": "cloud-audit",
     "active_directory": "smb-enum",
     "api": "web-vuln",
-    "wifi_pentest": "nmap-recon",
     "database": "password-cracking",
     "vulnerability_intelligence": "exploitation",
     "reporting": "documentation",
@@ -98,7 +96,7 @@ def skill_slug_for_router_meta(meta: dict[str, Any] | None) -> str | None:
 def _parse_frontmatter_body(text: str) -> str:
     m = _FRONTMATTER_RE.match(text)
     if m:
-        return text[m.end():].strip()
+        return text[m.end() :].strip()
     return text.strip()
 
 
@@ -122,7 +120,9 @@ async def _fetch_skill_from_agent(settings: Settings, slug: str) -> str | None:
             timeout_seconds=settings.agent_timeout_seconds,
         )
     except AgentUnreachableError as exc:
-        logger.warning("agent_skills: agent unreachable for skill %r: %s", slug, exc.message)
+        logger.warning(
+            "agent_skills: agent unreachable for skill %r: %s", slug, exc.message
+        )
         return None
     if not raw.get("success"):
         return None
@@ -141,7 +141,9 @@ async def fetch_skill_body(settings: Settings, slug: str) -> str | None:
     return await _fetch_skill_from_agent(settings, slug)
 
 
-async def resolve_skill_for_category(settings: Settings, category: str) -> tuple[str, str] | None:
+async def resolve_skill_for_category(
+    settings: Settings, category: str
+) -> tuple[str, str] | None:
     """First existing SKILL.md among slug candidates for this category."""
     for slug in slug_candidates_for_category(category):
         body = await fetch_skill_body(settings, slug)
@@ -182,8 +184,7 @@ def format_skill_system_message(slug: str, body: str, *, max_chars: int) -> str:
         trimmed = trimmed[:max_chars] + "\n… (skill truncated)"
     return (
         f"WORKFLOW SKILL ({slug}): Follow this playbook when choosing tools and sequencing scans. "
-        "Use tool_calls to execute steps — do not only describe them.\n\n"
-        + trimmed
+        "Use tool_calls to execute steps — do not only describe them.\n\n" + trimmed
     )
 
 
@@ -267,7 +268,9 @@ async def inject_skills_into_llm_messages(
             injected_slugs.append(m.group(1).strip())
     inject_skill_blocks_into_llm_messages(llm_messages, blocks)
     if injected_slugs:
-        logger.info("agent_chat: injected skill(s) %s (%d blocks)", injected_slugs, len(blocks))
+        logger.info(
+            "agent_chat: injected skill(s) %s (%d blocks)", injected_slugs, len(blocks)
+        )
     return injected_slugs
 
 
@@ -300,6 +303,8 @@ async def maybe_inject_skill_into_llm_messages(
         llm_messages,
         router_meta=router_meta,
         intent=intent,
-        prefetched_blocks=router_meta.get("skill_injection_blocks") if router_meta else None,
+        prefetched_blocks=router_meta.get("skill_injection_blocks")
+        if router_meta
+        else None,
     )
     return slugs[0] if slugs else None

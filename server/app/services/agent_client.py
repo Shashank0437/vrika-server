@@ -42,16 +42,22 @@ def _headers(settings: Settings) -> dict[str, str]:
     tok = settings.agent_api_token.strip() if settings.agent_api_token else ""
     if tok:
         h["Authorization"] = f"Bearer {tok}"
-    bridge = settings.vrika_bridge_secret.strip() if settings.vrika_bridge_secret else ""
+    bridge = (
+        settings.vrika_bridge_secret.strip() if settings.vrika_bridge_secret else ""
+    )
     if bridge:
         h["X-Vrika-Bridge-Secret"] = bridge
     return h
 
 
-async def fetch_agent_health_and_catalog(settings: Settings) -> tuple[dict[str, Any], dict[str, Any]]:
+async def fetch_agent_health_and_catalog(
+    settings: Settings,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     base = _normalized_base(settings)
     if not base:
-        raise AgentUnreachableError("Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)")
+        raise AgentUnreachableError(
+            "Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)"
+        )
     timeout = httpx.Timeout(settings.agent_timeout_seconds)
     headers = _headers(settings)
     try:
@@ -61,23 +67,33 @@ async def fetch_agent_health_and_catalog(settings: Settings) -> tuple[dict[str, 
                 client.get(urljoin(base, "api/tools")),
             )
     except httpx.TimeoutException:
-        raise AgentUnreachableError(f"Timed out contacting agent after {settings.agent_timeout_seconds}s")
+        raise AgentUnreachableError(
+            f"Timed out contacting agent after {settings.agent_timeout_seconds}s"
+        )
     except httpx.RequestError as e:
         raise AgentUnreachableError(f"Cannot reach agent: {e}")
 
     if health_r.status_code >= 400:
-        raise AgentUnreachableError(f"Agent /health returned HTTP {health_r.status_code}")
+        raise AgentUnreachableError(
+            f"Agent /health returned HTTP {health_r.status_code}"
+        )
     if catalog_r.status_code >= 400:
-        raise AgentUnreachableError(f"Agent /api/tools returned HTTP {catalog_r.status_code}")
+        raise AgentUnreachableError(
+            f"Agent /api/tools returned HTTP {catalog_r.status_code}"
+        )
     return health_r.json(), catalog_r.json()
 
 
 # Categories implemented on the Vrika server (no host binary) — same default as workspace tool cards
 # when /health has no probe entry for a catalog id.
-_AGENT_SERVER_LAYER_CATEGORIES = frozenset({"intelligence", "ai_assist", "vulnerability_intelligence"})
+_AGENT_SERVER_LAYER_CATEGORIES = frozenset(
+    {"intelligence", "ai_assist", "vulnerability_intelligence"}
+)
 
 
-def tool_installed_from_agent_health(health: dict[str, Any], tool_item: dict[str, Any]) -> bool:
+def tool_installed_from_agent_health(
+    health: dict[str, Any], tool_item: dict[str, Any]
+) -> bool:
     """
     Whether a catalog tool should be treated as runnable on the agent host.
 
@@ -104,7 +120,9 @@ async def post_refresh_tool_availability(settings: Settings) -> dict[str, Any]:
     """Forward to agent POST /api/tools/availability/refresh (forces tool probe pass)."""
     base = _normalized_base(settings)
     if not base:
-        raise AgentUnreachableError("Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)")
+        raise AgentUnreachableError(
+            "Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)"
+        )
     timeout = httpx.Timeout(settings.agent_timeout_seconds)
     headers = _headers(settings)
     url = urljoin(base, "api/tools/availability/refresh")
@@ -112,7 +130,9 @@ async def post_refresh_tool_availability(settings: Settings) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
             r = await client.post(url)
     except httpx.TimeoutException:
-        raise AgentUnreachableError(f"Timed out contacting agent after {settings.agent_timeout_seconds}s")
+        raise AgentUnreachableError(
+            f"Timed out contacting agent after {settings.agent_timeout_seconds}s"
+        )
     except httpx.RequestError as e:
         raise AgentUnreachableError(f"Cannot reach agent: {e}")
 
@@ -149,7 +169,9 @@ async def forward_agent_post_tool(
     """POST JSON to a catalog tool route. Uses ``AGENT_API_TOKEN`` as ``Authorization: Bearer`` when configured."""
     base = _normalized_base(settings)
     if not base:
-        raise AgentUnreachableError("Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)")
+        raise AgentUnreachableError(
+            "Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)"
+        )
     timeout = httpx.Timeout(settings.agent_tool_run_timeout_seconds)
     headers = {**_headers(settings), "Content-Type": "application/json"}
     url = urljoin(base, path.lstrip("/"))
@@ -164,7 +186,8 @@ async def forward_agent_post_tool(
         raise AgentUnreachableError(f"Cannot reach agent: {e}") from e
 
     ctype = (
-        r.headers.get("content-type", "application/json").split(";")[0].strip() or "application/json"
+        r.headers.get("content-type", "application/json").split(";")[0].strip()
+        or "application/json"
     )
     return r.status_code, r.content, ctype
 
@@ -179,7 +202,9 @@ async def agent_post_json(
     """POST JSON to agent path; parse JSON response body."""
     base = _normalized_base(settings)
     if not base:
-        raise AgentUnreachableError("Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)")
+        raise AgentUnreachableError(
+            "Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)"
+        )
     timeout = httpx.Timeout(timeout_seconds)
     headers = {**_headers(settings), "Content-Type": "application/json"}
     url = urljoin(base, path.lstrip("/"))
@@ -187,17 +212,31 @@ async def agent_post_json(
         async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
             r = await client.post(url, json=body)
     except httpx.TimeoutException:
-        raise AgentUnreachableError(f"Timed out calling agent after {timeout_seconds}s") from None
+        raise AgentUnreachableError(
+            f"Timed out calling agent after {timeout_seconds}s"
+        ) from None
     except httpx.RequestError as e:
         raise AgentUnreachableError(f"Cannot reach agent: {e}") from None
 
     try:
         data = r.json()
     except ValueError:
-        data = {"success": False, "error": r.text or f"HTTP {r.status_code}", "raw_status": r.status_code}
+        data = {
+            "success": False,
+            "error": r.text or f"HTTP {r.status_code}",
+            "raw_status": r.status_code,
+        }
     if r.status_code >= 400 and isinstance(data, dict) and "error" not in data:
-        data = {"success": False, "error": data.get("detail") or str(data), "status_code": r.status_code}
-    return data if isinstance(data, dict) else {"success": False, "error": "invalid agent JSON"}
+        data = {
+            "success": False,
+            "error": data.get("detail") or str(data),
+            "status_code": r.status_code,
+        }
+    return (
+        data
+        if isinstance(data, dict)
+        else {"success": False, "error": "invalid agent JSON"}
+    )
 
 
 async def agent_get_json(
@@ -209,7 +248,9 @@ async def agent_get_json(
     """GET JSON from agent path."""
     base = _normalized_base(settings)
     if not base:
-        raise AgentUnreachableError("Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)")
+        raise AgentUnreachableError(
+            "Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)"
+        )
     timeout = httpx.Timeout(timeout_seconds)
     headers = _headers(settings)
     url = urljoin(base, path.lstrip("/"))
@@ -217,17 +258,31 @@ async def agent_get_json(
         async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
             r = await client.get(url)
     except httpx.TimeoutException:
-        raise AgentUnreachableError(f"Timed out calling agent after {timeout_seconds}s") from None
+        raise AgentUnreachableError(
+            f"Timed out calling agent after {timeout_seconds}s"
+        ) from None
     except httpx.RequestError as e:
         raise AgentUnreachableError(f"Cannot reach agent: {e}") from e
 
     try:
         data = r.json()
     except ValueError:
-        data = {"success": False, "error": r.text or f"HTTP {r.status_code}", "raw_status": r.status_code}
+        data = {
+            "success": False,
+            "error": r.text or f"HTTP {r.status_code}",
+            "raw_status": r.status_code,
+        }
     if r.status_code >= 400 and isinstance(data, dict) and "error" not in data:
-        data = {"success": False, "error": data.get("detail") or str(data), "status_code": r.status_code}
-    return data if isinstance(data, dict) else {"success": False, "error": "invalid agent JSON"}
+        data = {
+            "success": False,
+            "error": data.get("detail") or str(data),
+            "status_code": r.status_code,
+        }
+    return (
+        data
+        if isinstance(data, dict)
+        else {"success": False, "error": "invalid agent JSON"}
+    )
 
 
 async def agent_post_sse_stream(
@@ -240,7 +295,9 @@ async def agent_post_sse_stream(
     """Stream response body as UTF-8 text chunks from agent SSE endpoint."""
     base = _normalized_base(settings)
     if not base:
-        raise AgentUnreachableError("Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)")
+        raise AgentUnreachableError(
+            "Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)"
+        )
     timeout = httpx.Timeout(timeout_seconds)
     headers = {**_headers(settings), "Content-Type": "application/json"}
     url = urljoin(base, path.lstrip("/"))
@@ -249,7 +306,9 @@ async def agent_post_sse_stream(
             async with client.stream("POST", url, json=body) as resp:
                 if resp.status_code >= 400:
                     text = (await resp.aread()).decode("utf-8", errors="replace")
-                    raise AgentUnreachableError(f"Agent SSE error HTTP {resp.status_code}: {text[:500]}")
+                    raise AgentUnreachableError(
+                        f"Agent SSE error HTTP {resp.status_code}: {text[:500]}"
+                    )
                 utf8_dec = codecs.getincrementaldecoder("utf-8")(errors="replace")
                 async for raw in resp.aiter_raw(chunk_size=_AGENT_SSE_RAW_CHUNK_BYTES):
                     piece = utf8_dec.decode(raw)
@@ -259,7 +318,9 @@ async def agent_post_sse_stream(
                 if tail:
                     yield tail
     except httpx.TimeoutException:
-        raise AgentUnreachableError(f"Timed out streaming from agent after {timeout_seconds}s") from None
+        raise AgentUnreachableError(
+            f"Timed out streaming from agent after {timeout_seconds}s"
+        ) from None
     except httpx.RequestError as e:
         raise AgentUnreachableError(f"Cannot reach agent: {e}") from None
 
@@ -273,13 +334,21 @@ def forward_agent_internal_tool_run_sync(
     """POST ``/api/internal/tool-run`` (blocking). Agent subprocess logs may stream to Redis in parallel."""
     base = _normalized_base(settings)
     if not base:
-        raise AgentUnreachableError("Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)")
+        raise AgentUnreachableError(
+            "Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)"
+        )
     timeout = httpx.Timeout(settings.agent_tool_run_timeout_seconds)
     headers = {**_headers(settings), "Content-Type": "application/json"}
     ep = normalize_agent_tool_path(catalog_path)
     url = urljoin(base, "api/internal/tool-run")
-    body = {"path": ep, "json": payload if payload else {}, "stream_run_id": stream_run_id}
-    stream_redis_url = str(getattr(settings, "agent_tool_stream_redis_url", "") or "").strip()
+    body = {
+        "path": ep,
+        "json": payload if payload else {},
+        "stream_run_id": stream_run_id,
+    }
+    stream_redis_url = str(
+        getattr(settings, "agent_tool_stream_redis_url", "") or ""
+    ).strip()
     if stream_redis_url:
         body["redis_url"] = stream_redis_url
     try:

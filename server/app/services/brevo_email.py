@@ -65,7 +65,9 @@ async def send_transactional_email(
     """Send one message; every address in `to_addresses` is placed in Brevo's JSON `to` array (all visible To:)."""
     s = get_settings()
     if not s.brevo_api_key or not s.brevo_sender_email.strip():
-        raise RuntimeError("BREVO_API_KEY and BREVO_SENDER_EMAIL must be set to send email")
+        raise RuntimeError(
+            "BREVO_API_KEY and BREVO_SENDER_EMAIL must be set to send email"
+        )
 
     recipients: list[dict[str, str]] = []
     for raw in to_addresses:
@@ -77,7 +79,10 @@ async def send_transactional_email(
         raise ValueError("No recipient addresses")
 
     payload: dict[str, object] = {
-        "sender": {"email": s.brevo_sender_email.strip(), "name": (s.brevo_sender_name or "Vrika").strip()},
+        "sender": {
+            "email": s.brevo_sender_email.strip(),
+            "name": (s.brevo_sender_name or "Vrika").strip(),
+        },
         "to": recipients,
         "subject": subject,
         "htmlContent": html,
@@ -94,17 +99,26 @@ async def send_transactional_email(
         r = await client.post(BREVO_TRANSACTIONAL_URL, headers=headers, json=payload)
         if r.is_error:
             snippet = (r.text or "")[:600]
-            logger.warning("Brevo transactional email failed %s → %s", r.status_code, snippet)
+            logger.warning(
+                "Brevo transactional email failed %s → %s", r.status_code, snippet
+            )
         r.raise_for_status()
     try:
         data = r.json()
         mid = data.get("messageId")
         if mid:
-            logger.info("Brevo accepted transactional email messageId=%s to=%s", mid, recipients)
+            logger.info(
+                "Brevo accepted transactional email messageId=%s to=%s", mid, recipients
+            )
         else:
-            logger.info("Brevo transactional email sent (no messageId in body) to=%s", recipients)
+            logger.info(
+                "Brevo transactional email sent (no messageId in body) to=%s",
+                recipients,
+            )
     except Exception:
-        logger.info("Brevo transactional email sent (non-JSON body) status=%s", r.status_code)
+        logger.info(
+            "Brevo transactional email sent (non-JSON body) status=%s", r.status_code
+        )
 
 
 async def send_transactional_email_one(
@@ -114,7 +128,9 @@ async def send_transactional_email_one(
     html: str,
     text: str,
 ) -> None:
-    await send_transactional_email(to_addresses=[to_email], subject=subject, html=html, text=text)
+    await send_transactional_email(
+        to_addresses=[to_email], subject=subject, html=html, text=text
+    )
 
 
 def render_contact_admin_email(

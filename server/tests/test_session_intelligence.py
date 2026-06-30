@@ -4,7 +4,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.services.session_intelligence import derive_session_intelligence, merge_execution_windows
+from app.services.session_intelligence import (
+    derive_session_intelligence,
+    merge_execution_windows,
+)
 
 
 def dt(value: str) -> datetime:
@@ -23,7 +26,11 @@ def test_parallel_tool_windows_count_once():
 
 
 def test_successful_tool_creates_intelligence_and_counts_info_once():
-    session = {"_id": "abc123", "title": "run httpx", "created_at": dt("2026-05-19T00:00:00+00:00")}
+    session = {
+        "_id": "abc123",
+        "title": "run httpx",
+        "created_at": dt("2026-05-19T00:00:00+00:00"),
+    }
     rows = [
         {
             "_id": "m1",
@@ -53,7 +60,11 @@ def test_successful_tool_creates_intelligence_and_counts_info_once():
 
 
 def test_partial_failure_does_not_fail_successful_session():
-    session = {"_id": "abc123", "title": "batch", "created_at": dt("2026-05-19T00:00:00+00:00")}
+    session = {
+        "_id": "abc123",
+        "title": "batch",
+        "created_at": dt("2026-05-19T00:00:00+00:00"),
+    }
     rows = [
         {
             "_id": "m1",
@@ -95,7 +106,11 @@ def test_partial_failure_does_not_fail_successful_session():
 
 
 def test_ai_findings_require_evidence_and_are_deduped():
-    session = {"_id": "abc123", "title": "nuclei", "created_at": dt("2026-05-19T00:00:00+00:00")}
+    session = {
+        "_id": "abc123",
+        "title": "nuclei",
+        "created_at": dt("2026-05-19T00:00:00+00:00"),
+    }
     rows = [
         {
             "_id": "m1",

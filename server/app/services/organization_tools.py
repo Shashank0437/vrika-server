@@ -42,8 +42,12 @@ def _trunc_text(s: str, max_len: int) -> str:
     return s[: max_len - 24] + "\n… [truncated] …"
 
 
-async def get_disabled_tool_names(db: AsyncIOMotorDatabase, organization_id: ObjectId) -> set[str]:
-    doc = await db[ORG_TOOL_POLICY_COLLECTION].find_one({"organization_id": organization_id})
+async def get_disabled_tool_names(
+    db: AsyncIOMotorDatabase, organization_id: ObjectId
+) -> set[str]:
+    doc = await db[ORG_TOOL_POLICY_COLLECTION].find_one(
+        {"organization_id": organization_id}
+    )
     if not doc:
         return set()
     raw = doc.get("disabled_tool_names") or []
@@ -52,7 +56,9 @@ async def get_disabled_tool_names(db: AsyncIOMotorDatabase, organization_id: Obj
     return {str(x).strip() for x in raw if str(x).strip()}
 
 
-async def get_policy_doc(db: AsyncIOMotorDatabase, organization_id: ObjectId) -> dict[str, Any]:
+async def get_policy_doc(
+    db: AsyncIOMotorDatabase, organization_id: ObjectId
+) -> dict[str, Any]:
     disabled = sorted(await get_disabled_tool_names(db, organization_id))
     return {"disabled_tool_names": disabled}
 
@@ -88,7 +94,10 @@ async def set_tool_enabled_for_org(
     else:
         await db[ORG_TOOL_POLICY_COLLECTION].update_one(
             {"organization_id": organization_id},
-            {"$pull": {"disabled_tool_names": tn}, "$set": {"updated_at": now, "updated_by": user_id}},
+            {
+                "$pull": {"disabled_tool_names": tn},
+                "$set": {"updated_at": now, "updated_by": user_id},
+            },
         )
 
 
@@ -99,7 +108,10 @@ def _snapshot_payload(payload: dict[str, Any]) -> dict[str, Any]:
         return {"_error": "non-serializable payload"}
     if len(raw) <= MAX_TOOL_RUN_REQUEST_SNAPSHOT:
         return dict(payload)
-    return {"_truncated": True, "preview": _trunc_text(raw, MAX_TOOL_RUN_REQUEST_SNAPSHOT)}
+    return {
+        "_truncated": True,
+        "preview": _trunc_text(raw, MAX_TOOL_RUN_REQUEST_SNAPSHOT),
+    }
 
 
 def execution_log_document(
@@ -127,8 +139,12 @@ def execution_log_document(
         try:
             parsed_json = json.loads(response_content.decode("utf-8", errors="replace"))
             if isinstance(parsed_json, dict):
-                stdout = _trunc_text(str(parsed_json.get("stdout", "") or ""), MAX_TOOL_RUN_STDOUT_STORE)
-                stderr = _trunc_text(str(parsed_json.get("stderr", "") or ""), MAX_TOOL_RUN_STDERR_STORE)
+                stdout = _trunc_text(
+                    str(parsed_json.get("stdout", "") or ""), MAX_TOOL_RUN_STDOUT_STORE
+                )
+                stderr = _trunc_text(
+                    str(parsed_json.get("stderr", "") or ""), MAX_TOOL_RUN_STDERR_STORE
+                )
                 rc = parsed_json.get("return_code")
                 if rc is not None:
                     try:
@@ -149,9 +165,15 @@ def execution_log_document(
                 if ts is not None:
                     timestamp = str(ts)
         except json.JSONDecodeError:
-            raw_text = _trunc_text(response_content.decode("utf-8", errors="replace"), MAX_TOOL_RUN_RESPONSE_RAW)
+            raw_text = _trunc_text(
+                response_content.decode("utf-8", errors="replace"),
+                MAX_TOOL_RUN_RESPONSE_RAW,
+            )
     else:
-        raw_text = _trunc_text(response_content.decode("utf-8", errors="replace"), MAX_TOOL_RUN_RESPONSE_RAW)
+        raw_text = _trunc_text(
+            response_content.decode("utf-8", errors="replace"),
+            MAX_TOOL_RUN_RESPONSE_RAW,
+        )
 
     # API-style tools (e.g. http-framework) return JSON without stdout/stderr keys; keep a viewable body.
     if (
@@ -184,7 +206,9 @@ def execution_log_document(
     }
 
 
-async def insert_execution_log(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> ObjectId:
+async def insert_execution_log(
+    db: AsyncIOMotorDatabase, doc: dict[str, Any]
+) -> ObjectId:
     res = await db[TOOL_EXECUTION_LOG_COLLECTION].insert_one(doc)
     return res.inserted_id
 

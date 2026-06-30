@@ -76,7 +76,9 @@ def _load_config_file(path: str) -> dict:
     return data
 
 
-async def _resolve_request_id(db, args: argparse.Namespace, domain: str) -> ObjectId | None:
+async def _resolve_request_id(
+    db, args: argparse.Namespace, domain: str
+) -> ObjectId | None:
     if args.request_id:
         try:
             return ObjectId(args.request_id)
@@ -114,11 +116,18 @@ async def run(args: argparse.Namespace) -> int:
         idp_entity_id = idp["idp_entity_id"]
         idp_sso_url = idp["idp_sso_url"]
         idp_x509_cert = idp["idp_x509_cert"]
-        provider_name = args.provider_display_name or idp.get("provider_display_name") or args.org_name
+        provider_name = (
+            args.provider_display_name
+            or idp.get("provider_display_name")
+            or args.org_name
+        )
         enforced = idp.get("enforced", args.enforced)
     else:
         if not all([args.idp_entity_id, args.idp_sso_url, args.idp_cert_file]):
-            print("error: provide --config-file or --idp-entity-id, --idp-sso-url, --idp-cert-file", file=sys.stderr)
+            print(
+                "error: provide --config-file or --idp-entity-id, --idp-sso-url, --idp-cert-file",
+                file=sys.stderr,
+            )
             return 1
         idp_entity_id = args.idp_entity_id
         idp_sso_url = args.idp_sso_url
@@ -136,7 +145,9 @@ async def run(args: argparse.Namespace) -> int:
 
         req = await db.registration_requests.find_one({"_id": request_oid})
         if not req:
-            print(f"error: registration request not found: {request_oid}", file=sys.stderr)
+            print(
+                f"error: registration request not found: {request_oid}", file=sys.stderr
+            )
             return 1
 
         if req.get("status") != "pending":
@@ -156,11 +167,16 @@ async def run(args: argparse.Namespace) -> int:
 
         existing_domain = await db[SSO_CONFIGS_COLLECTION].find_one({"domain": domain})
         if existing_domain:
-            print(f"error: SSO config already exists for domain {domain}", file=sys.stderr)
+            print(
+                f"error: SSO config already exists for domain {domain}", file=sys.stderr
+            )
             return 1
 
         if req.get("organization_id"):
-            print("error: registration request already linked to an organization", file=sys.stderr)
+            print(
+                "error: registration request already linked to an organization",
+                file=sys.stderr,
+            )
             return 1
 
         now = datetime.now(UTC)
@@ -216,27 +232,41 @@ async def run(args: argparse.Namespace) -> int:
         print("  2. Approve the registration request:")
         print(f"     POST {api_base}/admin/registration-requests/{request_oid}/approve")
         print("     Header: X-Admin-Key: <your admin key>")
-        print("  3. User opens the completion email link and activates via SSO (no password).")
+        print(
+            "  3. User opens the completion email link and activates via SSO (no password)."
+        )
         return 0
     finally:
         client.close()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Provision org + SSO config for enterprise onboarding")
+    parser = argparse.ArgumentParser(
+        description="Provision org + SSO config for enterprise onboarding"
+    )
     parser.add_argument("--org-name", required=True, help="Organization display name")
-    parser.add_argument("--domain", required=True, help="Email domain e.g. robot-mail.com")
-    parser.add_argument("--request-id", default="", help="registration_requests ObjectId")
+    parser.add_argument(
+        "--domain", required=True, help="Email domain e.g. robot-mail.com"
+    )
+    parser.add_argument(
+        "--request-id", default="", help="registration_requests ObjectId"
+    )
     parser.add_argument(
         "--find-by-domain",
         action="store_true",
         help="Auto-find latest pending registration request for --domain",
     )
-    parser.add_argument("--provider-display-name", default="", help="Button label e.g. auth0corp")
+    parser.add_argument(
+        "--provider-display-name", default="", help="Button label e.g. auth0corp"
+    )
     parser.add_argument("--idp-entity-id", default="", help="SAML IdP entity ID")
     parser.add_argument("--idp-sso-url", default="", help="SAML IdP SSO URL")
-    parser.add_argument("--idp-cert-file", default="", help="Path to IdP X.509 certificate PEM")
-    parser.add_argument("--config-file", default="", help="JSON file with IdP SAML settings")
+    parser.add_argument(
+        "--idp-cert-file", default="", help="Path to IdP X.509 certificate PEM"
+    )
+    parser.add_argument(
+        "--config-file", default="", help="JSON file with IdP SAML settings"
+    )
     parser.add_argument(
         "--enforced",
         action=argparse.BooleanOptionalAction,

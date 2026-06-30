@@ -19,7 +19,9 @@ class ServerToolsSummary(BaseModel):
 
 
 class WorkspaceServerStatus(BaseModel):
-    cipherstrike_api: str = Field(default="ok", description="Vrika FastAPI surface status")
+    cipherstrike_api: str = Field(
+        default="ok", description="Vrika FastAPI surface status"
+    )
     agent_reachable: bool
     agent_status: str | None = None
     agent_message: str | None = None
@@ -70,7 +72,9 @@ class WorkspaceToolsPayload(BaseModel):
 class WorkspaceToolRunRequest(BaseModel):
     """Proxy body: POST agent route with catalog JSON (+ optional Bearer from server config)."""
 
-    tool_name: str = Field(min_length=1, description="Catalog tool key; checked against org policy.")
+    tool_name: str = Field(
+        min_length=1, description="Catalog tool key; checked against org policy."
+    )
     endpoint: str
     payload: dict[str, Any] = Field(default_factory=dict)
 
@@ -100,7 +104,8 @@ class ToolExecutionHistoryPage(BaseModel):
     """Paginated tool execution log for workspace history UI."""
 
     items: list[ToolExecutionLogOut]
-    total: int = Field(ge=0, description="Total matching rows for this org (and tool filter).")
+    total: int = Field(
+        ge=0, description="Total matching rows for this org (and tool filter)."
+    )
     limit: int = Field(ge=1, le=100, description="Page size applied on the server.")
     offset: int = Field(ge=0, description="Number of newest-first rows skipped.")
-

@@ -106,7 +106,10 @@ def get_sp_metadata_xml() -> str:
         },
         "idp": {
             "entityId": "placeholder",
-            "singleSignOnService": {"url": "https://placeholder.invalid/sso", "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"},
+            "singleSignOnService": {
+                "url": "https://placeholder.invalid/sso",
+                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
+            },
             "x509cert": "",
         },
     }
@@ -171,7 +174,12 @@ def build_saml_login_redirect_url(
     settings = build_saml_settings(sso_config)
     req = _prepare_request(https=https, host=host, path=path)
     auth = OneLogin_Saml2_Auth(req, settings)
-    return auth.login(return_to=relay_state, force_authn=False, is_passive=False, set_nameid_policy=True)
+    return auth.login(
+        return_to=relay_state,
+        force_authn=False,
+        is_passive=False,
+        set_nameid_policy=True,
+    )
 
 
 def process_saml_acs(
@@ -212,7 +220,12 @@ def process_saml_acs(
     email = (
         (attrs.get("email") or [None])[0]
         or (attrs.get("mail") or [None])[0]
-        or (attrs.get("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress") or [None])[0]
+        or (
+            attrs.get(
+                "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+            )
+            or [None]
+        )[0]
         or name_id
     )
     email = email.lower().strip()

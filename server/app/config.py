@@ -32,7 +32,9 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AGENT_TOOL_STREAM_REDIS_URL"),
     )
 
-    admin_api_key: str = ""  # required for /admin/* when set; if empty, admin routes reject
+    admin_api_key: str = (
+        ""  # required for /admin/* when set; if empty, admin routes reject
+    )
 
     frontend_url: str = "http://localhost:3000"
 
@@ -67,7 +69,9 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:8888",
         validation_alias=AliasChoices("AGENT_MICROSERVICE_URL", "AGENT_BASE_URL"),
     )
-    agent_api_token: str = ""  # When set, sent as Authorization: Bearer … (matches NYXSTRIKE_API_TOKEN)
+    agent_api_token: str = (
+        ""  # When set, sent as Authorization: Bearer … (matches NYXSTRIKE_API_TOKEN)
+    )
     agent_timeout_seconds: float = 10.0
     # route-intent calls an LLM on the agent; default generic timeout is often too low.
     agent_route_intent_timeout_seconds: float = Field(

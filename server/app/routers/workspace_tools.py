@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
+from app.constants import ALWAYS_DISABLE_CATEGORIES, ALWAYS_DISABLE_TOOLS
 from app.db import get_database
 from app.dependencies.tenant import require_tenant_admin
 from app.schemas.workspace_tools import (
@@ -43,7 +44,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/workspace", tags=["workspace"])
 api_tools_router = APIRouter(prefix="/api", tags=["workspace"])
 
-SERVER_LAYER_CATEGORIES = frozenset({"intelligence", "ai_assist", "vulnerability_intelligence"})
+SERVER_LAYER_CATEGORIES = frozenset(
+    {"intelligence", "ai_assist", "vulnerability_intelligence"}
+)
 
 # Session-derived actions invoked only from agent chat (not run from the workspace grid).
 _WORKSPACE_TOOLS_EXCLUDE_FROM_GRID = frozenset({"penetration-report"})
@@ -53,7 +56,9 @@ def _coerce_param_payload(obj: object) -> dict[str, Any]:
     return obj if isinstance(obj, dict) else {}
 
 
-def _server_layer_totals_from_cards(cards: list[WorkspaceToolCard]) -> ServerToolsSummary:
+def _server_layer_totals_from_cards(
+    cards: list[WorkspaceToolCard],
+) -> ServerToolsSummary:
     srv = [t for t in cards if t.category in SERVER_LAYER_CATEGORIES]
     tot = len(srv)
     avail = sum(1 for t in srv if t.active)
@@ -77,7 +82,9 @@ def _bars_from_effectiveness(active: bool, eff: float | None) -> int:
     return 5 if active else 1
 
 
-def _build_cards(health: dict[str, Any], catalog: dict[str, Any]) -> list[WorkspaceToolCard]:
+def _build_cards(
+    health: dict[str, Any], catalog: dict[str, Any]
+) -> list[WorkspaceToolCard]:
     raw_tools = catalog.get("tools")
     if not isinstance(raw_tools, list):
         raw_tools = []
@@ -87,9 +94,15 @@ def _build_cards(health: dict[str, Any], catalog: dict[str, Any]) -> list[Worksp
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or "").strip()
-        if not name or name in _WORKSPACE_TOOLS_EXCLUDE_FROM_GRID:
+        if (
+            not name
+            or name in _WORKSPACE_TOOLS_EXCLUDE_FROM_GRID
+            or name in ALWAYS_DISABLE_TOOLS
+        ):
             continue
         category = str(item.get("category") or "uncategorized")
+        if category in ALWAYS_DISABLE_CATEGORIES:
+            continue
         endpoint = str(item.get("endpoint") or "")
         method = str(item.get("method") or "POST")
         desc = str(item.get("desc") or "").strip() or f"Agent routing for `{name}`."
@@ -133,7 +146,9 @@ def _build_cards(health: dict[str, Any], catalog: dict[str, Any]) -> list[Worksp
     return cards
 
 
-async def _workspace_tools_payload_for_org(db: AsyncIOMotorDatabase, organization_id: ObjectId) -> WorkspaceToolsPayload:
+async def _workspace_tools_payload_for_org(
+    db: AsyncIOMotorDatabase, organization_id: ObjectId
+) -> WorkspaceToolsPayload:
     settings = get_settings()
     try:
         health, catalog = await fetch_agent_health_and_catalog(settings)
@@ -152,7 +167,9 @@ async def _workspace_tools_payload_for_org(db: AsyncIOMotorDatabase, organizatio
         agent_status=str(agent_status) if agent_status else None,
         agent_message=str(agent_msg) if agent_msg else None,
         agent_version=str(health["version"]) if health.get("version") else None,
-        agent_uptime_seconds=float(health["uptime"]) if health.get("uptime") is not None else None,
+        agent_uptime_seconds=float(health["uptime"])
+        if health.get("uptime") is not None
+        else None,
     )
 
     all_cards = _build_cards(health, catalog)
@@ -209,8 +226,12 @@ def _tool_doc_to_out(doc: dict[str, Any]) -> ToolExecutionLogOut:
         created_at=doc["created_at"],
         agent_status_code=int(doc.get("agent_status_code") or 0),
         success=doc.get("success"),
-        execution_time=float(doc["execution_time"]) if doc.get("execution_time") is not None else None,
-        return_code=int(doc["return_code"]) if doc.get("return_code") is not None else None,
+        execution_time=float(doc["execution_time"])
+        if doc.get("execution_time") is not None
+        else None,
+        return_code=int(doc["return_code"])
+        if doc.get("return_code") is not None
+        else None,
         stdout=str(doc.get("stdout") or ""),
         stderr=str(doc.get("stderr") or ""),
         endpoint=str(doc.get("endpoint") or ""),
@@ -259,7 +280,9 @@ async def workspace_tools_history_api_alias(
     limit: int = 20,
     offset: int = 0,
 ) -> ToolExecutionHistoryPage:
-    return await workspace_tools_history(user=user, db=db, tool=tool, limit=limit, offset=offset)
+    return await workspace_tools_history(
+        user=user, db=db, tool=tool, limit=limit, offset=offset
+    )
 
 
 async def _persist_run_log_safe(
@@ -302,7 +325,10 @@ async def workspace_tool_run(
 
     disabled = await get_disabled_tool_names(db, org_id)
     if body.tool_name.strip() in disabled:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="This tool is disabled for your organization")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="This tool is disabled for your organization",
+        )
 
     try:
         path = normalize_agent_tool_path(body.endpoint)
@@ -320,7 +346,9 @@ async def workspace_tool_run(
             body.payload,
         )
     except AgentUnreachableError as e:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=e.message) from e
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, detail=e.message
+        ) from e
 
     await _persist_run_log_safe(
         db,
@@ -335,7 +363,11 @@ async def workspace_tool_run(
     )
 
     if status_code >= 500:
-        return Response(content=content, status_code=status.HTTP_502_BAD_GATEWAY, media_type=content_type)
+        return Response(
+            content=content,
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            media_type=content_type,
+        )
     return Response(content=content, status_code=status_code, media_type=content_type)
 
 

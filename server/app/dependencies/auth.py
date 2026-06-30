@@ -19,7 +19,9 @@ async def require_auth_user(
     try:
         payload = decode_access_token(cred.credentials)
     except JWTError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
+        )
     uid = payload.get("sub")
     if not uid:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid token")

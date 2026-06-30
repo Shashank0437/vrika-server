@@ -11,7 +11,9 @@ from app.services.agent_attack_chains import (
 )
 
 
-def _sess(steps: list[dict], *, current_step: int | None = None, sequential: bool = True) -> dict:
+def _sess(
+    steps: list[dict], *, current_step: int | None = None, sequential: bool = True
+) -> dict:
     ac: dict = {"sequential": sequential, "steps": steps}
     if current_step is not None:
         ac["current_step"] = current_step
@@ -19,9 +21,19 @@ def _sess(steps: list[dict], *, current_step: int | None = None, sequential: boo
 
 
 def test_next_step_index_after_three_completed():
-    steps = [{"tool": t} for t in [
-        "nmap", "httpx", "ffuf", "arjun", "dalfox", "jaeles", "nuclei", "wpscan",
-    ]]
+    steps = [
+        {"tool": t}
+        for t in [
+            "nmap",
+            "httpx",
+            "ffuf",
+            "arjun",
+            "dalfox",
+            "jaeles",
+            "nuclei",
+            "wpscan",
+        ]
+    ]
     sess = _sess(steps, current_step=3)
     idx = attack_chain_next_step_index(sess, [])
     assert idx == 3
@@ -108,7 +120,9 @@ def test_next_runnable_skips_wpscan_when_not_installed():
 def test_filter_steps_to_runnable_omits_wpscan():
     steps = [{"tool": t} for t in ["nmap", "httpx", "wpscan", "nuclei"]]
     available = frozenset({"nmap", "httpx", "nuclei", "ffuf"})
-    filtered, tools, omitted, _phases = filter_attack_chain_steps_to_runnable(steps, available)
+    filtered, tools, omitted, _phases = filter_attack_chain_steps_to_runnable(
+        steps, available
+    )
     assert omitted == ["wpscan"]
     assert tools == ["nmap", "httpx", "nuclei"]
     assert len(filtered) == 3

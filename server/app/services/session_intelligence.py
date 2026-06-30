@@ -48,7 +48,9 @@ def parse_dt(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
+            timezone.utc
+        )
     except ValueError:
         return None
 
@@ -148,7 +150,9 @@ def _evidence_from_slot(slot: dict[str, Any], tool_message: str = "") -> str:
     return normalize_text(raw, limit=MAX_EVIDENCE_CHARS)
 
 
-def _result_observation(slot: dict[str, Any], tool_name: str, target: str, seen_at: str) -> dict[str, Any] | None:
+def _result_observation(
+    slot: dict[str, Any], tool_name: str, target: str, seen_at: str
+) -> dict[str, Any] | None:
     evidence = _evidence_from_slot(slot)
     if not evidence:
         return None
@@ -190,7 +194,11 @@ def _iter_tool_slots(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         tc = row.get("tool_call")
         if isinstance(tc, dict):
             row_attachments = row.get("attachments")
-            slot = {**tc, "_message_id": str(row.get("_id") or ""), "_message_created_at": row_created}
+            slot = {
+                **tc,
+                "_message_id": str(row.get("_id") or ""),
+                "_message_created_at": row_created,
+            }
             if isinstance(row_attachments, list) and "attachments" not in slot:
                 slot["attachments"] = row_attachments
             slots.append(slot)
@@ -198,7 +206,13 @@ def _iter_tool_slots(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if isinstance(tcs, list):
             for slot in tcs:
                 if isinstance(slot, dict):
-                    slots.append({**slot, "_message_id": str(row.get("_id") or ""), "_message_created_at": row_created})
+                    slots.append(
+                        {
+                            **slot,
+                            "_message_id": str(row.get("_id") or ""),
+                            "_message_created_at": row_created,
+                        }
+                    )
     return slots
 
 
@@ -211,17 +225,24 @@ def derive_session_intelligence(
     now = utc_now()
     slots = _iter_tool_slots(rows)
     executed = [
-        s for s in slots
+        s
+        for s in slots
         if str(s.get("tool_name") or "").strip()
         and (
             str(s.get("result_text") or "").strip()
-            or str(s.get("run_status") or "").lower() in RUNNING_STATUSES | TERMINAL_SUCCESS | TERMINAL_FAILURE
-            or str(s.get("execution_outcome") or "").lower() in {"completed", "error", "blocked", "rejected"}
+            or str(s.get("run_status") or "").lower()
+            in RUNNING_STATUSES | TERMINAL_SUCCESS | TERMINAL_FAILURE
+            or str(s.get("execution_outcome") or "").lower()
+            in {"completed", "error", "blocked", "rejected"}
         )
     ]
     success_slots = [
-        s for s in executed
-        if looks_successful(str(s.get("run_status") or s.get("execution_outcome") or ""), str(s.get("result_text") or ""))
+        s
+        for s in executed
+        if looks_successful(
+            str(s.get("run_status") or s.get("execution_outcome") or ""),
+            str(s.get("result_text") or ""),
+        )
     ]
     if not success_slots:
         return None
@@ -244,7 +265,9 @@ def derive_session_intelligence(
 
         start = parse_dt(slot.get("run_started_at"))
         finish = parse_dt(slot.get("run_finished_at"))
-        status = str(slot.get("run_status") or slot.get("execution_outcome") or "").lower()
+        status = str(
+            slot.get("run_status") or slot.get("execution_outcome") or ""
+        ).lower()
         if status in RUNNING_STATUSES:
             any_running = True
             finish_for_window = now
@@ -255,7 +278,12 @@ def derive_session_intelligence(
         if status in TERMINAL_FAILURE or status == "error":
             any_failure = True
 
-        ts = iso(start or slot.get("_message_created_at") or session_doc.get("created_at") or now)
+        ts = iso(
+            start
+            or slot.get("_message_created_at")
+            or session_doc.get("created_at")
+            or now
+        )
         timeline.append(
             {
                 "timestamp": ts,
@@ -268,9 +296,18 @@ def derive_session_intelligence(
             timeline.append(
                 {
                     "timestamp": iso(finish),
-                    "type": "tool_completed" if status not in TERMINAL_FAILURE else "tool_failed",
+                    "type": "tool_completed"
+                    if status not in TERMINAL_FAILURE
+                    else "tool_failed",
                     "title": f"{tool_name} {'completed' if status not in TERMINAL_FAILURE else 'failed'}",
-                    "details": normalize_text(str(slot.get("execution_log_tail") or slot.get("stdout_tail") or ""), limit=500),
+                    "details": normalize_text(
+                        str(
+                            slot.get("execution_log_tail")
+                            or slot.get("stdout_tail")
+                            or ""
+                        ),
+                        limit=500,
+                    ),
                 }
             )
 
@@ -288,7 +325,11 @@ def derive_session_intelligence(
         tool_name = str(slot.get("tool_name") or "").strip()
         args = slot.get("arguments") if isinstance(slot.get("arguments"), dict) else {}
         target = (_target_values(args) or targets or ["unknown"])[0]
-        seen_at = iso(parse_dt(slot.get("run_finished_at")) or parse_dt(slot.get("run_started_at")) or now)
+        seen_at = iso(
+            parse_dt(slot.get("run_finished_at"))
+            or parse_dt(slot.get("run_started_at"))
+            or now
+        )
         obs = _result_observation(slot, tool_name, target, seen_at)
         if obs:
             findings.append(obs)
@@ -321,8 +362,12 @@ def derive_session_intelligence(
                 if sev not in SEVERITIES:
                     sev = "INFO"
                 name = normalize_text(raw.get("name"), limit=160) or "Security finding"
-                target = normalize_text(raw.get("affected_target"), limit=240) or (targets[0] if targets else "unknown")
-                source_tool = normalize_text(raw.get("source_tool"), limit=80) or (tools_used[0] if tools_used else "unknown")
+                target = normalize_text(raw.get("affected_target"), limit=240) or (
+                    targets[0] if targets else "unknown"
+                )
+                source_tool = normalize_text(raw.get("source_tool"), limit=80) or (
+                    tools_used[0] if tools_used else "unknown"
+                )
                 finding = {
                     "id": stable_id(name, sev, target, source_tool, evidence[:250]),
                     "name": name,
@@ -331,14 +376,18 @@ def derive_session_intelligence(
                     "source_tool": source_tool,
                     "affected_target": target,
                     "evidence": evidence,
-                    "first_seen": normalize_text(raw.get("first_seen"), limit=80) or iso(now),
+                    "first_seen": normalize_text(raw.get("first_seen"), limit=80)
+                    or iso(now),
                 }
                 findings.append(finding)
 
     deduped: dict[str, dict[str, Any]] = {}
     for f in findings:
         deduped[str(f["id"])] = f
-    findings = sorted(deduped.values(), key=lambda f: (SEVERITIES.index(str(f.get("severity") or "INFO")), f["name"]))
+    findings = sorted(
+        deduped.values(),
+        key=lambda f: (SEVERITIES.index(str(f.get("severity") or "INFO")), f["name"]),
+    )
 
     ai_title = normalize_text((ai_payload or {}).get("title"), limit=80)
     ai_summary = normalize_text((ai_payload or {}).get("summary"), limit=500)
@@ -346,7 +395,13 @@ def derive_session_intelligence(
     if ai_title:
         title = ai_title
     elif tools_used:
-        stage = "External surface scan" if any(t.lower() in {"subfinder", "amass", "httpx", "nmap"} for t in tools_used) else "Security validation"
+        stage = (
+            "External surface scan"
+            if any(
+                t.lower() in {"subfinder", "amass", "httpx", "nmap"} for t in tools_used
+            )
+            else "Security validation"
+        )
         title = f"{stage} — {primary_target}"
     else:
         title = str(session_doc.get("title") or "Security session")
@@ -363,12 +418,16 @@ def derive_session_intelligence(
     if not any_running and any_failure and not success_slots:
         status = "FAILED"
 
-    started_candidates = [
-        parse_dt(s.get("run_started_at")) for s in executed
-    ] + [parse_dt(session_doc.get("created_at"))]
+    started_candidates = [parse_dt(s.get("run_started_at")) for s in executed] + [
+        parse_dt(session_doc.get("created_at"))
+    ]
     started = min([d for d in started_candidates if d is not None], default=now)
     finished_candidates = [parse_dt(s.get("run_finished_at")) for s in executed]
-    completed_at = None if status == "IN_PROGRESS" else iso(max([d for d in finished_candidates if d is not None], default=now))
+    completed_at = (
+        None
+        if status == "IN_PROGRESS"
+        else iso(max([d for d in finished_candidates if d is not None], default=now))
+    )
 
     attachments = []
     for slot in success_slots:
@@ -410,20 +469,30 @@ def build_ai_context(session_doc: dict[str, Any], rows: list[dict[str, Any]]) ->
             tc = row.get("tool_call")
             tcs = row.get("tool_calls")
             if isinstance(tc, dict):
-                parts.append(f"ASSISTANT_TOOL_CALL: {json.dumps(tc, default=str)[:2500]}")
+                parts.append(
+                    f"ASSISTANT_TOOL_CALL: {json.dumps(tc, default=str)[:2500]}"
+                )
             elif isinstance(tcs, list):
-                parts.append(f"ASSISTANT_TOOL_BATCH: {json.dumps(tcs, default=str)[:5000]}")
+                parts.append(
+                    f"ASSISTANT_TOOL_BATCH: {json.dumps(tcs, default=str)[:5000]}"
+                )
             else:
-                parts.append(f"ASSISTANT: {normalize_text(row.get('content'), limit=1200)}")
+                parts.append(
+                    f"ASSISTANT: {normalize_text(row.get('content'), limit=1200)}"
+                )
         elif role == "tool":
-            parts.append(f"TOOL {row.get('tool_name') or ''}: {normalize_text(row.get('content'), limit=2500)}")
+            parts.append(
+                f"TOOL {row.get('tool_name') or ''}: {normalize_text(row.get('content'), limit=2500)}"
+            )
     text = "\n\n".join(parts)
     if len(text) > MAX_AI_CONTEXT_CHARS:
         return text[-MAX_AI_CONTEXT_CHARS:]
     return text
 
 
-async def extract_ai_intelligence(settings: Settings, session_doc: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+async def extract_ai_intelligence(
+    settings: Settings, session_doc: dict[str, Any], rows: list[dict[str, Any]]
+) -> dict[str, Any] | None:
     context = build_ai_context(session_doc, rows)
     prompt = (
         "You are a security session intelligence extractor. Return ONLY compact JSON with keys "
@@ -439,7 +508,10 @@ async def extract_ai_intelligence(settings: Settings, session_doc: dict[str, Any
             settings,
             "api/cipherstrike/llm-chat",
             {"messages": [{"role": "user", "content": prompt}]},
-            timeout_seconds=min(float(getattr(settings, "agent_route_intent_timeout_seconds", 60.0)), 90.0),
+            timeout_seconds=min(
+                float(getattr(settings, "agent_route_intent_timeout_seconds", 60.0)),
+                90.0,
+            ),
         )
     except AgentUnreachableError:
         return None
@@ -449,11 +521,18 @@ async def extract_ai_intelligence(settings: Settings, session_doc: dict[str, Any
     content = str(resp.get("content") or "").strip()
     if not content:
         return None
-    content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip(), flags=re.IGNORECASE | re.DOTALL)
+    content = re.sub(
+        r"^```(?:json)?\s*|\s*```$",
+        "",
+        content.strip(),
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError:
-        logger.warning("session_intelligence: AI returned non-JSON content=%r", content[:300])
+        logger.warning(
+            "session_intelligence: AI returned non-JSON content=%r", content[:300]
+        )
         return None
     return parsed if isinstance(parsed, dict) else None
 
@@ -478,7 +557,9 @@ async def recalculate_session_intelligence(
         .sort("created_at", 1)
         .to_list(length=200)
     )
-    ai_payload = await extract_ai_intelligence(settings, session_doc, rows) if use_ai else None
+    ai_payload = (
+        await extract_ai_intelligence(settings, session_doc, rows) if use_ai else None
+    )
     intel = derive_session_intelligence(session_doc, rows, ai_payload=ai_payload)
     if intel is None:
         return None
@@ -520,8 +601,12 @@ async def list_session_intelligence(
     user_ids = list({r["user_id"] for r in rows if r.get("user_id")})
     user_map = {}
     if user_ids:
-        users = await db.users.find({"_id": {"$in": user_ids}}).to_list(length=len(user_ids))
-        user_map = {u["_id"]: u.get("username") or u.get("email") or "Unknown" for u in users}
+        users = await db.users.find({"_id": {"$in": user_ids}}).to_list(
+            length=len(user_ids)
+        )
+        user_map = {
+            u["_id"]: u.get("username") or u.get("email") or "Unknown" for u in users
+        }
 
     out = []
     for r in rows:

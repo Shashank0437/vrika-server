@@ -132,7 +132,9 @@ def _tool_names_from_steps(steps: list[Any]) -> list[str]:
     return out
 
 
-def _phase_label_for_step_index(phases: list[dict[str, Any]], step_index: int) -> str | None:
+def _phase_label_for_step_index(
+    phases: list[dict[str, Any]], step_index: int
+) -> str | None:
     for ph in phases:
         if not isinstance(ph, dict):
             continue
@@ -260,27 +262,43 @@ def attack_chain_followup_context(
                     objective=str(ac.get("objective") or "") or None,
                     operator_note=str(ac.get("operator_note") or "") or None,
                     executive_summary=str(ac.get("executive_summary") or "") or None,
-                    attack_paths=ac.get("attack_paths") if isinstance(ac.get("attack_paths"), list) else None,
-                    phases=ac.get("phases") if isinstance(ac.get("phases"), list) else None,
+                    attack_paths=ac.get("attack_paths")
+                    if isinstance(ac.get("attack_paths"), list)
+                    else None,
+                    phases=ac.get("phases")
+                    if isinstance(ac.get("phases"), list)
+                    else None,
                     planner_source=str(ac.get("planner_source") or "") or None,
                 ),
             }
         )
 
-    batch_only = attack_chain_next_tool_only(sess, rows, available_names=available_names)
+    batch_only = attack_chain_next_tool_only(
+        sess, rows, available_names=available_names
+    )
     return system_messages, batch_only, ATTACK_CHAIN_FOLLOWUP_SUMMARIZE_SUFFIX
 
 
-def _parse_intelligent_preview(raw: dict[str, Any], target: str, objective: str) -> dict[str, Any]:
-    attack_chain = raw.get("attack_chain") if isinstance(raw.get("attack_chain"), dict) else {}
+def _parse_intelligent_preview(
+    raw: dict[str, Any], target: str, objective: str
+) -> dict[str, Any]:
+    attack_chain = (
+        raw.get("attack_chain") if isinstance(raw.get("attack_chain"), dict) else {}
+    )
     steps = attack_chain.get("steps")
     if not isinstance(steps, list):
         steps = []
     tools = _tool_names_from_steps(steps)
-    profile = raw.get("target_profile") if isinstance(raw.get("target_profile"), dict) else None
+    profile = (
+        raw.get("target_profile")
+        if isinstance(raw.get("target_profile"), dict)
+        else None
+    )
     target_type = None
     if profile:
-        target_type = str(profile.get("target_type") or profile.get("type") or "") or None
+        target_type = (
+            str(profile.get("target_type") or profile.get("type") or "") or None
+        )
 
     executive_summary = str(raw.get("executive_summary") or "").strip() or None
     attack_paths_raw = raw.get("attack_paths")
@@ -328,7 +346,9 @@ def _attack_chain_steps(ac: dict[str, Any]) -> list[dict[str, Any]]:
     return [s for s in steps if isinstance(s, dict)]
 
 
-def attack_chain_effective_step_index(sess: dict[str, Any], rows: list[dict[str, Any]]) -> int:
+def attack_chain_effective_step_index(
+    sess: dict[str, Any], rows: list[dict[str, Any]]
+) -> int:
     """0-based index of the next step to run (equals completed step count when sequential)."""
     ac = sess.get("attack_chain")
     if not isinstance(ac, dict) or not ac.get("sequential"):
@@ -353,7 +373,9 @@ def attack_chain_effective_step_index(sess: dict[str, Any], rows: list[dict[str,
     return min(idx, len(steps))
 
 
-def attack_chain_next_step_index(sess: dict[str, Any], rows: list[dict[str, Any]]) -> int | None:
+def attack_chain_next_step_index(
+    sess: dict[str, Any], rows: list[dict[str, Any]]
+) -> int | None:
     ac = sess.get("attack_chain")
     if not isinstance(ac, dict) or not ac.get("sequential"):
         return None
@@ -440,7 +462,11 @@ def filter_attack_chain_steps_to_runnable(
             raw_indices = ph.get("step_indices")
             if not isinstance(raw_indices, list):
                 continue
-            new_indices = [old_to_new[int(i)] for i in raw_indices if isinstance(i, int) and i in old_to_new]
+            new_indices = [
+                old_to_new[int(i)]
+                for i in raw_indices
+                if isinstance(i, int) and i in old_to_new
+            ]
             if not new_indices:
                 continue
             new_phases.append(
@@ -473,7 +499,10 @@ async def sync_attack_chain_to_runnable_step(
     if runnable_idx <= effective:
         return runnable_idx, []
     skipped = _skipped_unavailable_steps_between(
-        sess, rows, available_names, through_index=runnable_idx,
+        sess,
+        rows,
+        available_names,
+        through_index=runnable_idx,
     )
     ac = sess.get("attack_chain")
     existing_skipped = []
@@ -536,7 +565,11 @@ def attack_chain_followup_log_line(
         return ""
     steps = _attack_chain_steps(ac)
     total = len(steps)
-    idx = runnable_index if runnable_index is not None else attack_chain_next_step_index(sess, rows)
+    idx = (
+        runnable_index
+        if runnable_index is not None
+        else attack_chain_next_step_index(sess, rows)
+    )
     next_tool = attack_chain_tool_at_index(sess, idx or 0) if idx is not None else None
     offered = schemas_offered or []
     only = sorted(batch_only) if batch_only else []
@@ -550,7 +583,9 @@ def attack_chain_followup_log_line(
     return line
 
 
-def _completed_tools_from_rows(rows: list[dict[str, Any]], *, tail: int = 48) -> set[str]:
+def _completed_tools_from_rows(
+    rows: list[dict[str, Any]], *, tail: int = 48
+) -> set[str]:
     completed: set[str] = set()
     for m in rows[-tail:]:
         slots = m.get("tool_calls")
@@ -673,7 +708,9 @@ async def preview_attack_chain_plan(
         if not raw.get("success"):
             return {
                 "success": False,
-                "error": str(raw.get("error") or "Intelligent attack chain preview failed"),
+                "error": str(
+                    raw.get("error") or "Intelligent attack chain preview failed"
+                ),
             }
         return _parse_intelligent_preview(raw, target, objective_key)
 
@@ -747,9 +784,15 @@ def _followup_response_from_pending(
     steps = pending.get("steps") if isinstance(pending.get("steps"), list) else []
     tools = _tool_names_from_steps(steps)
     paths = pending.get("attack_paths")
-    attack_paths = [str(p).strip() for p in paths if str(p).strip()] if isinstance(paths, list) else []
+    attack_paths = (
+        [str(p).strip() for p in paths if str(p).strip()]
+        if isinstance(paths, list)
+        else []
+    )
     phases = pending.get("attack_phases")
-    attack_phases = [p for p in phases if isinstance(p, dict)] if isinstance(phases, list) else []
+    attack_phases = (
+        [p for p in phases if isinstance(p, dict)] if isinstance(phases, list) else []
+    )
     return {
         "success": True,
         "session_id": session_id,
@@ -793,8 +836,14 @@ async def generate_attack_chain_followup(
         return {"success": False, "error": "Session is not an attack-chain run"}
 
     pending = ac.get("pending_followup")
-    if isinstance(pending, dict) and isinstance(pending.get("steps"), list) and pending.get("steps"):
-        return _followup_response_from_pending(str(session_id), pending, already_generated=True)
+    if (
+        isinstance(pending, dict)
+        and isinstance(pending.get("steps"), list)
+        and pending.get("steps")
+    ):
+        return _followup_response_from_pending(
+            str(session_id), pending, already_generated=True
+        )
 
     rows = await list_messages(
         db,
@@ -811,7 +860,11 @@ async def generate_attack_chain_followup(
         use_ai=True,
     )
     if not intel:
-        intel = sess.get("session_intelligence") if isinstance(sess.get("session_intelligence"), dict) else {}
+        intel = (
+            sess.get("session_intelligence")
+            if isinstance(sess.get("session_intelligence"), dict)
+            else {}
+        )
 
     targets = intel.get("targets") if isinstance(intel.get("targets"), list) else []
     target = str(targets[0] if targets else "").strip()
@@ -835,8 +888,14 @@ async def generate_attack_chain_followup(
     summary = str(intel.get("summary") or "")
     objective = str(ac.get("objective") or "comprehensive")
     operator_note = str(ac.get("operator_note") or "")
-    risk_level = "HIGH" if int((intel.get("findings_count") or {}).get("critical") or 0) > 0 else (
-        "MEDIUM" if int((intel.get("findings_count") or {}).get("high") or 0) > 0 else "LOW"
+    risk_level = (
+        "HIGH"
+        if int((intel.get("findings_count") or {}).get("critical") or 0) > 0
+        else (
+            "MEDIUM"
+            if int((intel.get("findings_count") or {}).get("high") or 0) > 0
+            else "LOW"
+        )
     )
 
     chat_context = build_ai_context(sess, rows)
@@ -900,7 +959,9 @@ async def generate_attack_chain_followup(
         },
     )
 
-    return _followup_response_from_pending(str(session_id), pending_followup, already_generated=False)
+    return _followup_response_from_pending(
+        str(session_id), pending_followup, already_generated=False
+    )
 
 
 async def append_attack_chain_followup(

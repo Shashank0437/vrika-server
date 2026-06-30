@@ -57,7 +57,9 @@ async def registration_preview(
     key = f"{REG_COMPLETE_REDIS_PREFIX}{token}"
     raw = await r.get(key)
     if not raw:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token"
+        )
 
     try:
         request_id = ObjectId(raw)
@@ -66,13 +68,21 @@ async def registration_preview(
 
     req = await db.registration_requests.find_one({"_id": request_id})
     if not req:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Registration request not found")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="Registration request not found"
+        )
 
     if req["status"] == "completed":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="This registration was already completed")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="This registration was already completed",
+        )
 
     if req["status"] != APPROVED:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Registration is not ready for activation")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Registration is not ready for activation",
+        )
 
     cfg = await lookup_sso_config_for_email(db, req["email"])
     discover = sso_discover_payload(cfg)
@@ -92,7 +102,9 @@ async def saml_metadata() -> Response:
     try:
         xml = get_sp_metadata_xml()
     except ValueError as exc:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        ) from exc
     return Response(content=xml, media_type="application/xml")
 
 
@@ -107,7 +119,10 @@ async def saml_login(
     email_norm = email.lower().strip()
     cfg = await lookup_sso_config_for_email(db, email_norm)
     if not cfg:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="SSO is not configured for this email domain")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="SSO is not configured for this email domain",
+        )
 
     if relay_type not in ("login", "registration", "invitation"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid relay_type")
@@ -130,7 +145,9 @@ async def saml_login(
         )
     except Exception:
         logger.exception("Failed to build SAML login redirect for %s", email_norm)
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not initiate SSO login") from None
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not initiate SSO login"
+        ) from None
 
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
 
@@ -150,10 +167,16 @@ async def saml_acs(
     s = get_settings()
     frontend = s.frontend_url.rstrip("/")
 
-    def _error_redirect(message: str, *, log: Exception | str | None = None) -> RedirectResponse:
+    def _error_redirect(
+        message: str, *, log: Exception | str | None = None
+    ) -> RedirectResponse:
         if log is not None:
-            logger.exception("SAML ACS error: %s", message) if isinstance(log, Exception) else logger.error(
-                "SAML ACS error: %s — %s", message, log,
+            logger.exception("SAML ACS error: %s", message) if isinstance(
+                log, Exception
+            ) else logger.error(
+                "SAML ACS error: %s — %s",
+                message,
+                log,
             )
         return RedirectResponse(
             url=f"{frontend}/login?sso_error={quote(message)}",

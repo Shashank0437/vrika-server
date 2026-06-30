@@ -65,7 +65,15 @@ SPECIALIST_AGENTS: list[dict[str, Any]] = [
             {"value": "bb-api", "label": "bb-api — API-heavy target"},
         ],
         "default_preset": "bb-broad",
-        "fields": ["program", "target", "scope", "out_of_scope", "goal", "preset", "notes"],
+        "fields": [
+            "program",
+            "target",
+            "scope",
+            "out_of_scope",
+            "goal",
+            "preset",
+            "notes",
+        ],
     },
     {
         "id": "recon",
@@ -124,7 +132,9 @@ def persist_specialist_state_file(sa: dict[str, Any]) -> None:
     try:
         path = Path(path_str)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8"
+        )
     except OSError:
         pass
 
@@ -205,7 +215,9 @@ def _host_in_scope_list(host: str, scope: list[str]) -> bool:
     return any(_host_matches_scope(host, pat) for pat in scope)
 
 
-def validate_bugbounty_tool_scope(sa: dict[str, Any], tool_name: str, args: dict[str, Any]) -> str | None:
+def validate_bugbounty_tool_scope(
+    sa: dict[str, Any], tool_name: str, args: dict[str, Any]
+) -> str | None:
     """Return an error message when a tool call is out of bug-bounty scope, else None."""
     if str(sa.get("id") or "") != "bugbounty":
         return None
@@ -213,7 +225,9 @@ def validate_bugbounty_tool_scope(sa: dict[str, Any], tool_name: str, args: dict
     scope_raw = state.get("scope")
     scope = [str(s).strip() for s in scope_raw] if isinstance(scope_raw, list) else []
     oos_raw = state.get("out_of_scope")
-    out_of_scope = [str(s).strip() for s in oos_raw] if isinstance(oos_raw, list) else []
+    out_of_scope = (
+        [str(s).strip() for s in oos_raw] if isinstance(oos_raw, list) else []
+    )
     if not scope:
         return None
 
@@ -235,12 +249,16 @@ def validate_bugbounty_tool_scope(sa: dict[str, Any], tool_name: str, args: dict
     return None
 
 
-def validate_specialist_tool_call(sess: dict[str, Any], tool_name: str, args: dict[str, Any]) -> str | None:
+def validate_specialist_tool_call(
+    sess: dict[str, Any], tool_name: str, args: dict[str, Any]
+) -> str | None:
     sa = sess.get("specialist_agent")
     if not isinstance(sa, dict):
         return None
     if str(sa.get("status") or "") != "running":
-        return f"Tool {tool_name} blocked: specialist session is not in execution phase."
+        return (
+            f"Tool {tool_name} blocked: specialist session is not in execution phase."
+        )
     return validate_bugbounty_tool_scope(sa, tool_name, args)
 
 
@@ -280,7 +298,9 @@ def _strip_frontmatter(text: str) -> str:
     return text.strip()
 
 
-def load_agent_markdown(agent_id: str, filename: str, *, specialists_dir: str = "") -> str | None:
+def load_agent_markdown(
+    agent_id: str, filename: str, *, specialists_dir: str = ""
+) -> str | None:
     root = _resolve_specialists_dir(specialists_dir)
     if root is None:
         return None
@@ -294,7 +314,9 @@ def load_agent_markdown(agent_id: str, filename: str, *, specialists_dir: str = 
         return None
 
 
-def load_shared_markdown(agent_id: str, name: str, *, specialists_dir: str = "") -> str | None:
+def load_shared_markdown(
+    agent_id: str, name: str, *, specialists_dir: str = ""
+) -> str | None:
     root = _resolve_specialists_dir(specialists_dir)
     if root is None:
         return None
@@ -338,7 +360,9 @@ def report_path_for_agent(agent_id: str, params: dict[str, Any]) -> str:
 
 
 def build_specialist_invocation(agent_id: str, params: dict[str, Any]) -> str:
-    p = {k: str(v).strip() for k, v in params.items() if v is not None and str(v).strip()}
+    p = {
+        k: str(v).strip() for k, v in params.items() if v is not None and str(v).strip()
+    }
     if agent_id == "htb-ctf":
         parts = [
             f"target: {p.get('target', '')}",
@@ -392,9 +416,15 @@ def initial_specialist_state(agent_id: str, params: dict[str, Any]) -> dict[str,
         state.update(
             {
                 "program": str(params.get("program") or "").strip(),
-                "scope": [s.strip() for s in str(params.get("scope") or "").split(",") if s.strip()],
+                "scope": [
+                    s.strip()
+                    for s in str(params.get("scope") or "").split(",")
+                    if s.strip()
+                ],
                 "out_of_scope": [
-                    s.strip() for s in str(params.get("out_of_scope") or "").split(",") if s.strip()
+                    s.strip()
+                    for s in str(params.get("out_of_scope") or "").split(",")
+                    if s.strip()
                 ],
                 "goal": str(params.get("goal") or "").strip(),
                 "preset": str(params.get("preset") or "bb-broad").strip(),
@@ -406,7 +436,9 @@ def initial_specialist_state(agent_id: str, params: dict[str, Any]) -> dict[str,
     return state
 
 
-def new_specialist_session_meta(agent_id: str, params: dict[str, Any]) -> dict[str, Any]:
+def new_specialist_session_meta(
+    agent_id: str, params: dict[str, Any]
+) -> dict[str, Any]:
     return {
         "id": agent_id,
         "params": dict(params),
@@ -422,14 +454,23 @@ def new_specialist_session_meta(agent_id: str, params: dict[str, Any]) -> dict[s
     }
 
 
-def specialist_leader_prompt(agent_id: str, *, specialists_dir: str = "", max_chars: int = 28_000) -> str:
+def specialist_leader_prompt(
+    agent_id: str, *, specialists_dir: str = "", max_chars: int = 28_000
+) -> str:
     fname = _LEADER_FILES.get(agent_id)
     if not fname:
         return ""
     body = load_agent_markdown(agent_id, fname, specialists_dir=specialists_dir) or ""
     shared_parts: list[str] = []
-    for shared_name in ("memory-schema.md", "state-machine.md", "anti-loop.md", "output-contract.md"):
-        chunk = load_shared_markdown(agent_id, shared_name, specialists_dir=specialists_dir)
+    for shared_name in (
+        "memory-schema.md",
+        "state-machine.md",
+        "anti-loop.md",
+        "output-contract.md",
+    ):
+        chunk = load_shared_markdown(
+            agent_id, shared_name, specialists_dir=specialists_dir
+        )
         if chunk:
             shared_parts.append(f"## Shared: {shared_name}\n{chunk}")
     out = body
@@ -498,7 +539,20 @@ def is_affirmative_confirmation(message: str) -> bool:
     if not m:
         return False
     tokens = re.sub(r"[^\w\s]", "", m).split()
-    affirm = {"yes", "y", "confirm", "confirmed", "proceed", "go", "start", "ok", "okay", "yep", "yeah", "begin"}
+    affirm = {
+        "yes",
+        "y",
+        "confirm",
+        "confirmed",
+        "proceed",
+        "go",
+        "start",
+        "ok",
+        "okay",
+        "yep",
+        "yeah",
+        "begin",
+    }
     if tokens and tokens[0] in affirm:
         return True
     if m in affirm:
@@ -509,7 +563,9 @@ def is_affirmative_confirmation(message: str) -> bool:
 
 
 def session_title_prefix(agent_id: str) -> str:
-    return {"htb-ctf": "[HTB]", "bugbounty": "[BB]", "recon": "[Recon]"}.get(agent_id, "[Agent]")
+    return {"htb-ctf": "[HTB]", "bugbounty": "[BB]", "recon": "[Recon]"}.get(
+        agent_id, "[Agent]"
+    )
 
 
 def initial_phase_for_agent(agent_id: str) -> str:
@@ -538,7 +594,9 @@ def apply_specialist_message_transition(
         state = dict(state)
         state["phase"] = out["phase"]
         out["state"] = state
-        from app.services.specialist_orchestrator import enrich_specialist_agent_for_phase
+        from app.services.specialist_orchestrator import (
+            enrich_specialist_agent_for_phase,
+        )
 
         return enrich_specialist_agent_for_phase(out)
 
@@ -559,7 +617,9 @@ def specialist_session_blocks_tools(sess: dict[str, Any], user_message: str) -> 
     status = str(sa.get("status") or "")
     if status == "planning" and not sa.get("awaiting_confirmation"):
         return True
-    if bool(sa.get("awaiting_confirmation")) and not is_affirmative_confirmation(user_message):
+    if bool(sa.get("awaiting_confirmation")) and not is_affirmative_confirmation(
+        user_message
+    ):
         return True
     return False
 
@@ -581,7 +641,11 @@ def prepare_specialist_session_state(
         primed = {**sa, "awaiting_confirmation": True}
         return apply_specialist_message_transition(primed, user_message)
 
-    if status == "planning" and not sa.get("awaiting_confirmation") and assistant_count >= 1:
+    if (
+        status == "planning"
+        and not sa.get("awaiting_confirmation")
+        and assistant_count >= 1
+    ):
         return mark_plan_awaiting_confirmation(sa)
 
     return apply_specialist_message_transition(sa, user_message)

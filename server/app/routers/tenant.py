@@ -12,8 +12,14 @@ from app.dependencies.tenant import require_tenant_admin
 from app.redis_client import get_redis
 from app.schemas.tenant import CreateInvitationIn, TenantMemberOut
 from app.schemas.tenant_tools import OrgToolPolicyOut, PatchToolEnabledIn
-from app.services.agent_client import AgentUnreachableError, fetch_agent_health_and_catalog
-from app.services.brevo_email import render_invitation_email, send_transactional_email_one
+from app.services.agent_client import (
+    AgentUnreachableError,
+    fetch_agent_health_and_catalog,
+)
+from app.services.brevo_email import (
+    render_invitation_email,
+    send_transactional_email_one,
+)
 from app.services.organization_tools import (
     catalog_tool_names,
     get_policy_doc,
@@ -152,7 +158,9 @@ async def create_invitation(
     )
 
     try:
-        await send_transactional_email_one(to_email=email_norm, subject=subject, html=html, text=text)
+        await send_transactional_email_one(
+            to_email=email_norm, subject=subject, html=html, text=text
+        )
     except Exception:
         logger.exception("Failed to send organization invitation email via Brevo")
         await r.delete(redis_key)

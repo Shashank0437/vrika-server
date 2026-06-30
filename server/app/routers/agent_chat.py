@@ -51,7 +51,10 @@ from app.services.agent_specialists import (
     session_title_prefix,
     validate_specialist_tool_call,
 )
-from app.services.specialist_orchestrator import enrich_specialist_agent_for_phase, subagent_prompt_snippet
+from app.services.specialist_orchestrator import (
+    enrich_specialist_agent_for_phase,
+    subagent_prompt_snippet,
+)
 from app.services.agent_chat import (
     RouterTurnResult,
     _EXPLICIT_RUN_TOOL_RE,
@@ -116,8 +119,14 @@ from app.services.agent_attack_chains import (
     list_attack_chain_plans,
     preview_attack_chain_plan,
 )
-from app.services.agent_skills import inject_followup_skills, inject_skills_into_llm_messages
-from app.services.session_intelligence import list_session_intelligence, recalculate_session_intelligence
+from app.services.agent_skills import (
+    inject_followup_skills,
+    inject_skills_into_llm_messages,
+)
+from app.services.session_intelligence import (
+    list_session_intelligence,
+    recalculate_session_intelligence,
+)
 from app.services.organization_tools import get_disabled_tool_names
 
 logger = logging.getLogger(__name__)
@@ -158,7 +167,9 @@ async def _detached_sse(source: AsyncIterator[str]) -> AsyncIterator[str]:
     try:
         while True:
             try:
-                item = await asyncio.wait_for(queue.get(), timeout=_SSE_KEEPALIVE_SECONDS)
+                item = await asyncio.wait_for(
+                    queue.get(), timeout=_SSE_KEEPALIVE_SECONDS
+                )
             except asyncio.TimeoutError:
                 yield ": keepalive\n\n"
                 continue
@@ -200,6 +211,7 @@ def _session_out(doc: dict) -> AgentChatSessionOut:
 def _message_out(doc: dict) -> AgentChatMessageOut:
     tc_list = doc.get("tool_calls")
     tool_calls_out = tc_list if isinstance(tc_list, list) else None
+
     def _f(key: str):
         v = doc.get(key)
         if isinstance(v, float):
@@ -228,12 +240,22 @@ def _message_out(doc: dict) -> AgentChatMessageOut:
         role=str(doc.get("role") or "user"),
         content=str(doc.get("content") or ""),
         created_at=doc["created_at"],
-        tool_call=doc.get("tool_call") if isinstance(doc.get("tool_call"), dict) else None,
+        tool_call=doc.get("tool_call")
+        if isinstance(doc.get("tool_call"), dict)
+        else None,
         tool_calls=tool_calls_out,
-        batch_execution_state=str(doc["batch_execution_state"]) if doc.get("batch_execution_state") else None,
-        thinking_content=str(doc["thinking_content"]) if doc.get("thinking_content") else None,
-        router_category=str(doc["router_category"]).strip() if doc.get("router_category") else None,
-        keyword_category=str(doc["keyword_category"]).strip() if doc.get("keyword_category") else None,
+        batch_execution_state=str(doc["batch_execution_state"])
+        if doc.get("batch_execution_state")
+        else None,
+        thinking_content=str(doc["thinking_content"])
+        if doc.get("thinking_content")
+        else None,
+        router_category=str(doc["router_category"]).strip()
+        if doc.get("router_category")
+        else None,
+        keyword_category=str(doc["keyword_category"]).strip()
+        if doc.get("keyword_category")
+        else None,
         keyword_confidence=_f("keyword_confidence"),
         attachments=att_out,
     )
@@ -280,7 +302,9 @@ async def list_specialist_agents_route(
     return SpecialistAgentsOut(agents=agents)
 
 
-@router.post("/attack-chain-plans/{plan_id}/preview", response_model=AttackChainPlanPreviewOut)
+@router.post(
+    "/attack-chain-plans/{plan_id}/preview", response_model=AttackChainPlanPreviewOut
+)
 async def preview_attack_chain_plan_route(
     plan_id: str,
     body: AttackChainPlanPreviewBody,
@@ -297,9 +321,17 @@ async def preview_attack_chain_plan_route(
     )
     if result.get("success"):
         raw_steps = result.get("steps")
-        steps = [s for s in raw_steps if isinstance(s, dict)] if isinstance(raw_steps, list) else []
+        steps = (
+            [s for s in raw_steps if isinstance(s, dict)]
+            if isinstance(raw_steps, list)
+            else []
+        )
         raw_phases = result.get("attack_phases")
-        phases = [p for p in raw_phases if isinstance(p, dict)] if isinstance(raw_phases, list) else None
+        phases = (
+            [p for p in raw_phases if isinstance(p, dict)]
+            if isinstance(raw_phases, list)
+            else None
+        )
         filtered, tools, omitted, new_phases = await sanitize_attack_chain_plan_for_org(
             settings,
             db,
@@ -316,7 +348,10 @@ async def preview_attack_chain_plan_route(
     return AttackChainPlanPreviewOut(**result)
 
 
-@router.post("/sessions/{session_id}/attack-chain-followup", response_model=AttackChainFollowupOut)
+@router.post(
+    "/sessions/{session_id}/attack-chain-followup",
+    response_model=AttackChainFollowupOut,
+)
 async def post_attack_chain_followup(
     session_id: str,
     user: dict = Depends(require_auth_user),
@@ -334,7 +369,10 @@ async def post_attack_chain_followup(
     return AttackChainFollowupOut(**result)
 
 
-@router.post("/sessions/{session_id}/attack-chain-followup/accept", response_model=AttackChainFollowupAcceptOut)
+@router.post(
+    "/sessions/{session_id}/attack-chain-followup/accept",
+    response_model=AttackChainFollowupAcceptOut,
+)
 async def post_attack_chain_followup_accept(
     session_id: str,
     body: AttackChainFollowupAcceptBody,
@@ -371,7 +409,9 @@ async def post_attack_chain_followup_accept(
         exec_summary = str(pending.get("executive_summary") or "").strip()
 
     if not steps:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No follow-up steps to accept")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="No follow-up steps to accept"
+        )
 
     result = await append_attack_chain_followup(
         db,
@@ -383,7 +423,10 @@ async def post_attack_chain_followup_accept(
         attack_phases=phases,
     )
     if not result.get("success"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(result.get("error") or "Accept failed"))
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=str(result.get("error") or "Accept failed"),
+        )
 
     tool_names = [
         str(s.get("tool") or "").strip()
@@ -433,27 +476,38 @@ async def list_chat_sessions(
     user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[AgentChatSessionOut]:
-    rows = await list_sessions(db, organization_id=user["organization_id"], user_id=user["_id"])
+    rows = await list_sessions(
+        db, organization_id=user["organization_id"], user_id=user["_id"]
+    )
     return [_session_out(d) for d in rows]
 
 
-@router.get("/session-intelligence", response_model=list[AgentChatSessionIntelligenceOut])
+@router.get(
+    "/session-intelligence", response_model=list[AgentChatSessionIntelligenceOut]
+)
 async def list_chat_session_intelligence(
     user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[AgentChatSessionIntelligenceOut]:
-    rows = await list_session_intelligence(db, organization_id=user["organization_id"], user_id=user["_id"])
+    rows = await list_session_intelligence(
+        db, organization_id=user["organization_id"], user_id=user["_id"]
+    )
     return [AgentChatSessionIntelligenceOut(**r) for r in rows]
 
 
-@router.get("/sessions/{session_id}/intelligence", response_model=AgentChatSessionIntelligenceOut)
+@router.get(
+    "/sessions/{session_id}/intelligence",
+    response_model=AgentChatSessionIntelligenceOut,
+)
 async def get_chat_session_intelligence(
     session_id: str,
     user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> AgentChatSessionIntelligenceOut:
     sid = _oid(session_id)
-    sess = await get_session_owned(db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid)
+    sess = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+    )
     if not sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
     intel = sess.get("session_intelligence")
@@ -468,7 +522,9 @@ async def get_chat_session_intelligence(
             use_ai=False,
         )
     if not isinstance(intel, dict):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session intelligence not found")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail="Session intelligence not found"
+        )
     intel["executed_by"] = sess.get("executed_by") or "Unknown"
     return AgentChatSessionIntelligenceOut(**intel)
 
@@ -490,7 +546,9 @@ async def patch_chat_session(
     )
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
-    doc = await get_session_owned(db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid)
+    doc = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+    )
     if not doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
     return _session_out(doc)
@@ -521,7 +579,9 @@ async def get_messages(
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[AgentChatMessageOut]:
     sid = _oid(session_id)
-    sess = await get_session_owned(db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid)
+    sess = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+    )
     if not sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
     rows = await list_messages(
@@ -558,7 +618,9 @@ async def download_agent_chat_attachment(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Attachment not found")
     data = doc.get("data")
     if data is None:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid attachment payload")
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid attachment payload"
+        )
     payload = bytes(data) if not isinstance(data, bytes) else data
     fn = str(doc.get("filename") or "download.pdf")
     ct = str(doc.get("content_type") or "application/pdf")
@@ -583,10 +645,20 @@ async def generate_agent_chat_session_report(
     if not sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
 
-    intel = sess.get("session_intelligence") if isinstance(sess.get("session_intelligence"), dict) else {}
+    intel = (
+        sess.get("session_intelligence")
+        if isinstance(sess.get("session_intelligence"), dict)
+        else {}
+    )
     targets = intel.get("targets") if isinstance(intel, dict) else []
-    title = str(intel.get("title") or sess.get("title") or "").strip() if isinstance(intel, dict) else ""
-    target_label = str(targets[0]).strip() if isinstance(targets, list) and targets else ""
+    title = (
+        str(intel.get("title") or sess.get("title") or "").strip()
+        if isinstance(intel, dict)
+        else ""
+    )
+    target_label = (
+        str(targets[0]).strip() if isinstance(targets, list) and targets else ""
+    )
     args: dict[str, Any] = {
         "client_name": title,
         "target_label": target_label,
@@ -603,7 +675,9 @@ async def generate_agent_chat_session_report(
             enrichment_tool_name=PENETRATION_REPORT_TOOL_NAME,
         )
     except AgentUnreachableError as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
     except Exception as exc:
         logger.exception("agent_chat: session report generation failed")
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
@@ -648,7 +722,8 @@ async def generate_agent_chat_session_report(
     existing_report = intel.get("report_metadata") if isinstance(intel, dict) else {}
     existing_attachments = (
         existing_report.get("attachments")
-        if isinstance(existing_report, dict) and isinstance(existing_report.get("attachments"), list)
+        if isinstance(existing_report, dict)
+        and isinstance(existing_report.get("attachments"), list)
         else []
     )
     merged: dict[str, dict[str, Any]] = {}
@@ -664,7 +739,12 @@ async def generate_agent_chat_session_report(
     }
     await db[AGENT_CHAT_SESSIONS_COLLECTION].update_one(
         {"_id": sid, "organization_id": user["organization_id"]},
-        {"$set": {"session_intelligence.report_metadata": report_metadata, "updated_at": _utc_now_iso()}},
+        {
+            "$set": {
+                "session_intelligence.report_metadata": report_metadata,
+                "updated_at": _utc_now_iso(),
+            }
+        },
     )
     return {
         "session_id": str(sid),
@@ -705,7 +785,7 @@ async def analyze_agent_chat_session_route(
             # Try to find the corresponding tool response
             tool_name = tc.get("tool_name")
             call_id = r.get("_id")
-            
+
             # Find the tool response message following this assistant message
             # In Vrika, we usually have role=tool messages linked by tool_call_id or sequence
             # But simple heuristic: find role=tool with same tool_name that comes after
@@ -716,15 +796,21 @@ async def analyze_agent_chat_session_route(
             tool_name = str(r.get("tool_name") or "unknown")
             # We don't always have params in the tool message, but they might be in the preceding assistant message
             # For now, just send the content as stdout
-            logs.append({
-                "tool": tool_name,
-                "stdout": content,
-                "timestamp": str(r.get("created_at") or ""),
-                "params": {}, # Optional for analysis
-                "return_code": 0
-            })
+            logs.append(
+                {
+                    "tool": tool_name,
+                    "stdout": content,
+                    "timestamp": str(r.get("created_at") or ""),
+                    "params": {},  # Optional for analysis
+                    "return_code": 0,
+                }
+            )
 
-    intel = sess.get("session_intelligence") if isinstance(sess.get("session_intelligence"), dict) else {}
+    intel = (
+        sess.get("session_intelligence")
+        if isinstance(sess.get("session_intelligence"), dict)
+        else {}
+    )
     targets = intel.get("targets") if isinstance(intel, dict) else []
     target = str(targets[0]).strip() if isinstance(targets, list) and targets else ""
     objective = str(intel.get("objective") or sess.get("title") or "").strip()
@@ -738,7 +824,7 @@ async def analyze_agent_chat_session_route(
                 "session_id": str(sid),
                 "logs": logs,
                 "target": target,
-                "objective": objective
+                "objective": objective,
             },
         )
         if http_status != 200:
@@ -758,7 +844,9 @@ async def post_message_stream(
 ):
     settings = get_settings()
     sid = _oid(session_id)
-    sess = await get_session_owned(db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid)
+    sess = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+    )
     if not sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
 
@@ -777,14 +865,20 @@ async def post_message_stream(
     if str(sess.get("title") or "").strip() in ("", "New chat"):
         spec_id_init = body.specialist_agent_id.strip()
         if not spec_id_init:
-            auto = body.message.strip()[:50] + ("…" if len(body.message.strip()) > 50 else "")
+            auto = body.message.strip()[:50] + (
+                "…" if len(body.message.strip()) > 50 else ""
+            )
             await db[AGENT_CHAT_SESSIONS_COLLECTION].update_one(
                 {"_id": sid},
                 {"$set": {"title": auto}},
             )
 
     spec_id = body.specialist_agent_id.strip()
-    if spec_id and get_specialist_agent(spec_id) and not isinstance(sess.get("specialist_agent"), dict):
+    if (
+        spec_id
+        and get_specialist_agent(spec_id)
+        and not isinstance(sess.get("specialist_agent"), dict)
+    ):
         params: dict[str, Any] = {}
         for k, v in (body.specialist_agent_params or {}).items():
             s = str(v).strip()
@@ -808,13 +902,22 @@ async def post_message_stream(
     attack_chain_steps: list[dict[str, Any]] = [
         s for s in body.attack_chain_steps if isinstance(s, dict)
     ]
-    attack_chain_paths_body = [str(p).strip() for p in body.attack_chain_paths if str(p).strip()]
-    attack_chain_phases_body = [p for p in body.attack_chain_phases if isinstance(p, dict)]
+    attack_chain_paths_body = [
+        str(p).strip() for p in body.attack_chain_paths if str(p).strip()
+    ]
+    attack_chain_phases_body = [
+        p for p in body.attack_chain_phases if isinstance(p, dict)
+    ]
     attack_chain_planner_src_body = body.attack_chain_planner_source.strip()
     attack_chain_exec_summary_body = body.attack_chain_executive_summary.strip()
     omitted_tools_body: list[str] = []
     if attack_chain_steps:
-        filtered_steps, _filtered_tools, omitted_tools_body, filtered_phases = await sanitize_attack_chain_plan_for_org(
+        (
+            filtered_steps,
+            _filtered_tools,
+            omitted_tools_body,
+            filtered_phases,
+        ) = await sanitize_attack_chain_plan_for_org(
             settings,
             db,
             organization_id=user["organization_id"],
@@ -888,7 +991,10 @@ async def post_message_stream(
                 rows=rows,
             )
             sess_fresh = await get_session_owned(
-                db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+                db,
+                organization_id=user["organization_id"],
+                user_id=user["_id"],
+                session_id=sid,
             )
             summary_raw = (sess_fresh or {}).get("conversation_summary")
             summary_str = str(summary_raw or "").strip() or None
@@ -904,7 +1010,12 @@ async def post_message_stream(
                     persist_specialist_state_file(sa_updated)
                     await db[AGENT_CHAT_SESSIONS_COLLECTION].update_one(
                         {"_id": sid},
-                        {"$set": {"specialist_agent": sa_updated, "updated_at": _utc_now_iso()}},
+                        {
+                            "$set": {
+                                "specialist_agent": sa_updated,
+                                "updated_at": _utc_now_iso(),
+                            }
+                        },
                     )
                     sess_fresh = {**(sess_fresh or {}), "specialist_agent": sa_updated}
 
@@ -919,13 +1030,19 @@ async def post_message_stream(
                     explicit_for_turn.append(tn)
             _, completed_tools = _session_tool_outcomes(rows)
             batch_exclude = frozenset(completed_tools) if completed_tools else None
-            batch_only = frozenset(tn.lower() for tn in retry_rejected) if retry_rejected else None
+            batch_only = (
+                frozenset(tn.lower() for tn in retry_rejected)
+                if retry_rejected
+                else None
+            )
             extra_system_parts: list[str] = []
             ctx_snip = context_snippet(ctx)
             if ctx_snip:
                 extra_system_parts.append(ctx_snip)
             if retry_rejected:
-                extra_system_parts.append(retry_rejected_tools_system_note(retry_rejected))
+                extra_system_parts.append(
+                    retry_rejected_tools_system_note(retry_rejected)
+                )
             ac_sess = (sess_fresh or {}).get("attack_chain")
             available_for_chain = await fetch_runnable_tool_name_set(
                 settings,
@@ -934,17 +1051,23 @@ async def post_message_stream(
             )
             if isinstance(ac_sess, dict) and ac_sess.get("sequential"):
                 hint = attack_chain_execution_hint(
-                    sess_fresh or {}, rows, available_names=available_for_chain,
+                    sess_fresh or {},
+                    rows,
+                    available_names=available_for_chain,
                 )
                 if hint:
                     extra_system_parts.append(hint)
                 next_only = attack_chain_next_tool_only(
-                    sess_fresh or {}, rows, available_names=available_for_chain,
+                    sess_fresh or {},
+                    rows,
+                    available_names=available_for_chain,
                 )
                 if next_only and batch_only is None:
                     batch_only = next_only
             if attack_chain_steps:
-                intelligent = body.attack_chain_plan_id.strip() == INTELLIGENT_ATTACK_CHAIN_ID
+                intelligent = (
+                    body.attack_chain_plan_id.strip() == INTELLIGENT_ATTACK_CHAIN_ID
+                )
                 extra_system_parts.append(
                     attack_chain_system_note(
                         attack_chain_steps,
@@ -964,7 +1087,10 @@ async def post_message_stream(
             if sa_note:
                 extra_system_parts.append(sa_note)
             sa_meta = (sess_fresh or {}).get("specialist_agent")
-            if isinstance(sa_meta, dict) and str(sa_meta.get("status") or "") == "running":
+            if (
+                isinstance(sa_meta, dict)
+                and str(sa_meta.get("status") or "") == "running"
+            ):
                 sub_snip = subagent_prompt_snippet(
                     str(sa_meta.get("id") or ""),
                     sa_meta.get("phase"),
@@ -981,7 +1107,9 @@ async def post_message_stream(
                 settings,
                 rows,
                 session_id=str(sid),
-                extra_system="\n\n".join(extra_system_parts) if extra_system_parts else None,
+                extra_system="\n\n".join(extra_system_parts)
+                if extra_system_parts
+                else None,
                 conversation_summary=summary_str,
                 base_system_prompt=base_system_prompt,
             )
@@ -992,15 +1120,21 @@ async def post_message_stream(
             # resolvable target in the conversation history → ask the user to specify, do
             # NOT call the LLM (it will produce empty responses or hallucinate).
             current_target = target_from_text(user_msg)
-            if message_references_pronoun_target(user_msg) and not explicit_arg and not current_target:
-                _recent_target = recent_target_from_rows(rows, current_user_message=user_msg)
+            if (
+                message_references_pronoun_target(user_msg)
+                and not explicit_arg
+                and not current_target
+            ):
+                _recent_target = recent_target_from_rows(
+                    rows, current_user_message=user_msg
+                )
                 if not _recent_target:
                     ask_text = (
                         "You used a pronoun like 'same' / 'this' / 'the target', but I don't see a target "
                         "in our recent conversation. Which target (URL, hostname, or IP) should I use?"
                     )
                     for i in range(0, len(ask_text), 72):
-                        yield f"data: {json.dumps(ask_text[i:i + 72])}\n\n"
+                        yield f"data: {json.dumps(ask_text[i : i + 72])}\n\n"
                         await asyncio.sleep(0)
                     await insert_message(
                         db,
@@ -1037,7 +1171,9 @@ async def post_message_stream(
             )
 
             if specialist_session_blocks_tools(sess_fresh or {}, user_msg):
-                rt = RouterTurnResult("conversational", None, rt.router_reply, dict(rt.meta or {}))
+                rt = RouterTurnResult(
+                    "conversational", None, rt.router_reply, dict(rt.meta or {})
+                )
 
             if (
                 rt.intent == "conversational"
@@ -1071,7 +1207,9 @@ async def post_message_stream(
                 prefetched_blocks=(rt.meta or {}).get("skill_injection_blocks"),
             )
 
-            tool_schemas = rt.schemas if (rt.intent == "operational" or rt.schemas) else None
+            tool_schemas = (
+                rt.schemas if (rt.intent == "operational" or rt.schemas) else None
+            )
             tenant_roles = list(user.get("roles") or [])
             auto_accept = body.tool_execution_mode == "auto_accept"
             async for chunk in stream_cipherstrike_turn(
@@ -1093,7 +1231,11 @@ async def post_message_stream(
             yield f"data: [ERROR] {e.message}\n\n"
             yield "data: [DONE]\n\n"
 
-    return StreamingResponse(_detached_sse(gen()), media_type="text/event-stream", headers=_AGENT_CHAT_SSE_HEADERS)
+    return StreamingResponse(
+        _detached_sse(gen()),
+        media_type="text/event-stream",
+        headers=_AGENT_CHAT_SSE_HEADERS,
+    )
 
 
 @router.patch("/sessions/{session_id}/messages/{message_id}/tool-decisions")
@@ -1106,7 +1248,9 @@ async def patch_tool_batch_decisions(
 ) -> dict[str, bool | int]:
     sid = _oid(session_id)
     mid = _oid(message_id)
-    sess = await get_session_owned(db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid)
+    sess = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+    )
     if not sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
     try:
@@ -1121,7 +1265,9 @@ async def patch_tool_batch_decisions(
     except ValueError as e:
         detail = str(e)
         if detail == "message_not_found":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Message not found") from e
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail="Message not found"
+            ) from e
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=detail) from e
     return {"quorum_met": quorum_met, "decided": decided, "total": total}
 
@@ -1136,7 +1282,9 @@ async def post_tool_batch_execute_stream(
     settings = get_settings()
     sid = _oid(session_id)
     mid = _oid(message_id)
-    sess = await get_session_owned(db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid)
+    sess = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+    )
     if not sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
 
@@ -1158,7 +1306,11 @@ async def post_tool_batch_execute_stream(
             yield f"data: [ERROR] {e.message}\n\n"
             yield "data: [DONE]\n\n"
 
-    return StreamingResponse(_detached_sse(gen()), media_type="text/event-stream", headers=_AGENT_CHAT_SSE_HEADERS)
+    return StreamingResponse(
+        _detached_sse(gen()),
+        media_type="text/event-stream",
+        headers=_AGENT_CHAT_SSE_HEADERS,
+    )
 
 
 @router.post("/sessions/{session_id}/tool-confirm")
@@ -1172,7 +1324,9 @@ async def tool_confirm_stream(
     sid = _oid(session_id)
     aid = _oid(body.assistant_message_id)
 
-    sess = await get_session_owned(db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid)
+    sess = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=sid
+    )
     if not sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Session not found")
 
@@ -1184,7 +1338,9 @@ async def tool_confirm_stream(
         message_id=aid,
     )
     if not msg or msg.get("role") != "assistant":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Assistant message not found")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail="Assistant message not found"
+        )
     batch_slots = msg.get("tool_calls")
     if isinstance(batch_slots, list) and batch_slots:
         raise HTTPException(
@@ -1193,11 +1349,16 @@ async def tool_confirm_stream(
         )
     tc = msg.get("tool_call")
     if not isinstance(tc, dict) or tc.get("state") != "pending":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No pending tool call on this message")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="No pending tool call on this message"
+        )
 
     snapshot = msg.get("llm_messages_snapshot")
     if not isinstance(snapshot, list):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Missing LLM snapshot on pending message")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Missing LLM snapshot on pending message",
+        )
 
     tool_name = str(tc.get("tool_name") or "")
     endpoint = normalize_agent_tool_path(str(tc.get("endpoint") or ""))
@@ -1211,7 +1372,9 @@ async def tool_confirm_stream(
         if scope_err:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail=scope_err)
         roles = user.get("roles") or []
-        if "tenant_admin" not in roles and not _agent_chat_skip_tool_approval_prompt(tool_name):
+        if "tenant_admin" not in roles and not _agent_chat_skip_tool_approval_prompt(
+            tool_name
+        ):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
                 detail="Tenant administrator role required to execute tools",
@@ -1221,7 +1384,9 @@ async def tool_confirm_stream(
         try:
             if not body.approved:
                 # Atomic rejection: only one transition from pending → rejected wins.
-                claim_rej = await db[AGENT_CHAT_MESSAGES_COLLECTION].find_one_and_update(
+                claim_rej = await db[
+                    AGENT_CHAT_MESSAGES_COLLECTION
+                ].find_one_and_update(
                     {"_id": aid, "tool_call.state": "pending"},
                     {"$set": {"tool_call.state": "rejected"}},
                 )
@@ -1245,9 +1410,15 @@ async def tool_confirm_stream(
                 pruned_schemas: list[dict[str, Any]] | None = None
                 if isinstance(follow_tool_schemas, list):
                     pruned_schemas = [
-                        s for s in follow_tool_schemas
+                        s
+                        for s in follow_tool_schemas
                         if isinstance(s, dict)
-                        and str((s.get("function") or {}).get("name") or s.get("name") or "").strip().lower() != rejected_name_lower
+                        and str(
+                            (s.get("function") or {}).get("name") or s.get("name") or ""
+                        )
+                        .strip()
+                        .lower()
+                        != rejected_name_lower
                     ] or None
                 # System note nudging the model to acknowledge the rejection and stop re-trying.
                 reject_system = {
@@ -1262,12 +1433,16 @@ async def tool_confirm_stream(
                 follow_msgs = (
                     list(snapshot)
                     + [reject_system]
-                    + assistant_and_tool_result_pair(tool_name, args, cancel, call_id=str(aid))
+                    + assistant_and_tool_result_pair(
+                        tool_name, args, cancel, call_id=str(aid)
+                    )
                 )
                 await inject_followup_skills(
                     settings,
                     follow_msgs,
-                    msg.get("routing") if isinstance(msg.get("routing"), dict) else None,
+                    msg.get("routing")
+                    if isinstance(msg.get("routing"), dict)
+                    else None,
                 )
                 async for chunk in stream_follow_up_after_tool(
                     settings,
@@ -1388,7 +1563,9 @@ async def tool_confirm_stream(
                     "tool_call.stdout_truncated": bool(partial.get("stdout_truncated")),
                     "tool_call.stderr_truncated": bool(partial.get("stderr_truncated")),
                     "tool_call.execution_log_tail": partial.get("execution_log_tail"),
-                    "tool_call.execution_log_truncated": bool(partial.get("execution_log_truncated")),
+                    "tool_call.execution_log_truncated": bool(
+                        partial.get("execution_log_truncated")
+                    ),
                     "tool_call.progress_line": partial.get("progress_line"),
                     "tool_call.exit_code": partial.get("exit_code"),
                     "tool_call.http_status": partial.get("http_status"),
@@ -1397,7 +1574,9 @@ async def tool_confirm_stream(
                     updates["tool_call.run_started_at"] = partial["run_started_at"]
                 if isinstance(partial.get("run_finished_at"), str):
                     updates["tool_call.run_finished_at"] = partial["run_finished_at"]
-                await db[AGENT_CHAT_MESSAGES_COLLECTION].update_one({"_id": aid}, {"$set": updates})
+                await db[AGENT_CHAT_MESSAGES_COLLECTION].update_one(
+                    {"_id": aid}, {"$set": updates}
+                )
 
             try:
                 while True:
@@ -1453,7 +1632,11 @@ async def tool_confirm_stream(
                 content=result_text,
                 tool_name=tool_name,
             )
-            finished_iso = prog.get("run_finished_at") if isinstance(prog.get("run_finished_at"), str) else None
+            finished_iso = (
+                prog.get("run_finished_at")
+                if isinstance(prog.get("run_finished_at"), str)
+                else None
+            )
             tool_call_updates: dict[str, Any] = {
                 "tool_call.state": "confirmed",
                 "tool_call.run_status": str(prog.get("run_status") or "done"),
@@ -1462,7 +1645,9 @@ async def tool_confirm_stream(
                 "tool_call.stdout_truncated": bool(prog.get("stdout_truncated")),
                 "tool_call.stderr_truncated": bool(prog.get("stderr_truncated")),
                 "tool_call.execution_log_tail": prog.get("execution_log_tail"),
-                "tool_call.execution_log_truncated": bool(prog.get("execution_log_truncated")),
+                "tool_call.execution_log_truncated": bool(
+                    prog.get("execution_log_truncated")
+                ),
                 "tool_call.progress_line": prog.get("progress_line"),
                 "tool_call.exit_code": prog.get("exit_code"),
                 "tool_call.http_status": prog.get("http_status"),
@@ -1490,12 +1675,15 @@ async def tool_confirm_stream(
                     sid,
                     completed_step_index=chain_step_idx,
                 )
-            sess_follow = await get_session_owned(
-                db,
-                organization_id=user["organization_id"],
-                user_id=user["_id"],
-                session_id=sid,
-            ) or sess
+            sess_follow = (
+                await get_session_owned(
+                    db,
+                    organization_id=user["organization_id"],
+                    user_id=user["_id"],
+                    session_id=sid,
+                )
+                or sess
+            )
 
             yield _sse_tool_batch_slot_progress(
                 aid,
@@ -1524,9 +1712,15 @@ async def tool_confirm_stream(
             pruned_follow_schemas: list[dict[str, Any]] | None = None
             if isinstance(follow_tool_schemas, list):
                 pruned_follow_schemas = [
-                    s for s in follow_tool_schemas
+                    s
+                    for s in follow_tool_schemas
                     if isinstance(s, dict)
-                    and str((s.get("function") or {}).get("name") or s.get("name") or "").strip().lower() != ran_tool_lower
+                    and str(
+                        (s.get("function") or {}).get("name") or s.get("name") or ""
+                    )
+                    .strip()
+                    .lower()
+                    != ran_tool_lower
                 ] or None
             summarize_system = {
                 "role": "system",
@@ -1540,7 +1734,9 @@ async def tool_confirm_stream(
             follow_msgs = (
                 list(snapshot)
                 + [summarize_system]
-                + assistant_and_tool_result_pair(tool_name, args, result_text, call_id=str(aid))
+                + assistant_and_tool_result_pair(
+                    tool_name, args, result_text, call_id=str(aid)
+                )
             )
             fresh_rows = await list_messages(
                 db,
@@ -1554,13 +1750,18 @@ async def tool_confirm_stream(
                 organization_id=user["organization_id"],
             )
             ac_system, follow_batch_only, ac_suffix = attack_chain_followup_context(
-                sess_follow or {}, fresh_rows, available_names=available_names,
+                sess_follow or {},
+                fresh_rows,
+                available_names=available_names,
             )
             for ac_msg in reversed(ac_system):
                 follow_msgs.insert(0, ac_msg)
             if ac_suffix:
                 summarize_system["content"] = summarize_system["content"] + ac_suffix
-            follow_schemas, resolved_batch_only = await resolve_attack_chain_follow_schemas(
+            (
+                follow_schemas,
+                resolved_batch_only,
+            ) = await resolve_attack_chain_follow_schemas(
                 settings,
                 db,
                 organization_id=user["organization_id"],
@@ -1592,4 +1793,8 @@ async def tool_confirm_stream(
             yield f"data: [ERROR] {e.message}\n\n"
             yield "data: [DONE]\n\n"
 
-    return StreamingResponse(_detached_sse(gen()), media_type="text/event-stream", headers=_AGENT_CHAT_SSE_HEADERS)
+    return StreamingResponse(
+        _detached_sse(gen()),
+        media_type="text/event-stream",
+        headers=_AGENT_CHAT_SSE_HEADERS,
+    )
