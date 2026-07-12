@@ -56,6 +56,13 @@ export const CLOUD_SECURITY_NAV: CloudSecurityNavItem[] = [
   },
   {
     type: "leaf",
+    id: "lighthouse",
+    label: "AI Assistant",
+    icon: "psychology",
+    prowlerPath: "/lighthouse",
+  },
+  {
+    type: "leaf",
     id: "findings",
     label: "Findings",
     icon: "sell",
