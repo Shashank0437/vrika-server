@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
-import { useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo, type ReactNode } from "react";
+import { CloudSecuritySidebarSection } from "@/components/dashboard/CloudSecuritySidebarSection";
 import { DashboardHeaderProfile } from "@/components/dashboard/DashboardHeaderProfile";
 import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
@@ -16,6 +16,7 @@ type NavMain = {
   icon: string;
   match: "exact" | "prefix";
   adminOnly?: boolean;
+  cloudSecurity?: boolean;
 };
 
 const MAIN_NAV: NavMain[] = [
@@ -39,15 +40,8 @@ const MAIN_NAV: NavMain[] = [
     label: "Cloud Security",
     icon: "cloud",
     match: "prefix",
+    cloudSecurity: true,
   },
-  // Analytics is hidden from the dashboard sidebar until the feature is ready.
-  // {
-  //   href: "/dashboard/analytics",
-  //   label: "Analytics",
-  //   icon: "analytics",
-  //   match: "prefix",
-  //   adminOnly: true,
-  // },
   {
     href: "/dashboard/users",
     label: "User management",
@@ -58,15 +52,19 @@ const MAIN_NAV: NavMain[] = [
 ];
 
 function navActive(pathname: string, item: NavMain): boolean {
+  if (item.cloudSecurity) {
+    return pathname.startsWith(item.href);
+  }
   if (item.match === "exact") return pathname === item.href;
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-export function DashboardShell({ children }: { children: ReactNode }) {
+function DashboardShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
   const isAdmin = !!(user?.roles?.includes("tenant_admin"));
+  const cloudSecurityRoute = pathname.startsWith("/dashboard/cloud-security");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -91,14 +89,21 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const docActive = pathname === "/coming-soon/documentation" || pathname?.startsWith("/coming-soon/documentation/");
-  const supportActive = pathname === "/coming-soon/support" || pathname?.startsWith("/coming-soon/support/");
+  const docActive =
+    pathname === "/coming-soon/documentation" ||
+    pathname?.startsWith("/coming-soon/documentation/");
+  const supportActive =
+    pathname === "/coming-soon/support" ||
+    pathname?.startsWith("/coming-soon/support/");
 
   return (
     <div className="flex min-h-screen items-start bg-background font-sans text-on-surface">
       <aside className="sticky top-0 flex h-[100dvh] max-h-[100dvh] w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-r border-outline-variant bg-surface-container-low">
         <div className="shrink-0 px-6 pb-2 pt-6">
-          <Link href="/dashboard" className="flex items-center gap-3 rounded-lg transition hover:opacity-95">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3 rounded-lg transition hover:opacity-95"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo_with_text_with_shield.png"
@@ -113,14 +118,36 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             href="/dashboard/scan?new=1"
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-bold text-on-primary shadow-sm transition hover:opacity-90 active:scale-[0.99]"
           >
-            <MaterialSymbol name="add" className="text-base text-on-primary" filled />
+            <MaterialSymbol
+              name="add"
+              className="text-base text-on-primary"
+              filled
+            />
             Run Scan
           </Link>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-0 pb-2" aria-label="Main">
+        <nav
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-0 pb-2"
+          aria-label="Main"
+        >
           <div className="flex flex-col">
             {visibleMain.map((item) => {
+              if (item.cloudSecurity) {
+                return (
+                  <Suspense
+                    key={item.href}
+                    fallback={
+                      <div className="px-6 py-3 text-sm text-on-surface-variant">
+                        Cloud Security
+                      </div>
+                    }
+                  >
+                    <CloudSecuritySidebarSection />
+                  </Suspense>
+                );
+              }
+
               const active = navActive(pathname, item);
               return (
                 <Link
@@ -191,14 +218,39 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                     {user.organization_name}
                   </span>
                 </div>
-                <span className="mx-1 h-5 w-px bg-outline-variant" aria-hidden="true" />
+                <span
+                  className="mx-1 h-5 w-px bg-outline-variant"
+                  aria-hidden="true"
+                />
               </>
             )}
             <DashboardHeaderProfile user={user} />
           </div>
         </header>
-        <main className="min-h-full flex-1 p-6">{children}</main>
+        <main
+          className={
+            cloudSecurityRoute
+              ? "min-h-full flex-1 p-0"
+              : "min-h-full flex-1 p-6"
+          }
+        >
+          {children}
+        </main>
       </div>
     </div>
+  );
+}
+
+export function DashboardShell({ children }: { children: ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-dvh items-center justify-center text-sm text-on-surface-variant">
+          Loading…
+        </div>
+      }
+    >
+      <DashboardShellInner>{children}</DashboardShellInner>
+    </Suspense>
   );
 }
