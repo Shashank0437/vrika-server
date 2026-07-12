@@ -57,7 +57,7 @@ export const CLOUD_SECURITY_NAV: CloudSecurityNavItem[] = [
   {
     type: "leaf",
     id: "lighthouse",
-    label: "AI Assistant",
+    label: "Vrika AI",
     icon: "psychology",
     prowlerPath: "/lighthouse",
   },
@@ -145,15 +145,22 @@ function resolveAllowedView(normalized: string): string | null {
   }
 
   const pathnameOnly = normalized.split("?")[0] ?? normalized;
+  const queryIndex = normalized.indexOf("?");
+  const query = queryIndex >= 0 ? normalized.slice(queryIndex) : "";
+
   for (const allowed of ALLOWED_PATHS) {
     const allowedPathname = allowed.split("?")[0] ?? allowed;
     if (pathnameOnly === allowedPathname && pathnameOnly !== "/") {
-      return allowed;
+      return `${allowedPathname}${query}`;
     }
   }
 
   return null;
 }
+
+/** Opens the Prowler launch-scan modal inside the embed iframe. */
+export const CLOUD_SECURITY_RUN_SCAN_VIEW =
+  "/scans?launchScan=true";
 
 export function defaultCloudSecurityView(): string {
   return "/";

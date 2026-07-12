@@ -7,6 +7,7 @@ import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import {
   buildCloudSecurityHref,
   CLOUD_SECURITY_NAV,
+  CLOUD_SECURITY_RUN_SCAN_VIEW,
   CLOUD_SECURITY_VIEW_PARAM,
   isCloudSecurityViewActive,
   sanitizeCloudSecurityView,
@@ -104,6 +105,7 @@ function NavGroup({
 export function CloudSecuritySidebarSection() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const cloudSecurityActive = pathname.startsWith(CLOUD_SECURITY_HREF);
   const currentView = sanitizeCloudSecurityView(
     searchParams.get(CLOUD_SECURITY_VIEW_PARAM),
@@ -150,6 +152,24 @@ export function CloudSecuritySidebarSection() {
         />
         Cloud Security
       </Link>
+      <div className="px-6 pb-3 pt-1">
+        <button
+          type="button"
+          onClick={() => {
+            router.push(buildCloudSecurityHref(CLOUD_SECURITY_RUN_SCAN_VIEW), {
+              scroll: false,
+            });
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2 text-xs font-bold text-on-primary shadow-sm transition hover:opacity-90 active:scale-[0.99]"
+        >
+          <MaterialSymbol
+            name="play_arrow"
+            className="text-base text-on-primary"
+            filled
+          />
+          Run Scan
+        </button>
+      </div>
       <div className="border-r-4 border-primary bg-primary-container/40 pb-2">
         {CLOUD_SECURITY_NAV.map((item) =>
           item.type === "leaf" ? (
