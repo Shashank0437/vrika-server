@@ -132,6 +132,22 @@ const ALLOWED_PATHS = new Set<string>(
   ),
 );
 
+function resolveAllowedView(normalized: string): string | null {
+  if (ALLOWED_PATHS.has(normalized)) {
+    return normalized;
+  }
+
+  const pathnameOnly = normalized.split("?")[0] ?? normalized;
+  for (const allowed of ALLOWED_PATHS) {
+    const allowedPathname = allowed.split("?")[0] ?? allowed;
+    if (pathnameOnly === allowedPathname && pathnameOnly !== "/") {
+      return allowed;
+    }
+  }
+
+  return null;
+}
+
 export function defaultCloudSecurityView(): string {
   return "/";
 }
@@ -139,7 +155,7 @@ export function defaultCloudSecurityView(): string {
 export function sanitizeCloudSecurityView(view: string | null | undefined): string {
   if (!view) return defaultCloudSecurityView();
   const normalized = normalizeBridgePath(view);
-  return ALLOWED_PATHS.has(normalized) ? normalized : defaultCloudSecurityView();
+  return resolveAllowedView(normalized) ?? defaultCloudSecurityView();
 }
 
 export function isCloudSecurityViewActive(
