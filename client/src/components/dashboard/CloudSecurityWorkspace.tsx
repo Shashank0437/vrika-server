@@ -60,7 +60,7 @@ export function CloudSecurityWorkspace() {
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-8rem)] flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
+    <div className="flex min-h-[calc(100dvh-8rem)] flex-col overflow-hidden">
       <iframe
         title="Cloud Security"
         src={embedPath}
