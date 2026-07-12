@@ -51,11 +51,11 @@ services:
       AGENT_MICROSERVICE_URL: http://host.docker.internal:8888
       AGENT_TOOL_STREAM_REDIS_URL: redis://host.docker.internal:6379/0
       PROWLER_API_BASE_URL: http://api:8080/api/v1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - default
       - prowler
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       mongo:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
       context: ./client
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       PY_API_URL: http://api:8000
       INTERNAL_API_URL: http://api:8000
