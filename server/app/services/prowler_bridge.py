@@ -338,5 +338,5 @@ async def get_cloud_security_embed_path(
         pass
 
     base = settings.prowler_public_base_path.rstrip("/") or "/prowler"
-    redirect = f"{base}/"
+    redirect = "/"
     return _embed_path(settings, token, redirect=redirect)
