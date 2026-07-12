@@ -32,6 +32,9 @@ export type CloudSecurityNavItem =
 
 export const CLOUD_SECURITY_VIEW_PARAM = "view";
 
+/** Opens the Prowler launch-scan modal inside the embed iframe. */
+export const CLOUD_SECURITY_RUN_SCAN_VIEW = "/scans?launchScan=true";
+
 export const CLOUD_SECURITY_NAV: CloudSecurityNavItem[] = [
   {
     type: "leaf",
@@ -67,6 +70,13 @@ export const CLOUD_SECURITY_NAV: CloudSecurityNavItem[] = [
     label: "Findings",
     icon: "sell",
     prowlerPath: "/findings?filter[muted]=false&filter[status__in]=FAIL",
+  },
+  {
+    type: "leaf",
+    id: "run-scan",
+    label: "Run Scan",
+    icon: "play_arrow",
+    prowlerPath: CLOUD_SECURITY_RUN_SCAN_VIEW,
   },
   {
     type: "leaf",
@@ -157,10 +167,6 @@ function resolveAllowedView(normalized: string): string | null {
 
   return null;
 }
-
-/** Opens the Prowler launch-scan modal inside the embed iframe. */
-export const CLOUD_SECURITY_RUN_SCAN_VIEW =
-  "/scans?launchScan=true";
 
 export function defaultCloudSecurityView(): string {
   return "/";
