@@ -54,6 +54,9 @@ async def _request(
         headers["Authorization"] = f"Bearer {bearer}"
 
     timeout = httpx.Timeout(settings.prowler_timeout_seconds)
+    # When proxied via host.docker.internal, Django rejects unknown Host headers.
+    if "host.docker.internal" in url:
+        headers["Host"] = "127.0.0.1"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.request(
