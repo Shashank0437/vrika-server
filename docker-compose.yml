@@ -50,6 +50,7 @@ services:
       # Agent runs separately (~/nyxstrike docker compose); API reaches it on the host.
       AGENT_MICROSERVICE_URL: http://host.docker.internal:8888
       AGENT_TOOL_STREAM_REDIS_URL: redis://host.docker.internal:6379/0
+      PROWLER_API_BASE_URL: http://host.docker.internal:8090/api/v1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

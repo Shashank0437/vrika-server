@@ -34,6 +34,12 @@ const MAIN_NAV: NavMain[] = [
     match: "prefix",
     adminOnly: true,
   },
+  {
+    href: "/dashboard/cloud-security",
+    label: "Cloud Security",
+    icon: "cloud",
+    match: "prefix",
+  },
   // Analytics is hidden from the dashboard sidebar until the feature is ready.
   // {
   //   href: "/dashboard/analytics",

@@ -10,6 +10,7 @@ from app.routers import (
     admin,
     agent_chat,
     auth,
+    cloud_security,
     contact,
     invitations,
     sso,
@@ -40,6 +41,7 @@ if origins:
     )
 
 app.include_router(auth.router)
+app.include_router(cloud_security.router)
 app.include_router(sso.router)
 app.include_router(tenant.router)
 app.include_router(invitations.router)

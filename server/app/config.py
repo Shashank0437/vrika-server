@@ -87,6 +87,24 @@ class Settings(BaseSettings):
     )
     # Agent bridge (Flask /api/cipherstrike/*) — optional shared secret with NyxStrike VRIKA_BRIDGE_SECRET.
     vrika_bridge_secret: str = ""
+
+    # Prowler Cloud Security — org/user provisioning + iframe embed bridge.
+    prowler_api_base_url: str = Field(
+        default="http://127.0.0.1:8090/api/v1",
+        validation_alias=AliasChoices("PROWLER_API_BASE_URL"),
+    )
+    prowler_bridge_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("PROWLER_BRIDGE_SECRET"),
+    )
+    prowler_public_base_path: str = Field(
+        default="/prowler",
+        validation_alias=AliasChoices("PROWLER_PUBLIC_BASE_PATH"),
+    )
+    prowler_timeout_seconds: float = Field(
+        default=30.0,
+        validation_alias=AliasChoices("PROWLER_TIMEOUT_SECONDS"),
+    )
     agent_llm_stream_timeout_seconds: float = Field(
         default=600.0,
         validation_alias=AliasChoices("AGENT_LLM_STREAM_TIMEOUT_SECONDS"),
@@ -164,6 +182,7 @@ class Settings(BaseSettings):
         "admin_api_key",
         "agent_api_token",
         "vrika_bridge_secret",
+        "prowler_bridge_secret",
         mode="before",
     )
     @classmethod
