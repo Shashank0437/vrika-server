@@ -6,6 +6,7 @@ import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { api, ApiError } from "@/lib/api";
 import {
   CLOUD_SECURITY_VIEW_PARAM,
+  isBridgePathForView,
   sanitizeCloudSecurityView,
   VRIKA_NAVIGATE_MESSAGE,
   VRIKA_PATHNAME_MESSAGE,
@@ -15,6 +16,9 @@ import {
 type EmbedResponse = {
   embed_path: string;
 };
+
+/** Ignore stale iframe pathnames until the parent-requested view is acknowledged. */
+const PENDING_ACK_TIMEOUT_MS = 4000;
 
 function isAllowedBridgeOrigin(origin: string): boolean {
   if (typeof window === "undefined" || !origin) return false;
@@ -41,10 +45,34 @@ export function CloudSecurityWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [iframeReady, setIframeReady] = useState(false);
   const pendingViewRef = useRef<string | null>(null);
+  /** Parent-driven view we are waiting for the iframe to report back. */
+  const pendingAckRef = useRef<string | null>(null);
+  const pendingAckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** View we just wrote from an iframe pathname — skip re-navigate/ack arming. */
+  const iframeSyncedViewRef = useRef<string | null>(null);
 
   const currentView = sanitizeCloudSecurityView(
     searchParams.get(CLOUD_SECURITY_VIEW_PARAM),
   );
+
+  const clearPendingAck = useCallback(() => {
+    pendingAckRef.current = null;
+    if (pendingAckTimerRef.current) {
+      clearTimeout(pendingAckTimerRef.current);
+      pendingAckTimerRef.current = null;
+    }
+  }, []);
+
+  const armPendingAck = useCallback((view: string) => {
+    pendingAckRef.current = view;
+    if (pendingAckTimerRef.current) {
+      clearTimeout(pendingAckTimerRef.current);
+    }
+    pendingAckTimerRef.current = setTimeout(() => {
+      pendingAckRef.current = null;
+      pendingAckTimerRef.current = null;
+    }, PENDING_ACK_TIMEOUT_MS);
+  }, []);
 
   const postNavigate = useCallback(
     (path: string) => {
@@ -86,10 +114,27 @@ export function CloudSecurityWorkspace() {
 
   useEffect(() => {
     pendingViewRef.current = currentView;
+
+    // URL was updated from iframe pathname sync — do not treat as parent nav.
+    if (iframeSyncedViewRef.current === currentView) {
+      iframeSyncedViewRef.current = null;
+      return;
+    }
+
+    // Sidebar / deep-link: ignore stale iframe pathnames until this view is acked.
+    armPendingAck(currentView);
     if (iframeReady) {
       postNavigate(currentView);
     }
-  }, [currentView, iframeReady, postNavigate]);
+  }, [armPendingAck, currentView, iframeReady, postNavigate]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingAckTimerRef.current) {
+        clearTimeout(pendingAckTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -99,9 +144,19 @@ export function CloudSecurityWorkspace() {
         return;
       }
 
+      const pendingAck = pendingAckRef.current;
+      if (pendingAck !== null && !isBridgePathForView(data.path, pendingAck)) {
+        // Stale boot/overview pathname — do not strip ?view=/compliance etc.
+        return;
+      }
+      if (pendingAck !== null) {
+        clearPendingAck();
+      }
+
       const nextView = sanitizeCloudSecurityView(data.path);
       if (nextView === currentView) return;
 
+      iframeSyncedViewRef.current = nextView;
       const params = new URLSearchParams(searchParams.toString());
       if (nextView === "/") {
         params.delete(CLOUD_SECURITY_VIEW_PARAM);
@@ -117,11 +172,13 @@ export function CloudSecurityWorkspace() {
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [currentView, router, searchParams]);
+  }, [clearPendingAck, currentView, router, searchParams]);
 
   const handleIframeLoad = () => {
     setIframeReady(true);
-    postNavigate(pendingViewRef.current ?? currentView);
+    const target = pendingViewRef.current ?? currentView;
+    armPendingAck(target);
+    postNavigate(target);
   };
 
   if (error) {

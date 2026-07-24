@@ -150,12 +150,36 @@ function resolveAllowedView(normalized: string): string | null {
 
   for (const allowed of ALLOWED_PATHS) {
     const allowedPathname = allowed.split("?")[0] ?? allowed;
-    if (pathnameOnly === allowedPathname && pathnameOnly !== "/") {
+    if (allowedPathname === "/") continue;
+    if (pathnameOnly === allowedPathname) {
       return `${allowedPathname}${query}`;
+    }
+    // Nested Prowler routes (e.g. /compliance/[framework]) stay under the leaf.
+    if (pathnameOnly.startsWith(`${allowedPathname}/`)) {
+      return `${pathnameOnly}${query}`;
     }
   }
 
   return null;
+}
+
+/** True when an iframe-reported path acknowledges a parent-requested view. */
+export function isBridgePathForView(
+  reportedPath: string,
+  desiredView: string,
+): boolean {
+  const reported = normalizeBridgePath(reportedPath);
+  const desired = normalizeBridgePath(desiredView);
+  const reportedPathname = reported.split("?")[0] ?? reported;
+  const desiredPathname = desired.split("?")[0] ?? desired;
+
+  if (desiredPathname === "/") {
+    return reportedPathname === "/";
+  }
+  return (
+    reportedPathname === desiredPathname ||
+    reportedPathname.startsWith(`${desiredPathname}/`)
+  );
 }
 
 export function defaultCloudSecurityView(): string {
@@ -174,8 +198,15 @@ export function isCloudSecurityViewActive(
 ): boolean {
   const current = sanitizeCloudSecurityView(currentView);
   const target = normalizeBridgePath(prowlerPath);
-  if (target === "/") return current === "/";
-  return current === target || current.startsWith(`${target}?`);
+  const targetPathname = target.split("?")[0] ?? target;
+  if (targetPathname === "/") return current === "/";
+  const currentPathname = current.split("?")[0] ?? current;
+  return (
+    current === target ||
+    current.startsWith(`${target}?`) ||
+    currentPathname === targetPathname ||
+    currentPathname.startsWith(`${targetPathname}/`)
+  );
 }
 
 export function buildCloudSecurityHref(view: string): string {
