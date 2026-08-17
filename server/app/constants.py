@@ -1,8 +1,8 @@
 """Shared constants for Redis keys."""
 
-REG_COMPLETE_REDIS_PREFIX = "cipherstrike:reg_complete:"
-ORG_INVITE_REDIS_PREFIX = "cipherstrike:org_invite:"
-SAML_RELAY_REDIS_PREFIX = "cipherstrike:saml_relay:"
+REG_COMPLETE_REDIS_PREFIX = "vrika:reg_complete:"
+ORG_INVITE_REDIS_PREFIX = "vrika:org_invite:"
+SAML_RELAY_REDIS_PREFIX = "vrika:saml_relay:"
 
 SSO_CONFIGS_COLLECTION = "sso_configs"
 

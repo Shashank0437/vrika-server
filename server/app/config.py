@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     mongodb_uri: str = "mongodb://127.0.0.1:27017"
-    mongodb_db: str = "cipherstrike"
+    mongodb_db: str = "vrika"
 
     redis_url: str = "redis://127.0.0.1:6379/0"
 

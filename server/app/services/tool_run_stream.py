@@ -11,7 +11,7 @@ import redis.asyncio as redis_async
 
 logger = logging.getLogger(__name__)
 
-TOOL_RUN_STREAM_PREFIX = "cipherstrike:toolrun:"
+TOOL_RUN_STREAM_PREFIX = "vrika:toolrun:"
 
 
 async def drain_tool_run_stream(
