@@ -17,66 +17,62 @@ export function LandingNav() {
   }, []);
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 border-b transition-colors duration-300 ${
-        elevated
-          ? "border-outline-variant bg-background/93 text-on-surface backdrop-blur-xl"
-          : "border-transparent bg-[#07040f]/30 text-white backdrop-blur-md"
-      }`}
-    >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
-        <Link href="/" className="flex items-center gap-2">
+    <header className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4 transition-all duration-300">
+      <div
+        className={`w-full max-w-5xl rounded-[34px] px-8 py-3 flex items-center justify-between transition-all duration-400 ${
+          elevated
+            ? "border border-slate-300/80 bg-white/90 shadow-xl backdrop-blur-2xl"
+            : "border border-slate-200/60 bg-white/75 shadow-sm backdrop-blur-xl"
+        }`}
+        style={{
+          boxShadow: "0 2px 24px rgba(0, 0, 0, 0.02), inset 0 1px 3px rgba(0, 0, 0, 0.04)",
+        }}
+      >
+        <Link href="/" className="flex items-center gap-2.5 group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={elevated ? "/logo_with_text_with_shield.png" : "/logo_with_white_text_shield.png"}
+            src="/logo_with_text_with_shield.png"
             alt="Vrika"
-            className="h-[64px] md:h-[72px] w-auto object-contain"
+            className="h-9 md:h-10 w-auto object-contain transition-transform group-hover:scale-105"
           />
         </Link>
-        <nav className="hidden items-center gap-8 text-sm font-semibold md:flex">
-          <a href="#demo" className={elevated ? "text-on-surface-variant hover:text-primary" : "text-white/80 hover:text-white"}>
-            Demo
+
+        <nav className="hidden items-center gap-8 text-[11px] font-semibold uppercase tracking-[1px] md:flex text-[#1e2033]">
+          <a href="#demo" className="transition-colors hover:text-[#6366f1]">
+            Platform
           </a>
-          <a href="#pulse" className={elevated ? "text-on-surface-variant hover:text-primary" : "text-white/80 hover:text-white"}>
-            Highlights
+          <a href="#pulse" className="transition-colors hover:text-[#6366f1]">
+            Developers
           </a>
           <LandingAuthLink
             href="/login"
             signedInHref="/tools"
-            className={elevated ? "text-on-surface-variant hover:text-primary" : "text-white/80 hover:text-white"}
+            className="transition-colors hover:text-[#6366f1]"
           >
-            Arsenal
+            Resources
           </LandingAuthLink>
-          <a href="#intel" className={elevated ? "text-on-surface-variant hover:text-primary" : "text-white/80 hover:text-white"}>
-            Playbooks
-          </a>
-          <a href="#faq" className={elevated ? "text-on-surface-variant hover:text-primary" : "text-white/80 hover:text-white"}>
-            FAQ
+          <a href="#faq" className="transition-colors hover:text-[#6366f1]">
+            Company
           </a>
         </nav>
-        <div className="flex items-center gap-1 sm:gap-2 md:gap-3">
+
+        <div className="flex items-center gap-3">
+          <LandingHeroPrimaryCta
+            className="rounded-full bg-[#1e2033] px-6 py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-md transition-all hover:bg-[#3a3f5c] hover:scale-[1.02]"
+          />
           <button
             type="button"
             onClick={() => setContactOpen(true)}
-            className={`shrink-0 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-4 ${
-              elevated
-                ? "text-on-surface-variant hover:bg-surface-container hover:text-primary"
-                : "text-white/85 hover:bg-white/10 hover:text-white"
-            }`}
+            className="rounded-full bg-gradient-to-b from-white to-[#f0f1f5] border border-[#1e2033]/15 px-6 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#1e2033] shadow-sm transition-all hover:bg-[#e2e8f0]"
           >
-            <span className="sm:hidden">Contact</span>
-            <span className="hidden sm:inline">Contact us</span>
+            Contact Us
           </button>
-          <LandingHeroPrimaryCta
-            className={`rounded-full px-4 py-2.5 text-sm font-bold transition-colors sm:px-5 ${
-              elevated
-                ? "bg-primary text-on-primary shadow-lg shadow-primary/25 hover:opacity-90"
-                : "bg-white text-[#170b29] hover:bg-white/85"
-            }`}
-          />
         </div>
       </div>
       <ContactUsModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </header>
   );
 }
+
+
+

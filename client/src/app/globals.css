@@ -1,23 +1,24 @@
-@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..800;1,400..800&family=Plus+Jakarta+Sans:ital,wght@0,400..800;1,400..800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap");
 @import "tailwindcss";
 
 :root {
-  /* Agentic workspace Stitch export — main canvas + sidebar */
-  --background: #fdfcff;
-  --foreground: #1b1b21;
-  --muted: #45464f;
-  --accent: #684cb6;
-  --accent-soft: #e9ddff;
-  --border: #c6c5d0;
+  --background: #fafafa;
+  --foreground: #1e2033;
+  --muted: #64748b;
+  --accent: #3b82f6;
+  --accent-saffron: #ff6b00;
+  --border: #e2e8f0;
+  --font-serif-sarvam: "Playfair Display", Georgia, serif;
+  --font-sans-sarvam: "Plus Jakarta Sans", system-ui, sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans-sarvam);
+  --font-serif: var(--font-serif-sarvam);
 
-  /* Google Stitch export — Vrika marketing + workspace (project 3983447513859599936) */
+  /* Google Stitch export — Vrika marketing + workspace */
   --color-on-background: #1b1b21;
   --color-primary: #684cb6;
   --color-on-primary: #ffffff;
@@ -42,6 +43,15 @@
   --color-error-container: #f97386;
   --color-secondary: #5e5e67;
 }
+
+.font-serif-sarvam {
+  font-family: "Playfair Display", Georgia, serif;
+}
+
+.font-sans-sarvam {
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
 
 @keyframes stitch-marquee {
   0% {

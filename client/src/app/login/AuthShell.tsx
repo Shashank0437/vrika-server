@@ -11,8 +11,10 @@ import { useAuth } from "@/lib/auth-context";
 type Mode = "login" | "register";
 
 const inputCls =
-  "mt-2 h-11 w-full rounded-lg border border-neutral-200 bg-white px-3.5 text-[15px] text-neutral-900 outline-none transition-[border,box-shadow] placeholder:text-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900";
-const labelCls = "text-[13px] font-medium text-neutral-600";
+  "mt-2 h-11 w-full rounded-xl border border-slate-300/80 bg-white px-3.5 text-[15px] text-[#1e2033] outline-none transition-[border,box-shadow] placeholder:text-slate-400 focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6] shadow-sm";
+const labelCls = "text-[13px] font-semibold text-[#1e2033]";
+
+
 
 export function AuthShell() {
   const router = useRouter();
