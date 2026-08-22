@@ -674,6 +674,7 @@ function VrikaClaudePromptBox({
         </div>
       </div>
     </div>
+    </div>
   );
 }
 
