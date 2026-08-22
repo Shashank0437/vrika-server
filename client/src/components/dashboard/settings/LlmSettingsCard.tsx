@@ -6,7 +6,6 @@ import { ApiError, api } from "@/lib/api";
 import { SettingsBadge, SettingsCard, SettingsStatus } from "./SettingsCard";
 import type {
   FetchModelsOut,
-  LlmProviderConfigOut,
   LlmProviderType,
   LlmSettingsOut,
   ModelOption,
@@ -363,7 +362,7 @@ export function LlmSettingsCard({
     setSaving(true);
     setSaveStatus(null);
     try {
-      const payloadProviders: Record<string, any> = {};
+      const payloadProviders: Record<string, unknown> = {};
       for (const [pKey, pState] of Object.entries(formState)) {
         payloadProviders[pKey] = {
           api_key: pState.apiKey,
