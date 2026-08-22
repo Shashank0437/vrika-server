@@ -429,7 +429,12 @@ async def fetch_available_models(
             url = base_url or "https://openrouter.ai/api/v1/models"
             if not url.endswith("/models"):
                 url = f"{url.rstrip('/')}/models"
-            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+            headers = {
+                "HTTP-Referer": "https://vrika.io",
+                "X-Title": "Vrika Operations",
+            }
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
             try:
                 res = await client.get(url, headers=headers)
                 if res.is_success:
@@ -564,6 +569,9 @@ async def test_llm_connection(
                     url = base_url.rstrip("/") + "/chat/completions"
 
                 headers = {"Content-Type": "application/json"}
+                if provider == "openrouter":
+                    headers["HTTP-Referer"] = "https://vrika.io"
+                    headers["X-Title"] = "Vrika Operations"
                 if api_key:
                     headers["Authorization"] = f"Bearer {api_key}"
 
