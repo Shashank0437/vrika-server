@@ -319,11 +319,11 @@ export function LlmSettingsCard({
     try {
       const res = await api<FetchModelsOut>("/org/settings/llm/fetch-models", {
         method: "POST",
-        body: JSON.stringify({
+        json: {
           provider: selectedProvider,
           api_key: currentForm.apiKey,
           base_url: currentForm.baseUrl,
-        }),
+        },
       });
       setDiscoveredModels((prev) => ({
         ...prev,
@@ -347,13 +347,13 @@ export function LlmSettingsCard({
     try {
       const res = await api<TestLlmConnectionOut>("/org/settings/llm/test-connection", {
         method: "POST",
-        body: JSON.stringify({
+        json: {
           provider: selectedProvider,
           api_key: currentForm.apiKey,
           base_url: currentForm.baseUrl,
           model: currentForm.model,
           temperature: currentForm.temperature,
-        }),
+        },
       });
       setTestResult(res);
     } catch (err) {
@@ -385,10 +385,10 @@ export function LlmSettingsCard({
 
       const updated = await api<LlmSettingsOut>("/org/settings/llm", {
         method: "PATCH",
-        body: JSON.stringify({
+        json: {
           active_provider: activeProvider,
           providers: payloadProviders,
-        }),
+        },
       });
 
       onChange(updated);

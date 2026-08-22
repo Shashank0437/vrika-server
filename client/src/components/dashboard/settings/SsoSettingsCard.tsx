@@ -56,7 +56,7 @@ export function SsoSettingsCard({
 
       const updated = await api<SsoSettingsOut>("/org/settings/sso", {
         method: "PATCH",
-        body: JSON.stringify(payload),
+        json: payload,
       });
 
       onChange(updated);

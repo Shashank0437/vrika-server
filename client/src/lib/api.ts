@@ -34,14 +34,14 @@ export async function api<T>(
   if (typeof window !== "undefined") bumpApiPending(1);
   try {
     const headers = new Headers(opts?.headers);
-    if (!headers.has("Content-Type") && opts?.json !== undefined) {
+    const { json, ...rest } = opts ?? {};
+    if (!headers.has("Content-Type") && (json !== undefined || typeof rest.body === "string")) {
       headers.set("Content-Type", "application/json");
     }
     const token = typeof window !== "undefined" ? getToken() : null;
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
-    const { json, ...rest } = opts ?? {};
     const res = await fetch(`${getApiBase()}${path}`, {
       ...rest,
       headers,
@@ -74,10 +74,10 @@ export async function apiPublic<T>(
   if (typeof window !== "undefined") bumpApiPending(1);
   try {
     const headers = new Headers(opts?.headers);
-    if (!headers.has("Content-Type") && opts?.json !== undefined) {
+    const { json, ...rest } = opts ?? {};
+    if (!headers.has("Content-Type") && (json !== undefined || typeof rest.body === "string")) {
       headers.set("Content-Type", "application/json");
     }
-    const { json, ...rest } = opts ?? {};
     const res = await fetch(`${getApiBase()}${path}`, {
       ...rest,
       headers,
