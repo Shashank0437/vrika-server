@@ -124,8 +124,16 @@ async def internal_resolve_llm_endpoint(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     """Internal microservice bridge endpoint for Cloud Security / Lighthouse to fetch active LLM config."""
-    expected_secret = settings.vrika_bridge_secret.strip() or settings.prowler_bridge_secret.strip() or settings.admin_api_key.strip()
-    if not expected_secret or secret.strip() != expected_secret:
+    valid_secrets = {
+        s.strip().strip("'").strip('"')
+        for s in (
+            settings.vrika_bridge_secret,
+            settings.prowler_bridge_secret,
+            settings.admin_api_key,
+        )
+        if s and s.strip().strip("'").strip('"')
+    }
+    if not valid_secrets or secret.strip().strip("'").strip('"') not in valid_secrets:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid bridge secret")
 
     # Find the primary active organization's LLM config or first org config
