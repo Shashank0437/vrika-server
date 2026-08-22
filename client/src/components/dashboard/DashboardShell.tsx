@@ -49,6 +49,13 @@ const MAIN_NAV: NavMain[] = [
     match: "prefix",
     adminOnly: true,
   },
+  {
+    href: "/dashboard/settings",
+    label: "Settings",
+    icon: "settings",
+    match: "prefix",
+    adminOnly: true,
+  },
 ];
 
 function navActive(pathname: string, item: NavMain): boolean {

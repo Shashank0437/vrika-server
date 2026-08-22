@@ -12,7 +12,9 @@ from app.routers import (
     auth,
     cloud_security,
     contact,
+    internal_config,
     invitations,
+    org_settings,
     sso,
     tenant,
     workspace_tools,
@@ -50,6 +52,8 @@ app.include_router(contact.router)
 app.include_router(agent_chat.router)
 app.include_router(workspace_tools.router)
 app.include_router(workspace_tools.api_tools_router)
+app.include_router(org_settings.router)
+app.include_router(internal_config.router)
 
 
 @app.get("/health")
