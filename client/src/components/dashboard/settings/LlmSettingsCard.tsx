@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { ApiError, api } from "@/lib/api";
 import { SettingsBadge, SettingsCard, SettingsStatus } from "./SettingsCard";
@@ -13,12 +13,105 @@ import type {
   TestLlmConnectionOut,
 } from "./types";
 
+/**
+ * Authentic Brand SVG Logos for AI Providers
+ */
+export function OpenRouterLogo({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-label="OpenRouter Logo">
+      <path
+        d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function OpenAILogo({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-label="OpenAI Logo">
+      <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.607 1.5-2.602-1.5z" />
+    </svg>
+  );
+}
+
+export function AnthropicLogo({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-label="Anthropic Claude Logo">
+      <path d="M17.472 3.864h-3.825L8.14 19.136h3.693l1.307-3.328h5.385l1.307 3.328h3.694L17.472 3.864zm-1.89 8.683h-2.918l1.459-3.716 1.459 3.716zM4.5 19.136h3.693L13.699 3.864H10.005L4.5 19.136z" />
+    </svg>
+  );
+}
+
+export function GeminiLogo({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-label="Google Gemini Logo">
+      <path
+        d="M12 2C12 7.52285 7.52285 12 2 12C7.52285 12 12 16.4771 12 22C12 16.4771 16.4771 12 22 12C16.4771 12 12 7.52285 12 2Z"
+        fill="url(#gemini-gradient)"
+      />
+      <defs>
+        <linearGradient id="gemini-gradient" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#1B72E8" />
+          <stop offset="0.5" stopColor="#8E44AD" />
+          <stop offset="1" stopColor="#E91E63" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+export function CustomServerLogo({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-label="Custom Local Server Logo"
+    >
+      <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+      <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+      <line x1="6" y1="6" x2="6.01" y2="6" />
+      <line x1="6" y1="18" x2="6.01" y2="18" />
+    </svg>
+  );
+}
+
+function ProviderBrandIcon({
+  provider,
+  className = "size-6",
+}: {
+  provider: LlmProviderType;
+  className?: string;
+}) {
+  switch (provider) {
+    case "openrouter":
+      return <OpenRouterLogo className={className} />;
+    case "openai":
+      return <OpenAILogo className={className} />;
+    case "anthropic":
+      return <AnthropicLogo className={className} />;
+    case "gemini":
+      return <GeminiLogo className={className} />;
+    case "custom":
+      return <CustomServerLogo className={className} />;
+    default:
+      return <MaterialSymbol name="smart_toy" className={className} />;
+  }
+}
+
 const PROVIDER_METADATA: Record<
   LlmProviderType,
   {
     name: string;
     description: string;
-    icon: string;
     defaultUrl: string;
     defaultModel: string;
     urlLabel: string;
@@ -31,7 +124,6 @@ const PROVIDER_METADATA: Record<
   openrouter: {
     name: "OpenRouter",
     description: "Access Claude, GPT-4o, DeepSeek, and open models via a single API",
-    icon: "hub",
     defaultUrl: "https://openrouter.ai/api/v1",
     defaultModel: "openai/gpt-4.1-mini",
     urlLabel: "Base URL (Optional)",
@@ -43,7 +135,6 @@ const PROVIDER_METADATA: Record<
   openai: {
     name: "OpenAI",
     description: "Direct OpenAI API integration (GPT-4o, o1, o3-mini)",
-    icon: "smart_toy",
     defaultUrl: "https://api.openai.com/v1",
     defaultModel: "gpt-4o-mini",
     urlLabel: "Base URL (Optional / Azure / Proxy)",
@@ -53,9 +144,8 @@ const PROVIDER_METADATA: Record<
     keyPlaceholder: "sk-proj-...",
   },
   anthropic: {
-    name: "Anthropic",
+    name: "Anthropic Claude",
     description: "Direct Anthropic Claude integration (Claude 3.7 Sonnet, Claude 3.5 Haiku)",
-    icon: "psychology",
     defaultUrl: "https://api.anthropic.com",
     defaultModel: "claude-3-7-sonnet-20250219",
     urlLabel: "Base URL (Optional / Bedrock / Proxy)",
@@ -67,7 +157,6 @@ const PROVIDER_METADATA: Record<
   gemini: {
     name: "Google Gemini",
     description: "Direct Google AI Studio integration (Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash)",
-    icon: "auto_awesome",
     defaultUrl: "https://generativelanguage.googleapis.com",
     defaultModel: "gemini-2.5-flash",
     urlLabel: "Base URL (Optional)",
@@ -79,7 +168,6 @@ const PROVIDER_METADATA: Record<
   custom: {
     name: "Custom / Local",
     description: "Local or private OpenAI-compatible servers (vLLM, Ollama, LM Studio, LiteLLM)",
-    icon: "dns",
     defaultUrl: "http://localhost:11434/v1",
     defaultModel: "meta-llama/Llama-3.3-70B-Instruct",
     urlLabel: "Base URL (Required)",
@@ -351,7 +439,7 @@ export function LlmSettingsCard({
       }
     >
       {/* Provider Selector Tabs */}
-      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-5">
         {(Object.keys(PROVIDER_METADATA) as LlmProviderType[]).map((pKey) => {
           const meta = PROVIDER_METADATA[pKey];
           const isSelected = selectedProvider === pKey;
@@ -374,13 +462,15 @@ export function LlmSettingsCard({
               }`}
             >
               <div className="flex w-full items-center justify-between">
-                <MaterialSymbol
-                  name={meta.icon}
-                  className={`text-2xl ${
-                    isSelected ? "text-primary" : "text-on-surface-variant"
+                <div
+                  className={`flex size-8 items-center justify-center rounded-lg ${
+                    isSelected
+                      ? "bg-primary-container text-primary"
+                      : "bg-surface-container-high text-on-surface-variant"
                   }`}
-                  filled
-                />
+                >
+                  <ProviderBrandIcon provider={pKey} className="size-5" />
+                </div>
                 {isActive && (
                   <span className="flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
                     <span className="size-1.5 rounded-full bg-primary" />
@@ -388,7 +478,7 @@ export function LlmSettingsCard({
                   </span>
                 )}
               </div>
-              <div className="mt-2">
+              <div className="mt-2.5">
                 <div className="text-sm font-bold text-on-surface">{meta.name}</div>
                 <div className="mt-0.5 text-[11px] text-on-surface-variant line-clamp-1">
                   {hasKey || pKey === "custom" ? "Configured" : "Not set"}
@@ -403,16 +493,13 @@ export function LlmSettingsCard({
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-outline-variant bg-surface-container px-4 py-3">
         <div className="flex items-center gap-3">
           <div
-            className={`flex size-8 items-center justify-center rounded-lg ${
+            className={`flex size-9 items-center justify-center rounded-lg ${
               activeProvider === selectedProvider
                 ? "bg-primary text-on-primary"
                 : "bg-surface-container-high text-on-surface-variant"
             }`}
           >
-            <MaterialSymbol
-              name={activeProvider === selectedProvider ? "check_circle" : "radio_button_unchecked"}
-              className="text-lg"
-            />
+            <ProviderBrandIcon provider={selectedProvider} className="size-5" />
           </div>
           <div>
             <div className="text-sm font-semibold text-on-surface">
