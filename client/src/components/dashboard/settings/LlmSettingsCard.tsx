@@ -17,32 +17,15 @@ import type {
  */
 export function OpenRouterLogo({ className = "size-6" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-label="OpenRouter Logo">
-      <defs>
-        <linearGradient id="or-vivid-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6366F1" />
-          <stop offset="0.5" stopColor="#8B5CF6" />
-          <stop offset="1" stopColor="#EC4899" />
-        </linearGradient>
-      </defs>
+    <svg viewBox="0 0 32 32" fill="none" className={className} aria-label="OpenRouter Logo">
+      <rect width="32" height="32" rx="7" fill="#0D0E11" />
       <path
-        d="M3.5 7.5L12 2.5L20.5 7.5L12 12.5L3.5 7.5Z"
-        fill="url(#or-vivid-grad)"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M10 6C6.134 6 3 9.134 3 13v6c0 3.866 3.134 7 7 7h8c4.418 0 8-3.582 8-8s-3.582-8-8-8H10v4h8c2.209 0 4 1.791 4 4s-1.791 4-4 4H10c-1.657 0-3-1.343-3-3v-6c0-1.657 1.343-3 3-3h8V6H10z"
+        fill="#C6FF00"
       />
-      <path
-        d="M3.5 12L12 17L20.5 12"
-        stroke="url(#or-vivid-grad)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M3.5 16.5L12 21.5L20.5 16.5"
-        stroke="url(#or-vivid-grad)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <rect x="10" y="11" width="5" height="5" rx="2.5" fill="#C6FF00" />
     </svg>
   );
 }
@@ -57,24 +40,29 @@ export function OpenAILogo({ className = "size-6" }: { className?: string }) {
 
 export function AnthropicLogo({ className = "size-6" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-label="Anthropic Claude Logo">
-      {/* Terracotta Orange Claude Stylized Star / Icon */}
-      <path
-        d="M14.2 3.2h-4.4L3.8 20.8h4.2l1.5-4.2h6.2l1.5 4.2h4.2L14.2 3.2zm-3.8 10.2l2-5.6 2 5.6h-4z"
-        fill="#D96B27"
-      />
-      <circle cx="12" cy="3.5" r="1.5" fill="#CC785C" />
-      <circle cx="3.8" cy="20.8" r="1.5" fill="#CC785C" />
-      <circle cx="20.2" cy="20.8" r="1.5" fill="#CC785C" />
+    <svg viewBox="0 0 32 32" fill="none" className={className} aria-label="Anthropic Claude Logo">
+      <rect width="32" height="32" rx="7" fill="#D97757" />
+      {/* Official White Claude Sunburst / Asterisk */}
+      <g fill="#FFFFFF">
+        <path d="M16 4.5c.7 0 1.2.6 1.2 1.3v3.5c0 .7-.5 1.2-1.2 1.2s-1.2-.5-1.2-1.2V5.8c0-.7.5-1.3 1.2-1.3z" />
+        <path d="M16 21.5c.7 0 1.2.5 1.2 1.2v3.5c0 .7-.5 1.3-1.2 1.3s-1.2-.6-1.2-1.3v-3.5c0-.7.5-1.2 1.2-1.2z" />
+        <path d="M4.5 16c0-.7.6-1.2 1.3-1.2h3.5c.7 0 1.2.5 1.2 1.2s-.5 1.2-1.2 1.2H5.8c-.7 0-1.3-.5-1.3-1.2z" />
+        <path d="M21.5 16c0-.7.5-1.2 1.2-1.2h3.5c.7 0 1.3.5 1.3 1.2s-.6 1.2-1.3 1.2h-3.5c-.7 0-1.2-.5-1.2-1.2z" />
+        <path d="M7.8 7.8c.5-.5 1.3-.5 1.8 0l2.5 2.5c.5.5.5 1.3 0 1.8s-1.3.5-1.8 0L7.8 9.6c-.5-.5-.5-1.3 0-1.8z" />
+        <path d="M19.9 19.9c.5-.5 1.3-.5 1.8 0l2.5 2.5c.5.5.5 1.3 0 1.8s-1.3.5-1.8 0l-2.5-2.5c-.5-.5-.5-1.3 0-1.8z" />
+        <path d="M24.2 7.8c.5.5.5 1.3 0 1.8l-2.5 2.5c-.5.5-1.3.5-1.8 0s-.5-1.3 0-1.8l2.5-2.5c.5-.5 1.3-.5 1.8 0z" />
+        <path d="M12.1 19.9c.5.5.5 1.3 0 1.8l-2.5 2.5c-.5.5-1.3.5-1.8 0s-.5-1.3 0-1.8l2.5-2.5c.5-.5 1.3-.5 1.8 0z" />
+        <circle cx="16" cy="16" r="3.2" />
+      </g>
     </svg>
   );
 }
 
 export function GeminiLogo({ className = "size-6" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-label="Google Gemini Logo">
+    <svg viewBox="0 0 32 32" fill="none" className={className} aria-label="Google Gemini Logo">
       <defs>
-        <linearGradient id="gemini-4color-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+        <linearGradient id="gemini-official-grad" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#4285F4" />
           <stop offset="35%" stopColor="#9B72CB" />
           <stop offset="70%" stopColor="#D96570" />
@@ -82,8 +70,8 @@ export function GeminiLogo({ className = "size-6" }: { className?: string }) {
         </linearGradient>
       </defs>
       <path
-        d="M12 1.5C12 7.29899 7.29899 12 1.5 12C7.29899 12 12 16.701 12 22.5C12 16.701 16.701 12 22.5 12C16.701 12 12 7.29899 12 1.5Z"
-        fill="url(#gemini-4color-grad)"
+        d="M16 2C16 9.73199 9.73199 16 2 16C9.73199 16 16 22.268 16 30C16 22.268 22.268 16 30 16C22.268 16 16 9.73199 16 2Z"
+        fill="url(#gemini-official-grad)"
       />
     </svg>
   );
@@ -91,23 +79,19 @@ export function GeminiLogo({ className = "size-6" }: { className?: string }) {
 
 export function OllamaVllmLogo({ className = "size-6" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-label="Ollama & vLLM Local Logo">
-      <defs>
-        <linearGradient id="vllm-neon-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#00E5FF" />
-          <stop offset="100%" stopColor="#0072FF" />
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="20" height="20" rx="6" fill="#0F172A" />
-      {/* Llama ears */}
-      <path d="M7 6c0-1 .6-1.5 1.5-1.5S10 5 10 6v3H7V6zM14 6c0-1 .6-1.5 1.5-1.5S17 5 17 6v3h-3V6z" fill="#FFFFFF" />
-      {/* Llama face */}
-      <rect x="7" y="8" width="10" height="8" rx="2.5" fill="#FFFFFF" />
-      <circle cx="9.5" cy="11" r="1" fill="#0F172A" />
-      <circle cx="14.5" cy="11" r="1" fill="#0F172A" />
-      <path d="M11 13.5h2" stroke="#0F172A" strokeWidth="1" strokeLinecap="round" />
-      {/* vLLM speed ring */}
-      <path d="M4 19h16" stroke="url(#vllm-neon-grad)" strokeWidth="2" strokeLinecap="round" />
+    <svg viewBox="0 0 32 32" fill="none" className={className} aria-label="Ollama & vLLM Local Logo">
+      <rect width="32" height="32" rx="7" fill="#0F172A" />
+      {/* Ollama Llama face in white */}
+      <path
+        d="M11 7.5c0-1.5 1-2 2-2s2 .5 2 2v3h-4V7.5zM17 7.5c0-1.5 1-2 2-2s2 .5 2 2v3h-4V7.5z"
+        fill="#FFFFFF"
+      />
+      <rect x="10" y="9.5" width="12" height="12" rx="3" fill="#FFFFFF" />
+      <circle cx="13" cy="13.5" r="1.2" fill="#0F172A" />
+      <circle cx="19" cy="13.5" r="1.2" fill="#0F172A" />
+      <path d="M15 17h2" stroke="#0F172A" strokeWidth="1.5" strokeLinecap="round" />
+      {/* vLLM Cyan Speed Accent */}
+      <path d="M5 26h22" stroke="#00E5FF" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -700,14 +684,8 @@ export function LlmSettingsCard({
               }`}
             >
               <div className="flex w-full items-center justify-between">
-                <div
-                  className={`flex size-8 items-center justify-center rounded-lg ${
-                    isSelected
-                      ? "bg-primary-container text-primary"
-                      : "bg-surface-container-high text-on-surface-variant"
-                  }`}
-                >
-                  <ProviderBrandIcon provider={pKey} className="size-5" />
+                <div className="flex size-9 items-center justify-center rounded-lg bg-surface-container-high/40 p-1 shadow-sm">
+                  <ProviderBrandIcon provider={pKey} className="size-7 shrink-0" />
                 </div>
                 {isActive && (
                   <span className="flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
@@ -730,14 +708,8 @@ export function LlmSettingsCard({
       {/* Active Provider Banner */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-outline-variant bg-surface-container px-4 py-3">
         <div className="flex items-center gap-3">
-          <div
-            className={`flex size-9 items-center justify-center rounded-lg ${
-              activeProvider === selectedProvider
-                ? "bg-primary text-on-primary"
-                : "bg-surface-container-high text-on-surface-variant"
-            }`}
-          >
-            <ProviderBrandIcon provider={selectedProvider} className="size-5" />
+          <div className="flex size-10 items-center justify-center rounded-lg bg-surface-container-high/50 p-1 shadow-sm">
+            <ProviderBrandIcon provider={selectedProvider} className="size-8 shrink-0" />
           </div>
           <div>
             <div className="text-sm font-semibold text-on-surface">
