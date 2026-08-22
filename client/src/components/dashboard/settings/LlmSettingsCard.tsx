@@ -106,23 +106,22 @@ function ProviderBrandIcon({
   }
 }
 
-const PROVIDER_METADATA: Record<
-  LlmProviderType,
-  {
-    name: string;
-    description: string;
-    defaultUrl: string;
-    defaultModel: string;
-    urlLabel: string;
-    urlPlaceholder: string;
-    supportsCustomUrl: boolean;
-    keyRequired: boolean;
-    keyPlaceholder: string;
-  }
-> = {
+const PROVIDER_METADATA: Record<LlmProviderType, {
+  name: string;
+  description: string;
+  defaultUrl: string;
+  defaultModel: string;
+  urlLabel: string;
+  urlPlaceholder: string;
+  supportsCustomUrl: boolean;
+  keyRequired: boolean;
+  keyPlaceholder: string;
+  maxOutputTokens: number;
+  maxTemperature: number;
+}> = {
   openrouter: {
     name: "OpenRouter",
-    description: "Access Claude, GPT-4o, DeepSeek, and open models via a single API",
+    description: "Access 300+ models (GPT-4, Claude, Gemini, Llama, Mistral) via a single API",
     defaultUrl: "https://openrouter.ai/api/v1",
     defaultModel: "openai/gpt-4.1-mini",
     urlLabel: "Base URL (Optional)",
@@ -130,21 +129,25 @@ const PROVIDER_METADATA: Record<
     supportsCustomUrl: true,
     keyRequired: true,
     keyPlaceholder: "sk-or-v1-...",
+    maxOutputTokens: 131072,
+    maxTemperature: 2.0,
   },
   openai: {
     name: "OpenAI",
-    description: "Direct OpenAI API integration (GPT-4o, o1, o3-mini)",
+    description: "Direct OpenAI integration (GPT-4o, GPT-4.1, o3/o4-mini reasoning)",
     defaultUrl: "https://api.openai.com/v1",
     defaultModel: "gpt-4o-mini",
-    urlLabel: "Base URL (Optional / Azure / Proxy)",
+    urlLabel: "Base URL (Optional / Azure)",
     urlPlaceholder: "https://api.openai.com/v1",
     supportsCustomUrl: true,
     keyRequired: true,
     keyPlaceholder: "sk-proj-...",
+    maxOutputTokens: 65536,
+    maxTemperature: 2.0,
   },
   anthropic: {
     name: "Anthropic Claude",
-    description: "Direct Anthropic Claude integration (Claude 3.7 Sonnet, Claude 3.5 Haiku)",
+    description: "Direct Anthropic integration (Claude 3.7 Sonnet, Claude 3.5 Haiku, Claude 4)",
     defaultUrl: "https://api.anthropic.com",
     defaultModel: "claude-3-7-sonnet-20250219",
     urlLabel: "Base URL (Optional / Bedrock / Proxy)",
@@ -152,6 +155,8 @@ const PROVIDER_METADATA: Record<
     supportsCustomUrl: true,
     keyRequired: true,
     keyPlaceholder: "sk-ant-api03-...",
+    maxOutputTokens: 128000,
+    maxTemperature: 1.0,
   },
   gemini: {
     name: "Google Gemini",
@@ -163,6 +168,8 @@ const PROVIDER_METADATA: Record<
     supportsCustomUrl: false,
     keyRequired: true,
     keyPlaceholder: "AIzaSy...",
+    maxOutputTokens: 65536,
+    maxTemperature: 2.0,
   },
   custom: {
     name: "Custom / Local",
@@ -174,6 +181,8 @@ const PROVIDER_METADATA: Record<
     supportsCustomUrl: true,
     keyRequired: false,
     keyPlaceholder: "Optional authorization token...",
+    maxOutputTokens: 131072,
+    maxTemperature: 2.0,
   },
 };
 
@@ -208,7 +217,7 @@ export function LlmSettingsCard({
       baseUrl: "",
       model: "openai/gpt-4.1-mini",
       temperature: 0.7,
-      maxTokens: 4096,
+      maxTokens: 8192,
       contextLimit: "",
       showKey: false,
     },
@@ -217,7 +226,7 @@ export function LlmSettingsCard({
       baseUrl: "",
       model: "gpt-4o-mini",
       temperature: 0.7,
-      maxTokens: 4096,
+      maxTokens: 16384,
       contextLimit: "",
       showKey: false,
     },
@@ -225,8 +234,8 @@ export function LlmSettingsCard({
       apiKey: "",
       baseUrl: "",
       model: "claude-3-7-sonnet-20250219",
-      temperature: 0.7,
-      maxTokens: 4096,
+      temperature: 1.0,
+      maxTokens: 16384,
       contextLimit: "",
       showKey: false,
     },
@@ -235,7 +244,7 @@ export function LlmSettingsCard({
       baseUrl: "",
       model: "gemini-2.5-flash",
       temperature: 0.7,
-      maxTokens: 4096,
+      maxTokens: 8192,
       contextLimit: "",
       showKey: false,
     },
@@ -244,7 +253,7 @@ export function LlmSettingsCard({
       baseUrl: "http://localhost:11434/v1",
       model: "",
       temperature: 0.7,
-      maxTokens: 4096,
+      maxTokens: 8192,
       contextLimit: "32768",
       showKey: false,
     },
@@ -648,7 +657,7 @@ export function LlmSettingsCard({
             <input
               type="range"
               min="0.0"
-              max={selectedProvider === "anthropic" ? "1.0" : "2.0"}
+              max={String(currentMeta.maxTemperature)}
               step="0.05"
               value={currentForm.temperature}
               onChange={(e) => updateCurrent({ temperature: parseFloat(e.target.value) })}
@@ -656,7 +665,7 @@ export function LlmSettingsCard({
             />
             <div className="mt-1 flex justify-between text-[10px] text-on-surface-variant">
               <span>0.0 (Precise / Deterministic)</span>
-              <span>{selectedProvider === "anthropic" ? "1.0" : "2.0"} (Creative)</span>
+              <span>{currentMeta.maxTemperature.toFixed(1)} (Creative)</span>
             </div>
           </div>
 
@@ -664,22 +673,33 @@ export function LlmSettingsCard({
           <div className="rounded-lg border border-outline-variant bg-surface-container p-3.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-on-surface">Max Output Tokens</span>
-              <span className="rounded bg-surface-container-high px-2 py-0.5 font-mono text-xs font-bold text-primary">
-                {currentForm.maxTokens}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={256}
+                  max={currentMeta.maxOutputTokens}
+                  step={256}
+                  value={currentForm.maxTokens}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v)) updateCurrent({ maxTokens: Math.min(v, currentMeta.maxOutputTokens) });
+                  }}
+                  className="w-24 rounded border border-outline-variant bg-surface-container-high px-2 py-0.5 text-right font-mono text-xs font-bold text-primary outline-none focus:border-primary"
+                />
+              </div>
             </div>
             <input
               type="range"
-              min="512"
-              max="16384"
-              step="512"
-              value={currentForm.maxTokens}
+              min="256"
+              max={String(currentMeta.maxOutputTokens)}
+              step="256"
+              value={Math.min(currentForm.maxTokens, currentMeta.maxOutputTokens)}
               onChange={(e) => updateCurrent({ maxTokens: parseInt(e.target.value, 10) })}
               className="mt-3 w-full accent-primary"
             />
             <div className="mt-1 flex justify-between text-[10px] text-on-surface-variant">
-              <span>512</span>
-              <span>16,384</span>
+              <span>256</span>
+              <span>{(currentMeta.maxOutputTokens / 1000).toFixed(0)}k</span>
             </div>
           </div>
         </div>

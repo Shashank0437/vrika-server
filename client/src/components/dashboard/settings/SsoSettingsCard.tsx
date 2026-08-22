@@ -70,9 +70,12 @@ export function SsoSettingsCard({
     }
   };
 
-  const spEntityId = sso?.sp_entity_id || `${typeof window !== "undefined" ? window.location.origin : ""}/auth/saml/metadata`;
-  const spAcsUrl = sso?.sp_acs_url || `${typeof window !== "undefined" ? window.location.origin : ""}/auth/saml/acs`;
-  const spMetadataUrl = sso?.sp_metadata_url || `${typeof window !== "undefined" ? window.location.origin : ""}/auth/saml/metadata`;
+  // Always derive SP URLs from the current browser origin — the backend api_base_url
+  // may default to localhost:8000 which is wrong for the public-facing IdP config.
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const spEntityId = `${origin}/be/auth/saml/metadata`;
+  const spAcsUrl = `${origin}/be/auth/saml/acs`;
+  const spMetadataUrl = `${origin}/be/auth/saml/metadata`;
 
   return (
     <SettingsCard
