@@ -18,6 +18,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings
+from app.constants import SSO_CONFIGS_COLLECTION
 from app.schemas.org_settings import (
     BrandingConfigIn,
     BrandingConfigOut,
@@ -31,6 +32,8 @@ from app.schemas.org_settings import (
     OrgSettingsOut,
     SmtpConfigIn,
     SmtpConfigOut,
+    SsoSettingsIn,
+    SsoSettingsOut,
     TestLlmConnectionIn,
     TestLlmConnectionOut,
 )
@@ -194,15 +197,97 @@ def _llm_out(section: dict[str, Any]) -> LlmSettingsOut:
     )
 
 
+def _sso_out(section: dict[str, Any], settings: Settings) -> SsoSettingsOut:
+    api_base = settings.api_base_url.rstrip("/")
+    sp_entity_id = settings.saml_sp_entity_id or f"{api_base}/auth/saml/metadata"
+    sp_acs_url = settings.saml_acs_url or f"{api_base}/auth/saml/acs"
+    sp_metadata_url = f"{api_base}/auth/saml/metadata"
+    cert = section.get("idp_x509_cert") or ""
+
+    return SsoSettingsOut(
+        enabled=bool(section.get("enabled")),
+        enforced=bool(section.get("enforced")),
+        domain=section.get("domain") or "",
+        idp_entity_id=section.get("idp_entity_id") or "",
+        idp_sso_url=section.get("idp_sso_url") or "",
+        has_idp_cert=bool(cert),
+        idp_x509_cert=cert,
+        sp_entity_id=sp_entity_id,
+        sp_acs_url=sp_acs_url,
+        sp_metadata_url=sp_metadata_url,
+        updated_at=_iso(section.get("updated_at")),
+    )
+
+
 async def get_org_settings(
-    db: AsyncIOMotorDatabase, org_id: ObjectId
+    db: AsyncIOMotorDatabase, settings: Settings, org_id: ObjectId
 ) -> OrgSettingsOut:
     doc = await _get_doc(db, org_id)
+    sso_sec = doc.get("sso") or {}
+    if not sso_sec:
+        sso_doc = await db[SSO_CONFIGS_COLLECTION].find_one({"organization_id": org_id})
+        if sso_doc:
+            sso_sec = sso_doc
     return OrgSettingsOut(
         branding=_branding_out(doc.get("branding") or {}),
         smtp=_smtp_out(doc.get("smtp") or {}),
         llm=_llm_out(doc.get("llm") or {}),
+        sso=_sso_out(sso_sec, settings),
     )
+
+
+async def update_sso_settings(
+    db: AsyncIOMotorDatabase,
+    settings: Settings,
+    org_id: ObjectId,
+    payload: SsoSettingsIn,
+) -> SsoSettingsOut:
+    domain = payload.domain.lower().strip().lstrip("@")
+    idp_entity_id = payload.idp_entity_id.strip()
+    idp_sso_url = payload.idp_sso_url.strip()
+    idp_cert = payload.idp_x509_cert.strip()
+
+    if payload.enabled:
+        if not domain:
+            raise OrgSettingsError("Email domain is required to enable SSO")
+        if not idp_sso_url:
+            raise OrgSettingsError("IdP Single Sign-On URL is required")
+        if not idp_entity_id:
+            raise OrgSettingsError("IdP Entity ID / Issuer is required")
+        if not idp_cert:
+            raise OrgSettingsError("IdP X.509 Certificate is required")
+
+    section = {
+        "enabled": payload.enabled,
+        "enforced": payload.enforced,
+        "domain": domain,
+        "idp_entity_id": idp_entity_id,
+        "idp_sso_url": idp_sso_url,
+        "idp_x509_cert": idp_cert,
+        "updated_at": _now(),
+    }
+
+    await _set_section(db, org_id, "sso", section)
+
+    # Sync into SSO_CONFIGS_COLLECTION for auth/saml domain discovery & login routing
+    await db[SSO_CONFIGS_COLLECTION].update_one(
+        {"organization_id": org_id},
+        {
+            "$set": {
+                "organization_id": org_id,
+                "domain": domain,
+                "enabled": payload.enabled,
+                "enforced": payload.enforced,
+                "idp_entity_id": idp_entity_id,
+                "idp_sso_url": idp_sso_url,
+                "idp_x509_cert": idp_cert,
+                "updated_at": _now(),
+            }
+        },
+        upsert=True,
+    )
+
+    return _sso_out(section, settings)
 
 
 # ---------------------------------------------------------------------------

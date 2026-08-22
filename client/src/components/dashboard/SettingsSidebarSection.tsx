@@ -19,13 +19,20 @@ const SETTINGS_SUBNAV = [
     label: "LLM Configuration",
     icon: "neurology",
   },
+  {
+    id: "sso",
+    href: "/dashboard/settings?tab=sso",
+    label: "Single Sign-On (SSO)",
+    icon: "key",
+  },
 ];
 
 export function SettingsSidebarSection() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const settingsActive = pathname.startsWith(SETTINGS_HREF);
-  const currentTab = searchParams.get("tab") === "llm" ? "llm" : "branding";
+  const rawTab = searchParams.get("tab");
+  const currentTab = rawTab === "llm" ? "llm" : rawTab === "sso" ? "sso" : "branding";
 
   if (!settingsActive) {
     return (

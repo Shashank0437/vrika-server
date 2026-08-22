@@ -40,10 +40,34 @@ export type TestLlmConnectionOut = {
   response_preview?: string;
 };
 
+export type SsoSettingsIn = {
+  enabled: boolean;
+  enforced: boolean;
+  domain: string;
+  idp_entity_id: string;
+  idp_sso_url: string;
+  idp_x509_cert: string;
+};
+
+export type SsoSettingsOut = {
+  enabled: boolean;
+  enforced: boolean;
+  domain: string;
+  idp_entity_id: string;
+  idp_sso_url: string;
+  has_idp_cert: boolean;
+  idp_x509_cert: string;
+  sp_entity_id: string;
+  sp_acs_url: string;
+  sp_metadata_url: string;
+  updated_at: string | null;
+};
+
 /**
  * Payload of `GET /org/settings`.
  */
 export type OrgSettingsOut = {
   branding: BrandingOut;
   llm: LlmSettingsOut;
+  sso?: SsoSettingsOut;
 };

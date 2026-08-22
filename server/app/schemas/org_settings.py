@@ -1,6 +1,6 @@
 """Schemas for the central per-organization configuration store.
 
-Each config lives under a named *section* (branding, smtp, llm, ...). Adding a new
+Each config lives under a named *section* (branding, smtp, llm, sso, ...). Adding a new
 config = add a section model here + register it in the service. Secrets are
 never returned in the *Out* models (masked as ``has_*`` booleans).
 """
@@ -125,6 +125,34 @@ class TestLlmConnectionOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# SAML SSO (Enterprise Single Sign-On)
+# ---------------------------------------------------------------------------
+
+
+class SsoSettingsIn(BaseModel):
+    enabled: bool = False
+    enforced: bool = False
+    domain: str = Field(default="", max_length=255)
+    idp_entity_id: str = Field(default="", max_length=1024)
+    idp_sso_url: str = Field(default="", max_length=1024)
+    idp_x509_cert: str = Field(default="", max_length=16384)
+
+
+class SsoSettingsOut(BaseModel):
+    enabled: bool = False
+    enforced: bool = False
+    domain: str = ""
+    idp_entity_id: str = ""
+    idp_sso_url: str = ""
+    has_idp_cert: bool = False
+    idp_x509_cert: str = ""
+    sp_entity_id: str = ""
+    sp_acs_url: str = ""
+    sp_metadata_url: str = ""
+    updated_at: str | None = None
+
+
+# ---------------------------------------------------------------------------
 # Aggregate (returned by GET /org/settings)
 # ---------------------------------------------------------------------------
 
@@ -133,3 +161,4 @@ class OrgSettingsOut(BaseModel):
     branding: BrandingConfigOut = Field(default_factory=BrandingConfigOut)
     smtp: SmtpConfigOut = Field(default_factory=SmtpConfigOut)
     llm: LlmSettingsOut = Field(default_factory=LlmSettingsOut)
+    sso: SsoSettingsOut = Field(default_factory=SsoSettingsOut)
