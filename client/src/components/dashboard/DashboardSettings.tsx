@@ -1,34 +1,22 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { BrandingSettingsCard } from "./settings/BrandingSettingsCard";
-import type { BrandingOut, OrgSettingsOut } from "./settings/types";
-
-/**
- * Registry of settings sections. Adding a new configuration group (e.g. SMTP)
- * is a two-step change: append an entry here and render it in `renderSection`.
- * The nav rail and the mobile tab strip are both derived from this list.
- */
-const SECTIONS = [
-  {
-    id: "branding",
-    label: "Branding",
-    icon: "palette",
-    summary: "Logo used on PDF reports",
-  },
-] as const;
-
-type SectionId = (typeof SECTIONS)[number]["id"];
+import { LlmSettingsCard } from "./settings/LlmSettingsCard";
+import type { BrandingOut, LlmSettingsOut, OrgSettingsOut } from "./settings/types";
 
 export function DashboardSettings() {
   const { user, loading } = useAuth();
   const isAdmin = !!user?.roles?.includes("tenant_admin");
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") === "llm" ? "llm" : "branding";
 
-  const [activeId, setActiveId] = useState<SectionId>("branding");
   const [branding, setBranding] = useState<BrandingOut | null>(null);
+  const [llm, setLlm] = useState<LlmSettingsOut | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -36,6 +24,7 @@ export function DashboardSettings() {
     try {
       const res = await api<OrgSettingsOut>("/org/settings");
       setBranding(res.branding);
+      setLlm(res.llm);
       setFetchError(null);
     } catch (err) {
       setFetchError(
@@ -58,17 +47,6 @@ export function DashboardSettings() {
     );
   }
 
-  const renderSection = () => {
-    switch (activeId) {
-      case "branding":
-        return (
-          <BrandingSettingsCard branding={branding} onChange={setBranding} />
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className="mx-auto w-full max-w-5xl p-4 md:p-8">
       <header className="mb-6">
@@ -85,50 +63,16 @@ export function DashboardSettings() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
-        <nav
-          aria-label="Settings sections"
-          className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0"
-        >
-          {SECTIONS.map((section) => {
-            const active = section.id === activeId;
-            return (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => setActiveId(section.id)}
-                aria-current={active ? "page" : undefined}
-                className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors md:w-full ${
-                  active
-                    ? "bg-primary-container text-on-primary-container"
-                    : "text-on-surface-variant hover:bg-surface-container"
-                }`}
-              >
-                <MaterialSymbol name={section.icon} className="text-lg" />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium">
-                    {section.label}
-                  </span>
-                  <span
-                    className={`hidden truncate text-xs md:block ${
-                      active ? "opacity-80" : "opacity-70"
-                    }`}
-                  >
-                    {section.summary}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="min-w-0">
-          {loaded ? (
-            renderSection()
+      <div className="min-w-0">
+        {loaded ? (
+          activeTab === "llm" ? (
+            <LlmSettingsCard settings={llm} onChange={setLlm} />
           ) : (
-            <div className="h-48 animate-pulse rounded-xl border border-outline-variant bg-surface-container-low" />
-          )}
-        </div>
+            <BrandingSettingsCard branding={branding} onChange={setBranding} />
+          )
+        ) : (
+          <div className="h-64 animate-pulse rounded-xl border border-outline-variant bg-surface-container-low" />
+        )}
       </div>
     </div>
   );

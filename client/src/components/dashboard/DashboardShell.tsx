@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, type ReactNode } from "react";
 import { CloudSecuritySidebarSection } from "@/components/dashboard/CloudSecuritySidebarSection";
 import { DashboardHeaderProfile } from "@/components/dashboard/DashboardHeaderProfile";
+import { SettingsSidebarSection } from "@/components/dashboard/SettingsSidebarSection";
 import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { useAuth } from "@/lib/auth-context";
@@ -17,6 +18,7 @@ type NavMain = {
   match: "exact" | "prefix";
   adminOnly?: boolean;
   cloudSecurity?: boolean;
+  settingsNav?: boolean;
 };
 
 const MAIN_NAV: NavMain[] = [
@@ -55,6 +57,7 @@ const MAIN_NAV: NavMain[] = [
     icon: "settings",
     match: "prefix",
     adminOnly: true,
+    settingsNav: true,
   },
 ];
 
@@ -151,6 +154,21 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
                     }
                   >
                     <CloudSecuritySidebarSection />
+                  </Suspense>
+                );
+              }
+
+              if (item.settingsNav) {
+                return (
+                  <Suspense
+                    key={item.href}
+                    fallback={
+                      <div className="px-6 py-3 text-sm text-on-surface-variant">
+                        Settings
+                      </div>
+                    }
+                  >
+                    <SettingsSidebarSection />
                   </Suspense>
                 );
               }

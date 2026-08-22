@@ -1,12 +1,13 @@
 """Schemas for the central per-organization configuration store.
 
-Each config lives under a named *section* (branding, smtp, ...). Adding a new
+Each config lives under a named *section* (branding, smtp, llm, ...). Adding a new
 config = add a section model here + register it in the service. Secrets are
 never returned in the *Out* models (masked as ``has_*`` booleans).
 """
 
 from __future__ import annotations
 
+from typing import Dict, List, Optional
 from pydantic import BaseModel, EmailStr, Field
 
 # ---------------------------------------------------------------------------
@@ -56,6 +57,74 @@ class SmtpConfigOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# LLM Providers (OpenRouter, OpenAI, Anthropic, Custom / vLLM / Ollama)
+# ---------------------------------------------------------------------------
+
+
+class LlmProviderConfigIn(BaseModel):
+    api_key: str = Field(default="", max_length=2048)
+    base_url: str = Field(default="", max_length=1024)
+    model: str = Field(default="", max_length=255)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=4096, ge=1, le=131072)
+    context_limit: Optional[int] = Field(default=None, ge=512, le=2097152)
+
+
+class LlmProviderConfigOut(BaseModel):
+    has_api_key: bool = False
+    base_url: str = ""
+    model: str = ""
+    temperature: float = 0.7
+    max_tokens: int = 4096
+    context_limit: Optional[int] = None
+
+
+class LlmSettingsIn(BaseModel):
+    active_provider: str = Field(
+        default="openrouter",
+        pattern="^(openrouter|openai|anthropic|custom)$",
+    )
+    providers: Dict[str, LlmProviderConfigIn] = Field(default_factory=dict)
+
+
+class LlmSettingsOut(BaseModel):
+    active_provider: str = "openrouter"
+    providers: Dict[str, LlmProviderConfigOut] = Field(default_factory=dict)
+    updated_at: str | None = None
+
+
+class ModelOption(BaseModel):
+    id: str
+    name: str
+    context_length: Optional[int] = None
+
+
+class FetchModelsIn(BaseModel):
+    provider: str = Field(..., pattern="^(openrouter|openai|anthropic|custom)$")
+    api_key: str = Field(default="", max_length=2048)
+    base_url: str = Field(default="", max_length=1024)
+
+
+class FetchModelsOut(BaseModel):
+    models: List[ModelOption] = Field(default_factory=list)
+
+
+class TestLlmConnectionIn(BaseModel):
+    provider: str = Field(..., pattern="^(openrouter|openai|anthropic|custom)$")
+    api_key: str = Field(default="", max_length=2048)
+    base_url: str = Field(default="", max_length=1024)
+    model: str = Field(default="", max_length=255)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+
+
+class TestLlmConnectionOut(BaseModel):
+    success: bool
+    message: str
+    latency_ms: float = 0.0
+    response_preview: str = ""
+
+
+# ---------------------------------------------------------------------------
 # Aggregate (returned by GET /org/settings)
 # ---------------------------------------------------------------------------
 
@@ -63,3 +132,4 @@ class SmtpConfigOut(BaseModel):
 class OrgSettingsOut(BaseModel):
     branding: BrandingConfigOut = Field(default_factory=BrandingConfigOut)
     smtp: SmtpConfigOut = Field(default_factory=SmtpConfigOut)
+    llm: LlmSettingsOut = Field(default_factory=LlmSettingsOut)

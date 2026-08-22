@@ -36,6 +36,7 @@ from app.services.agent_client import (
     normalize_agent_tool_path,
     tool_installed_from_agent_health,
 )
+from app.services.org_settings import resolve_llm_config_for_org
 from app.services.session_intelligence import recalculate_session_intelligence
 from app.services.tool_run_stream import drain_tool_run_stream
 from app.services.agent_skills import (
@@ -2579,6 +2580,13 @@ async def stream_cipherstrike_turn(
     body: dict[str, Any] = {"messages": llm_messages}
     if tool_schemas:
         body["schemas"] = tool_schemas
+
+    try:
+        llm_cfg = await resolve_llm_config_for_org(db, settings, organization_id)
+        if llm_cfg:
+            body["llm_config"] = llm_cfg
+    except Exception as exc:
+        logger.warning("stream_cipherstrike_turn: failed to resolve org LLM config: %s", exc)
 
     buffer = ""
     tool_pending_persisted = False

@@ -2,8 +2,7 @@
 
 One Mongo document per organization in ``organization_settings``, with each
 config under a named section. Secrets are encrypted at rest (Fernet, reusing the
-bridge helpers) and never returned to browsers. Cloud Security reads what it
-needs via the internal API (see routers/internal_config.py).
+bridge helpers) and never returned to browsers.
 """
 
 from __future__ import annotations
@@ -11,8 +10,10 @@ from __future__ import annotations
 import base64
 import binascii
 from datetime import UTC, datetime
-from typing import Any
+import time
+from typing import Any, Dict, List
 
+import httpx
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -20,15 +21,33 @@ from app.config import Settings
 from app.schemas.org_settings import (
     BrandingConfigIn,
     BrandingConfigOut,
+    FetchModelsIn,
+    FetchModelsOut,
+    LlmProviderConfigIn,
+    LlmProviderConfigOut,
+    LlmSettingsIn,
+    LlmSettingsOut,
+    ModelOption,
     OrgSettingsOut,
     SmtpConfigIn,
     SmtpConfigOut,
+    TestLlmConnectionIn,
+    TestLlmConnectionOut,
 )
 from app.services.prowler_bridge import decrypt_password, encrypt_password
 
 _COLLECTION = "organization_settings"
 _MAX_LOGO_BYTES = 2 * 1024 * 1024
 _ALLOWED_LOGO_TYPES = ("image/png", "image/jpeg")
+
+DEFAULT_CURATED_ANTHROPIC_MODELS = [
+    ModelOption(id="claude-3-7-sonnet-20250219", name="Claude 3.7 Sonnet (Hybrid Reasoning)", context_length=200000),
+    ModelOption(id="claude-3-5-sonnet-20241022", name="Claude 3.5 Sonnet (Latest v2)", context_length=200000),
+    ModelOption(id="claude-3-5-haiku-20241022", name="Claude 3.5 Haiku", context_length=200000),
+    ModelOption(id="claude-3-opus-20240229", name="Claude 3 Opus", context_length=200000),
+    ModelOption(id="claude-3-sonnet-20240229", name="Claude 3 Sonnet", context_length=200000),
+    ModelOption(id="claude-3-haiku-20240307", name="Claude 3 Haiku", context_length=200000),
+]
 
 
 class OrgSettingsError(Exception):
@@ -48,7 +67,7 @@ def _iso(value: Any) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Image helpers (mirror Cloud Security's validation: PNG/JPEG, <= 2 MB)
+# Image helpers (PNG/JPEG, <= 2 MB)
 # ---------------------------------------------------------------------------
 
 
@@ -146,6 +165,27 @@ def _smtp_out(section: dict[str, Any]) -> SmtpConfigOut:
     )
 
 
+def _llm_out(section: dict[str, Any]) -> LlmSettingsOut:
+    providers_raw = section.get("providers") or {}
+    providers_out: Dict[str, LlmProviderConfigOut] = {}
+    for prov_name, prov_dict in providers_raw.items():
+        if isinstance(prov_dict, dict):
+            providers_out[prov_name] = LlmProviderConfigOut(
+                has_api_key=bool(prov_dict.get("api_key_enc")),
+                base_url=prov_dict.get("base_url") or "",
+                model=prov_dict.get("model") or "",
+                temperature=float(prov_dict.get("temperature", 0.7)),
+                max_tokens=int(prov_dict.get("max_tokens", 4096)),
+                context_limit=int(prov_dict["context_limit"]) if prov_dict.get("context_limit") else None,
+            )
+
+    return LlmSettingsOut(
+        active_provider=section.get("active_provider") or "openrouter",
+        providers=providers_out,
+        updated_at=_iso(section.get("updated_at")),
+    )
+
+
 async def get_org_settings(
     db: AsyncIOMotorDatabase, org_id: ObjectId
 ) -> OrgSettingsOut:
@@ -153,6 +193,7 @@ async def get_org_settings(
     return OrgSettingsOut(
         branding=_branding_out(doc.get("branding") or {}),
         smtp=_smtp_out(doc.get("smtp") or {}),
+        llm=_llm_out(doc.get("llm") or {}),
     )
 
 
@@ -205,7 +246,6 @@ async def update_smtp(
         "from_email": str(payload.from_email) if payload.from_email else None,
         "updated_at": _now(),
     }
-    # Keep the existing password when the caller leaves it blank.
     if payload.password:
         section["password_enc"] = encrypt_password(settings, payload.password)
     elif existing.get("password_enc"):
@@ -214,54 +254,308 @@ async def update_smtp(
     return _smtp_out(section)
 
 
-# ---------------------------------------------------------------------------
-# Internal resolution (server-to-server; secrets decrypted)
-# ---------------------------------------------------------------------------
-
-
-async def resolve_config_for_prowler_tenant(
+async def update_llm_settings(
     db: AsyncIOMotorDatabase,
     settings: Settings,
-    prowler_tenant_id: str,
-) -> dict[str, Any]:
-    """Return the org config for a Cloud Security tenant, secrets decrypted.
+    org_id: ObjectId,
+    payload: LlmSettingsIn,
+) -> LlmSettingsOut:
+    existing_section = (await _get_doc(db, org_id)).get("llm") or {}
+    existing_providers = existing_section.get("providers") or {}
 
-    Only for the internal (server-to-server) API. Maps the Prowler tenant to a
-    Vrika organization via ``prowler_tenant_links``.
-    """
-    link = await db.prowler_tenant_links.find_one(
-        {"prowler_tenant_id": prowler_tenant_id}
-    )
-    if not link:
-        return {}
-    org_id = link["vrika_organization_id"]
-    doc = await _get_doc(db, org_id)
-
-    branding = doc.get("branding") or {}
-    smtp = doc.get("smtp") or {}
-
-    smtp_out: dict[str, Any] = {}
-    if smtp.get("host"):
-        smtp_out = {
-            "host": smtp.get("host"),
-            "port": int(smtp.get("port") or 587),
-            "username": smtp.get("username") or "",
-            "use_tls": bool(smtp.get("use_tls", True)),
-            "from_email": smtp.get("from_email"),
+    updated_providers: Dict[str, Any] = {}
+    for prov_name, prov_in in payload.providers.items():
+        prov_dict: dict[str, Any] = {
+            "base_url": prov_in.base_url.strip(),
+            "model": prov_in.model.strip(),
+            "temperature": prov_in.temperature,
+            "max_tokens": prov_in.max_tokens,
+            "context_limit": prov_in.context_limit,
         }
-        if smtp.get("password_enc"):
+
+        # Handle API key encryption / preservation
+        if prov_in.api_key and prov_in.api_key.strip():
+            prov_dict["api_key_enc"] = encrypt_password(settings, prov_in.api_key.strip())
+        else:
+            old_prov = existing_providers.get(prov_name) or {}
+            if old_prov.get("api_key_enc"):
+                prov_dict["api_key_enc"] = old_prov["api_key_enc"]
+
+        updated_providers[prov_name] = prov_dict
+
+    section: dict[str, Any] = {
+        "active_provider": payload.active_provider,
+        "providers": updated_providers,
+        "updated_at": _now(),
+    }
+    await _set_section(db, org_id, "llm", section)
+    return _llm_out(section)
+
+
+# ---------------------------------------------------------------------------
+# Dynamic Model Fetching & Live Connection Testing
+# ---------------------------------------------------------------------------
+
+
+async def _resolve_api_key_for_provider(
+    db: AsyncIOMotorDatabase,
+    settings: Settings,
+    org_id: ObjectId,
+    provider: str,
+    input_key: str,
+) -> str:
+    key = input_key.strip()
+    if key:
+        return key
+    doc = await _get_doc(db, org_id)
+    llm_doc = doc.get("llm") or {}
+    prov_doc = (llm_doc.get("providers") or {}).get(provider) or {}
+    enc_key = prov_doc.get("api_key_enc")
+    if enc_key:
+        try:
+            return decrypt_password(settings, enc_key)
+        except Exception:
+            return ""
+    return ""
+
+
+async def fetch_available_models(
+    db: AsyncIOMotorDatabase,
+    settings: Settings,
+    org_id: ObjectId,
+    payload: FetchModelsIn,
+) -> FetchModelsOut:
+    provider = payload.provider.lower()
+    api_key = await _resolve_api_key_for_provider(db, settings, org_id, provider, payload.api_key)
+    base_url = payload.base_url.strip()
+
+    models_out: List[ModelOption] = []
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        if provider == "openrouter":
+            url = base_url or "https://openrouter.ai/api/v1/models"
+            if not url.endswith("/models"):
+                url = f"{url.rstrip('/')}/models"
+            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
             try:
-                smtp_out["password"] = decrypt_password(
-                    settings, smtp["password_enc"]
-                )
+                res = await client.get(url, headers=headers)
+                if res.is_success:
+                    data = res.json()
+                    for m in data.get("data", []):
+                        m_id = m.get("id")
+                        if m_id:
+                            models_out.append(
+                                ModelOption(
+                                    id=m_id,
+                                    name=m.get("name") or m_id,
+                                    context_length=m.get("context_length"),
+                                )
+                            )
+                else:
+                    raise OrgSettingsError(f"OpenRouter returned status {res.status_code}: {res.text[:200]}")
+            except httpx.RequestError as exc:
+                raise OrgSettingsError(f"Failed to connect to OpenRouter: {str(exc)}")
+
+        elif provider == "openai":
+            url = base_url or "https://api.openai.com/v1"
+            url = f"{url.rstrip('/')}/models"
+            if not api_key:
+                raise OrgSettingsError("OpenAI API key is required to fetch models")
+            headers = {"Authorization": f"Bearer {api_key}"}
+            try:
+                res = await client.get(url, headers=headers)
+                if res.is_success:
+                    data = res.json()
+                    for m in data.get("data", []):
+                        m_id = m.get("id")
+                        if m_id:
+                            models_out.append(ModelOption(id=m_id, name=m_id))
+                    # Sort models alphabetically
+                    models_out.sort(key=lambda x: x.id)
+                else:
+                    raise OrgSettingsError(f"OpenAI returned status {res.status_code}: {res.text[:200]}")
+            except httpx.RequestError as exc:
+                raise OrgSettingsError(f"Failed to connect to OpenAI: {str(exc)}")
+
+        elif provider == "anthropic":
+            url = (base_url or "https://api.anthropic.com").rstrip("/")
+            models_endpoint = f"{url}/v1/models"
+            headers = {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            }
+            try:
+                if api_key:
+                    res = await client.get(models_endpoint, headers=headers)
+                    if res.is_success:
+                        data = res.json()
+                        for m in data.get("data", []):
+                            m_id = m.get("id")
+                            if m_id:
+                                models_out.append(
+                                    ModelOption(id=m_id, name=m.get("display_name") or m_id)
+                                )
+                if not models_out:
+                    models_out = list(DEFAULT_CURATED_ANTHROPIC_MODELS)
             except Exception:
-                smtp_out["password"] = ""
+                models_out = list(DEFAULT_CURATED_ANTHROPIC_MODELS)
+
+        elif provider == "custom":
+            if not base_url:
+                raise OrgSettingsError("Base URL is required for Custom provider")
+            url = f"{base_url.rstrip('/')}/models"
+            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+            try:
+                res = await client.get(url, headers=headers)
+                if res.is_success:
+                    data = res.json()
+                    items = data.get("data", []) if isinstance(data, dict) and "data" in data else data.get("models", []) if isinstance(data, dict) else []
+                    for m in items:
+                        m_id = m.get("id") or m.get("name") if isinstance(m, dict) else str(m)
+                        if m_id:
+                            models_out.append(ModelOption(id=m_id, name=m_id))
+                else:
+                    raise OrgSettingsError(f"Custom server returned status {res.status_code}: {res.text[:200]}")
+            except httpx.RequestError as exc:
+                raise OrgSettingsError(f"Failed to connect to custom base URL: {str(exc)}")
+
+    return FetchModelsOut(models=models_out)
+
+
+async def test_llm_connection(
+    db: AsyncIOMotorDatabase,
+    settings: Settings,
+    org_id: ObjectId,
+    payload: TestLlmConnectionIn,
+) -> TestLlmConnectionOut:
+    provider = payload.provider.lower()
+    api_key = await _resolve_api_key_for_provider(db, settings, org_id, provider, payload.api_key)
+    base_url = payload.base_url.strip()
+    model = payload.model.strip()
+
+    if not model and provider != "custom":
+        model = "gpt-4o-mini" if provider == "openai" else "claude-3-5-haiku-20241022" if provider == "anthropic" else "openai/gpt-4.1-mini"
+
+    start_time = time.perf_counter()
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        try:
+            if provider in ("openrouter", "openai", "custom"):
+                if provider == "openrouter":
+                    url = (base_url or "https://openrouter.ai/api/v1").rstrip("/") + "/chat/completions"
+                elif provider == "openai":
+                    url = (base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
+                else:
+                    url = base_url.rstrip("/") + "/chat/completions"
+
+                headers = {"Content-Type": "application/json"}
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
+
+                body = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "max_tokens": 15,
+                    "temperature": payload.temperature,
+                }
+                res = await client.post(url, headers=headers, json=body)
+                latency = round((time.perf_counter() - start_time) * 1000, 1)
+
+                if res.is_success:
+                    data = res.json()
+                    choices = data.get("choices") or []
+                    preview = ""
+                    if choices:
+                        msg = choices[0].get("message") or {}
+                        preview = msg.get("content") or ""
+                    return TestLlmConnectionOut(
+                        success=True,
+                        message=f"Connected successfully to {provider.upper()} ({latency}ms)",
+                        latency_ms=latency,
+                        response_preview=preview.strip(),
+                    )
+                else:
+                    return TestLlmConnectionOut(
+                        success=False,
+                        message=f"API Error {res.status_code}: {res.text[:250]}",
+                        latency_ms=latency,
+                    )
+
+            elif provider == "anthropic":
+                url = (base_url or "https://api.anthropic.com").rstrip("/") + "/v1/messages"
+                headers = {
+                    "Content-Type": "application/json",
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                }
+                body = {
+                    "model": model or "claude-3-5-haiku-20241022",
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "max_tokens": 15,
+                    "temperature": min(payload.temperature, 1.0),
+                }
+                res = await client.post(url, headers=headers, json=body)
+                latency = round((time.perf_counter() - start_time) * 1000, 1)
+
+                if res.is_success:
+                    data = res.json()
+                    content = data.get("content") or []
+                    preview = content[0].get("text", "") if content else ""
+                    return TestLlmConnectionOut(
+                        success=True,
+                        message=f"Connected successfully to Anthropic ({latency}ms)",
+                        latency_ms=latency,
+                        response_preview=preview.strip(),
+                    )
+                else:
+                    return TestLlmConnectionOut(
+                        success=False,
+                        message=f"Anthropic Error {res.status_code}: {res.text[:250]}",
+                        latency_ms=latency,
+                    )
+
+        except Exception as exc:
+            latency = round((time.perf_counter() - start_time) * 1000, 1)
+            return TestLlmConnectionOut(
+                success=False,
+                message=f"Connection failed: {str(exc)}",
+                latency_ms=latency,
+            )
+
+    return TestLlmConnectionOut(success=False, message="Unhandled provider")
+
+
+# ---------------------------------------------------------------------------
+# Internal runtime resolution (for agent chat and pipelines)
+# ---------------------------------------------------------------------------
+
+
+async def resolve_llm_config_for_org(
+    db: AsyncIOMotorDatabase,
+    settings: Settings,
+    org_id: ObjectId,
+) -> dict[str, Any] | None:
+    """Return decrypted active LLM configuration for runtime execution."""
+    doc = await _get_doc(db, org_id)
+    llm_doc = doc.get("llm") or {}
+    active_prov = llm_doc.get("active_provider") or "openrouter"
+    prov_doc = (llm_doc.get("providers") or {}).get(active_prov)
+    if not prov_doc:
+        return None
+
+    decrypted_key = ""
+    if prov_doc.get("api_key_enc"):
+        try:
+            decrypted_key = decrypt_password(settings, prov_doc["api_key_enc"])
+        except Exception:
+            decrypted_key = ""
 
     return {
-        "branding": {
-            "logo_base64": branding.get("logo_base64") or "",
-            "logo_content_type": branding.get("logo_content_type") or "",
-            "logo_filename": branding.get("logo_filename") or "",
-        },
-        "smtp": smtp_out,
+        "provider": active_prov,
+        "model": prov_doc.get("model") or "",
+        "api_key": decrypted_key,
+        "base_url": prov_doc.get("base_url") or "",
+        "temperature": float(prov_doc.get("temperature", 0.7)),
+        "max_tokens": int(prov_doc.get("max_tokens", 4096)),
+        "context_limit": prov_doc.get("context_limit"),
     }
