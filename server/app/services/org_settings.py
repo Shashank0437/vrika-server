@@ -49,6 +49,14 @@ DEFAULT_CURATED_ANTHROPIC_MODELS = [
     ModelOption(id="claude-3-haiku-20240307", name="Claude 3 Haiku", context_length=200000),
 ]
 
+DEFAULT_CURATED_GEMINI_MODELS = [
+    ModelOption(id="gemini-2.5-pro", name="Gemini 2.5 Pro (Reasoning)", context_length=1000000),
+    ModelOption(id="gemini-2.5-flash", name="Gemini 2.5 Flash (Latest)", context_length=1000000),
+    ModelOption(id="gemini-2.0-flash", name="Gemini 2.0 Flash (Fast)", context_length=1000000),
+    ModelOption(id="gemini-1.5-pro", name="Gemini 1.5 Pro (2M Ctx)", context_length=2000000),
+    ModelOption(id="gemini-1.5-flash", name="Gemini 1.5 Flash", context_length=1000000),
+]
+
 
 class OrgSettingsError(Exception):
     def __init__(self, message: str):
@@ -400,6 +408,28 @@ async def fetch_available_models(
             except Exception:
                 models_out = list(DEFAULT_CURATED_ANTHROPIC_MODELS)
 
+        elif provider == "gemini":
+            if not api_key:
+                models_out = list(DEFAULT_CURATED_GEMINI_MODELS)
+            else:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+                try:
+                    res = await client.get(url)
+                    if res.is_success:
+                        data = res.json()
+                        for m in data.get("models", []):
+                            methods = m.get("supportedGenerationMethods", [])
+                            if "generateContent" in methods:
+                                m_name = m.get("name", "")
+                                m_id = m_name.replace("models/", "")
+                                display = m.get("displayName") or m_id
+                                input_limit = m.get("inputTokenLimit")
+                                models_out.append(ModelOption(id=m_id, name=display, context_length=input_limit))
+                    if not models_out:
+                        models_out = list(DEFAULT_CURATED_GEMINI_MODELS)
+                except Exception:
+                    models_out = list(DEFAULT_CURATED_GEMINI_MODELS)
+
         elif provider == "custom":
             if not base_url:
                 raise OrgSettingsError("Base URL is required for Custom provider")
@@ -434,7 +464,7 @@ async def test_llm_connection(
     model = payload.model.strip()
 
     if not model and provider != "custom":
-        model = "gpt-4o-mini" if provider == "openai" else "claude-3-5-haiku-20241022" if provider == "anthropic" else "openai/gpt-4.1-mini"
+        model = "gpt-4o-mini" if provider == "openai" else "claude-3-5-haiku-20241022" if provider == "anthropic" else "gemini-1.5-flash" if provider == "gemini" else "openai/gpt-4.1-mini"
 
     start_time = time.perf_counter()
 
@@ -511,6 +541,40 @@ async def test_llm_connection(
                     return TestLlmConnectionOut(
                         success=False,
                         message=f"Anthropic Error {res.status_code}: {res.text[:250]}",
+                        latency_ms=latency,
+                    )
+
+            elif provider == "gemini":
+                if not api_key:
+                    return TestLlmConnectionOut(success=False, message="Gemini API key is required", latency_ms=0)
+                target_model = model or "gemini-1.5-flash"
+                if target_model.startswith("models/"):
+                    target_model = target_model.replace("models/", "")
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={api_key}"
+                body = {
+                    "contents": [{"parts": [{"text": "Hello"}]}],
+                    "generationConfig": {"maxOutputTokens": 15, "temperature": min(payload.temperature, 2.0)},
+                }
+                res = await client.post(url, json=body)
+                latency = round((time.perf_counter() - start_time) * 1000, 1)
+                if res.is_success:
+                    data = res.json()
+                    candidates = data.get("candidates") or []
+                    preview = ""
+                    if candidates:
+                        parts = (candidates[0].get("content") or {}).get("parts") or []
+                        if parts:
+                            preview = parts[0].get("text", "")
+                    return TestLlmConnectionOut(
+                        success=True,
+                        message=f"Connected successfully to Google Gemini ({latency}ms)",
+                        latency_ms=latency,
+                        response_preview=preview.strip(),
+                    )
+                else:
+                    return TestLlmConnectionOut(
+                        success=False,
+                        message=f"Gemini API Error {res.status_code}: {res.text[:250]}",
                         latency_ms=latency,
                     )
 

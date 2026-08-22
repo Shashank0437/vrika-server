@@ -49,7 +49,8 @@ import {
   type SpecialistAgentParams,
   type SpecialistAgentPlan,
 } from "@/lib/agentSpecialists";
-import { ApiError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
+import type { OrgSettingsOut } from "@/components/dashboard/settings/types";
 
 function attackChainUiFromSessionDoc(
   ac: Record<string, unknown> | null | undefined,
@@ -508,6 +509,7 @@ type ClaudePromptBoxProps = {
   /** Plan Attack Chain pill — only on empty workspace, not inside an active chat. */
   showPlanAttackChain?: boolean;
   placeholder?: string;
+  llmConfigured?: boolean | null;
 };
 
 function VrikaClaudePromptBox({
@@ -525,9 +527,10 @@ function VrikaClaudePromptBox({
   allowAutoAcceptTools = true,
   showPlanAttackChain = false,
   placeholder,
+  llmConfigured,
 }: ClaudePromptBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const cannotSubmit = !prompt.trim() || isSending;
+  const cannotSubmit = !prompt.trim() || isSending || llmConfigured === false;
   const sendButtonDisabled = cannotSubmit;
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -541,26 +544,49 @@ function VrikaClaudePromptBox({
     "inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border px-2.5 py-1.5 text-left text-[11px] font-semibold shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-primary/30 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-[12px]";
 
   return (
-    <div className="rounded-[1.25rem] border border-outline-variant/55 bg-surface-container-lowest shadow-[0_14px_40px_-24px_rgba(49,39,89,0.38),inset_0_1px_0_rgba(255,255,255,0.75)] ring-1 ring-black/[0.04] transition-colors focus-within:border-primary/40 focus-within:shadow-[0_18px_44px_-22px_rgba(49,39,89,0.48),0_0_0_2px_rgba(104,76,182,0.1)] focus-within:ring-primary/18 sm:rounded-[1.4rem]">
-      <div className="relative overflow-hidden rounded-t-[1.25rem] sm:rounded-t-[1.4rem]">
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-0 h-12 bg-gradient-to-b from-primary/[0.07] via-primary/[0.02] to-transparent sm:h-14"
-          aria-hidden
-        />
-        <label htmlFor={textareaId} className="sr-only">
-          Mission prompt
-        </label>
-        <textarea
-          ref={textareaRef}
-          id={textareaId}
-          rows={3}
-          value={prompt}
-          onChange={(e) => onPromptChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={placeholder ?? PROMPT_INPUT_PLACEHOLDER}
-          className="relative z-[1] min-h-[4.5rem] w-full resize-none bg-transparent px-3.5 pb-1.5 pt-3.5 text-[14px] leading-snug text-on-surface placeholder:font-medium placeholder:text-on-surface-variant/48 focus:outline-none focus:ring-0 sm:min-h-[5rem] sm:px-4 sm:pt-4"
-        />
-      </div>
+    <div>
+      {llmConfigured === false && (
+        <div className="mb-2.5 flex items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5 text-xs text-on-surface backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <MaterialSymbol name="warning" className="text-base text-amber-500" filled />
+            <span>
+              <strong>LLM Not Configured:</strong> Please configure an active AI model in Settings to send prompts and run scans.
+            </span>
+          </div>
+          <Link
+            href="/dashboard/settings?tab=llm"
+            className="flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-on-primary shadow-sm transition hover:opacity-90 active:scale-[0.98]"
+          >
+            Configure LLM
+            <MaterialSymbol name="arrow_forward" className="text-xs" />
+          </Link>
+        </div>
+      )}
+      <div className={`rounded-[1.25rem] border border-outline-variant/55 bg-surface-container-lowest shadow-[0_14px_40px_-24px_rgba(49,39,89,0.38),inset_0_1px_0_rgba(255,255,255,0.75)] ring-1 ring-black/[0.04] transition-colors focus-within:border-primary/40 focus-within:shadow-[0_18px_44px_-22px_rgba(49,39,89,0.48),0_0_0_2px_rgba(104,76,182,0.1)] focus-within:ring-primary/18 sm:rounded-[1.4rem] ${llmConfigured === false ? "opacity-75" : ""}`}>
+        <div className="relative overflow-hidden rounded-t-[1.25rem] sm:rounded-t-[1.4rem]">
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 z-0 h-12 bg-gradient-to-b from-primary/[0.07] via-primary/[0.02] to-transparent sm:h-14"
+            aria-hidden
+          />
+          <label htmlFor={textareaId} className="sr-only">
+            Mission prompt
+          </label>
+          <textarea
+            ref={textareaRef}
+            id={textareaId}
+            rows={3}
+            value={prompt}
+            onChange={(e) => onPromptChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={llmConfigured === false}
+            placeholder={
+              llmConfigured === false
+                ? "LLM provider is not configured. Go to Settings > LLM Configuration to configure an AI provider."
+                : placeholder ?? PROMPT_INPUT_PLACEHOLDER
+            }
+            className="relative z-[1] min-h-[4.5rem] w-full resize-none bg-transparent px-3.5 pb-1.5 pt-3.5 text-[14px] leading-snug text-on-surface placeholder:font-medium placeholder:text-on-surface-variant/48 focus:outline-none focus:ring-0 disabled:cursor-not-allowed sm:min-h-[5rem] sm:px-4 sm:pt-4"
+          />
+        </div>
       <div className="relative z-20 flex items-center justify-between gap-1.5 overflow-visible rounded-b-[1.25rem] border-t border-outline-variant/55 bg-surface-container-low/95 px-2 py-1.5 backdrop-blur-[10px] supports-[backdrop-filter]:bg-surface-container-low/82 sm:gap-2 sm:rounded-b-[1.4rem] sm:px-3 sm:py-2">
         <div
           className="-mx-0.5 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-0.5 [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden"
@@ -732,6 +758,30 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const [specialistAgents, setSpecialistAgents] = useState<SpecialistAgentPlan[]>([]);
   const [specialistAgentsError, setSpecialistAgentsError] = useState<string | null>(null);
   const [specialistModalAgent, setSpecialistModalAgent] = useState<SpecialistAgentPlan | null>(null);
+  const [llmConfigured, setLlmConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<OrgSettingsOut>("/org/settings")
+      .then((res) => {
+        if (cancelled) return;
+        const llm = res.llm;
+        if (!llm) {
+          setLlmConfigured(false);
+          return;
+        }
+        const act = llm.active_provider;
+        const prov = llm.providers?.[act];
+        const isConfigured = act === "custom" ? Boolean(prov?.base_url) : Boolean(prov?.has_api_key);
+        setLlmConfigured(isConfigured);
+      })
+      .catch(() => {
+        if (!cancelled) setLlmConfigured(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [specialistModalOpen, setSpecialistModalOpen] = useState(false);
   const [specialistStarting, setSpecialistStarting] = useState(false);
   const [specialistModalError, setSpecialistModalError] = useState<string | null>(null);
@@ -2708,6 +2758,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                     onToolExecutionModeChange={setToolExecutionMode}
                     allowAutoAcceptTools={isTenantAdmin}
                     showPlanAttackChain={false}
+                    llmConfigured={llmConfigured}
                   />
                 </div>
               </div>
@@ -2736,6 +2787,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
               allowAutoAcceptTools={isTenantAdmin}
               showPlanAttackChain={true}
               placeholder={ROTATING_PROMPTS[rotatingPromptIndex]}
+              llmConfigured={llmConfigured}
             />
           </div>
           ) : null}

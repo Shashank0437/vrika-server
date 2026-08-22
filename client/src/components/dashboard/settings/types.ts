@@ -6,7 +6,7 @@ export type BrandingOut = {
   updated_at: string | null;
 };
 
-export type LlmProviderType = "openrouter" | "openai" | "anthropic" | "custom";
+export type LlmProviderType = "openrouter" | "openai" | "anthropic" | "gemini" | "custom";
 
 export type LlmProviderConfigOut = {
   has_api_key: boolean;

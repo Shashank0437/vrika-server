@@ -64,8 +64,20 @@ const PROVIDER_METADATA: Record<
     keyRequired: true,
     keyPlaceholder: "sk-ant-api03-...",
   },
+  gemini: {
+    name: "Google Gemini",
+    description: "Direct Google AI Studio integration (Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash)",
+    icon: "auto_awesome",
+    defaultUrl: "https://generativelanguage.googleapis.com",
+    defaultModel: "gemini-2.5-flash",
+    urlLabel: "Base URL (Optional)",
+    urlPlaceholder: "https://generativelanguage.googleapis.com",
+    supportsCustomUrl: false,
+    keyRequired: true,
+    keyPlaceholder: "AIzaSy...",
+  },
   custom: {
-    name: "Custom (vLLM / Ollama)",
+    name: "Custom / Local",
     description: "Local or private OpenAI-compatible servers (vLLM, Ollama, LM Studio, LiteLLM)",
     icon: "dns",
     defaultUrl: "http://localhost:11434/v1",
@@ -126,6 +138,15 @@ export function LlmSettingsCard({
       apiKey: "",
       baseUrl: "",
       model: "claude-3-7-sonnet-20250219",
+      temperature: 0.7,
+      maxTokens: 4096,
+      contextLimit: "",
+      showKey: false,
+    },
+    gemini: {
+      apiKey: "",
+      baseUrl: "",
+      model: "gemini-2.5-flash",
       temperature: 0.7,
       maxTokens: 4096,
       contextLimit: "",
@@ -330,7 +351,7 @@ export function LlmSettingsCard({
       }
     >
       {/* Provider Selector Tabs */}
-      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {(Object.keys(PROVIDER_METADATA) as LlmProviderType[]).map((pKey) => {
           const meta = PROVIDER_METADATA[pKey];
           const isSelected = selectedProvider === pKey;

@@ -57,7 +57,7 @@ class SmtpConfigOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# LLM Providers (OpenRouter, OpenAI, Anthropic, Custom / vLLM / Ollama)
+# LLM Providers (OpenRouter, OpenAI, Anthropic, Gemini, Custom / vLLM / Ollama)
 # ---------------------------------------------------------------------------
 
 
@@ -82,7 +82,7 @@ class LlmProviderConfigOut(BaseModel):
 class LlmSettingsIn(BaseModel):
     active_provider: str = Field(
         default="openrouter",
-        pattern="^(openrouter|openai|anthropic|custom)$",
+        pattern="^(openrouter|openai|anthropic|gemini|custom)$",
     )
     providers: Dict[str, LlmProviderConfigIn] = Field(default_factory=dict)
 
@@ -100,7 +100,7 @@ class ModelOption(BaseModel):
 
 
 class FetchModelsIn(BaseModel):
-    provider: str = Field(..., pattern="^(openrouter|openai|anthropic|custom)$")
+    provider: str = Field(..., pattern="^(openrouter|openai|anthropic|gemini|custom)$")
     api_key: str = Field(default="", max_length=2048)
     base_url: str = Field(default="", max_length=1024)
 
@@ -110,7 +110,7 @@ class FetchModelsOut(BaseModel):
 
 
 class TestLlmConnectionIn(BaseModel):
-    provider: str = Field(..., pattern="^(openrouter|openai|anthropic|custom)$")
+    provider: str = Field(..., pattern="^(openrouter|openai|anthropic|gemini|custom)$")
     api_key: str = Field(default="", max_length=2048)
     base_url: str = Field(default="", max_length=1024)
     model: str = Field(default="", max_length=255)
