@@ -44,21 +44,46 @@ _MAX_LOGO_BYTES = 2 * 1024 * 1024
 _ALLOWED_LOGO_TYPES = ("image/png", "image/jpeg")
 
 DEFAULT_CURATED_ANTHROPIC_MODELS = [
+    ModelOption(id="claude-5-opus", name="Claude Opus 5 (Enterprise Frontier)", context_length=1000000),
+    ModelOption(id="claude-5-sonnet", name="Claude Sonnet 5 (Production Default)", context_length=1000000),
+    ModelOption(id="claude-5-fable", name="Claude Fable 5 (Frontier Reasoning)", context_length=1000000),
+    ModelOption(id="claude-4-5-haiku", name="Claude Haiku 4.5 (High Speed)", context_length=500000),
     ModelOption(id="claude-3-7-sonnet-20250219", name="Claude 3.7 Sonnet (Hybrid Reasoning)", context_length=200000),
     ModelOption(id="claude-3-5-sonnet-20241022", name="Claude 3.5 Sonnet (Latest v2)", context_length=200000),
     ModelOption(id="claude-3-5-haiku-20241022", name="Claude 3.5 Haiku", context_length=200000),
     ModelOption(id="claude-3-opus-20240229", name="Claude 3 Opus", context_length=200000),
     ModelOption(id="claude-3-sonnet-20240229", name="Claude 3 Sonnet", context_length=200000),
-    ModelOption(id="claude-3-haiku-20240307", name="Claude 3 Haiku", context_length=200000),
 ]
 
 DEFAULT_CURATED_GEMINI_MODELS = [
-    ModelOption(id="gemini-2.5-pro", name="Gemini 2.5 Pro (Reasoning)", context_length=1000000),
-    ModelOption(id="gemini-2.5-flash", name="Gemini 2.5 Flash (Latest)", context_length=1000000),
-    ModelOption(id="gemini-2.0-flash", name="Gemini 2.0 Flash (Fast)", context_length=1000000),
-    ModelOption(id="gemini-1.5-pro", name="Gemini 1.5 Pro (2M Ctx)", context_length=2000000),
-    ModelOption(id="gemini-1.5-flash", name="Gemini 1.5 Flash", context_length=1000000),
+    ModelOption(id="gemini-3.7-flash", name="Gemini 3.7 Flash (Hybrid Reasoning)", context_length=1000000),
+    ModelOption(id="gemini-3.7-pro", name="Gemini 3.7 Pro (Advanced Frontier)", context_length=2000000),
+    ModelOption(id="gemini-3.5-flash", name="Gemini 3.5 Flash", context_length=1000000),
+    ModelOption(id="gemini-3.1-pro", name="Gemini 3.1 Pro", context_length=2000000),
+    ModelOption(id="gemini-2.5-pro", name="Gemini 2.5 Pro (Thinking & Reasoning)", context_length=1000000),
+    ModelOption(id="gemini-2.5-flash", name="Gemini 2.5 Flash (Ultra-fast)", context_length=1000000),
+    ModelOption(id="gemini-2.0-pro-exp-02-05", name="Gemini 2.0 Pro Experimental", context_length=2000000),
+    ModelOption(id="gemini-2.0-flash", name="Gemini 2.0 Flash (Fast Multimodal)", context_length=1000000),
+    ModelOption(id="gemini-2.0-flash-thinking-exp-01-21", name="Gemini 2.0 Flash Thinking", context_length=1000000),
+    ModelOption(id="gemini-1.5-pro", name="Gemini 1.5 Pro (2M Context)", context_length=2000000),
+    ModelOption(id="gemini-1.5-flash", name="Gemini 1.5 Flash (1M Context)", context_length=1000000),
 ]
+
+DEFAULT_CURATED_OPENAI_MODELS = [
+    ModelOption(id="gpt-5.5", name="GPT-5.5 (Next-Gen Frontier)", context_length=1000000),
+    ModelOption(id="gpt-5.2", name="GPT-5.2 (Agentic Coding & Reasoning)", context_length=500000),
+    ModelOption(id="gpt-5-mini", name="GPT-5 Mini (Fast & Efficient)", context_length=200000),
+    ModelOption(id="gpt-4.5-preview", name="GPT-4.5 Preview (Flagship Knowledge)", context_length=128000),
+    ModelOption(id="o3-mini", name="o3-mini (High-speed STEM Reasoning)", context_length=200000),
+    ModelOption(id="o3", name="o3 (Full High Reasoning)", context_length=200000),
+    ModelOption(id="o1", name="o1 (Advanced Complex Reasoning)", context_length=200000),
+    ModelOption(id="o1-mini", name="o1-mini (Fast Reasoning)", context_length=128000),
+    ModelOption(id="gpt-4o", name="GPT-4o (Flagship Multimodal)", context_length=128000),
+    ModelOption(id="gpt-4o-mini", name="GPT-4o Mini (Ultra-fast)", context_length=128000),
+    ModelOption(id="gpt-4.1-mini", name="GPT-4.1 Mini", context_length=128000),
+]
+
+
 
 
 class OrgSettingsError(Exception):
@@ -457,23 +482,21 @@ async def fetch_available_models(
         elif provider == "openai":
             url = base_url or "https://api.openai.com/v1"
             url = f"{url.rstrip('/')}/models"
-            if not api_key:
-                raise OrgSettingsError("OpenAI API key is required to fetch models")
-            headers = {"Authorization": f"Bearer {api_key}"}
-            try:
-                res = await client.get(url, headers=headers)
-                if res.is_success:
-                    data = res.json()
-                    for m in data.get("data", []):
-                        m_id = m.get("id")
-                        if m_id:
-                            models_out.append(ModelOption(id=m_id, name=m_id))
-                    # Sort models alphabetically
-                    models_out.sort(key=lambda x: x.id)
-                else:
-                    raise OrgSettingsError(f"OpenAI returned status {res.status_code}: {res.text[:200]}")
-            except httpx.RequestError as exc:
-                raise OrgSettingsError(f"Failed to connect to OpenAI: {str(exc)}")
+            if api_key:
+                headers = {"Authorization": f"Bearer {api_key}"}
+                try:
+                    res = await client.get(url, headers=headers)
+                    if res.is_success:
+                        data = res.json()
+                        for m in data.get("data", []):
+                            m_id = m.get("id")
+                            if m_id and not m_id.startswith(("tts", "whisper", "dall-e", "davinci", "babbage", "curie", "text-embedding")):
+                                models_out.append(ModelOption(id=m_id, name=m_id))
+                        models_out.sort(key=lambda x: x.id)
+                except Exception:
+                    pass
+            if not models_out:
+                models_out = list(DEFAULT_CURATED_OPENAI_MODELS)
 
         elif provider == "anthropic":
             url = (base_url or "https://api.anthropic.com").rstrip("/")
@@ -521,23 +544,36 @@ async def fetch_available_models(
                     models_out = list(DEFAULT_CURATED_GEMINI_MODELS)
 
         elif provider == "custom":
-            if not base_url:
-                raise OrgSettingsError("Base URL is required for Custom provider")
-            url = f"{base_url.rstrip('/')}/models"
-            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-            try:
-                res = await client.get(url, headers=headers)
-                if res.is_success:
-                    data = res.json()
-                    items = data.get("data", []) if isinstance(data, dict) and "data" in data else data.get("models", []) if isinstance(data, dict) else []
-                    for m in items:
-                        m_id = m.get("id") or m.get("name") if isinstance(m, dict) else str(m)
-                        if m_id:
-                            models_out.append(ModelOption(id=m_id, name=m_id))
-                else:
-                    raise OrgSettingsError(f"Custom server returned status {res.status_code}: {res.text[:200]}")
-            except httpx.RequestError as exc:
-                raise OrgSettingsError(f"Failed to connect to custom base URL: {str(exc)}")
+            if base_url:
+                clean_base = base_url.rstrip("/")
+                headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+                # 1. Try standard OpenAI /v1/models endpoint
+                url = f"{clean_base}/models"
+                try:
+                    res = await client.get(url, headers=headers)
+                    if res.is_success:
+                        data = res.json()
+                        items = data.get("data", []) if isinstance(data, dict) and "data" in data else data.get("models", []) if isinstance(data, dict) else []
+                        for m in items:
+                            m_id = m.get("id") or m.get("name") if isinstance(m, dict) else str(m)
+                            if m_id:
+                                models_out.append(ModelOption(id=m_id, name=m_id))
+                except Exception:
+                    pass
+
+                # 2. If empty, try native Ollama /api/tags endpoint
+                if not models_out:
+                    try:
+                        ollama_url = f"{clean_base.replace('/v1', '')}/api/tags"
+                        res = await client.get(ollama_url)
+                        if res.is_success:
+                            data = res.json()
+                            for m in data.get("models", []):
+                                m_id = m.get("name") or m.get("model")
+                                if m_id:
+                                    models_out.append(ModelOption(id=m_id, name=m_id))
+                    except Exception:
+                        pass
 
     return FetchModelsOut(models=models_out)
 
