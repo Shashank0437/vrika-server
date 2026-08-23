@@ -2577,7 +2577,7 @@ async def stream_cipherstrike_turn(
     actual_output_tokens = None
 
     path = "api/cipherstrike/llm-stream"
-    body: dict[str, Any] = {"messages": llm_messages}
+    body: dict[str, Any] = {"messages": llm_messages, "session_id": str(session_id)}
     if tool_schemas:
         body["schemas"] = tool_schemas
 
@@ -4274,7 +4274,7 @@ async def stream_follow_up_after_tool(
         return
 
     timeout = settings.agent_llm_stream_timeout_seconds
-    body: dict[str, Any] = {"messages": llm_messages}
+    body: dict[str, Any] = {"messages": llm_messages, "session_id": str(session_id)}
     if tool_schemas:
         body["schemas"] = tool_schemas
     if batch_only_tool_names:
