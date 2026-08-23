@@ -2859,15 +2859,18 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                   ) : null}
                   {(waitingForFirstToken || (agentActivelyWorking && !visibleStreamPreview && !reasoningStreaming)) && (
                     <div className="mr-auto w-full max-w-[min(100%,48rem)] sm:max-w-[min(100%,52rem)] lg:max-w-[min(100%,58rem)] xl:max-w-[min(100%,62rem)] py-2 text-left">
-                      <div className="max-w-[140px] opacity-90">
-                        <svg width="100%" viewBox="0 0 680 200" role="img" xmlns="http://www.w3.org/2000/svg">
-                          <title>AI agent working indicator</title>
-                          <desc>A large purple dot that slowly blinks to indicate an AI agent is working</desc>
-                          <circle cx="340" cy="100" r="48" fill="#7B5EA7">
-                            <animate attributeName="opacity" values="1;0.08;1" dur="2.4s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" keyTimes="0;0.5;1"/>
-                            <animate attributeName="r" values="48;42;48" dur="2.4s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" keyTimes="0;0.5;1"/>
-                          </circle>
-                        </svg>
+                      <div
+                        className="flex items-center gap-1.5"
+                        role="img"
+                        aria-label="AI agent is working"
+                      >
+                        {[0, 1, 2].map((i) => (
+                          <span
+                            key={i}
+                            className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-duration:0.9s]"
+                            style={{ animationDelay: `${i * 0.15}s` }}
+                          />
+                        ))}
                       </div>
                     </div>
                   )}
