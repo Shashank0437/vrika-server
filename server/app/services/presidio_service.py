@@ -68,8 +68,13 @@ SECURITY_RECOGNIZERS = [
     },
     {
         "name": "INTERNAL_HOSTNAME",
-        "regex": r"\b([a-zA-Z0-9_-]+\.(?:corp|internal|local|lan|vpc|internal\.aws))\b",
+        "regex": r"\b([a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*\.(?:corp|internal|local|lan|vpc|internal\.aws))\b",
         "category": "HOST",
+    },
+    {
+        "name": "EMAIL_ADDRESS",
+        "regex": r"\b([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)\b",
+        "category": "EMAIL",
     },
 ]
 
