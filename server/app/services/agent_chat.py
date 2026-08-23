@@ -53,6 +53,10 @@ from app.services.agent_attack_chains import (
     filter_attack_chain_steps_to_runnable,
     sync_attack_chain_to_runnable_step,
 )
+from app.services.anonymization_vault import (
+    mask_messages_for_llm,
+    restore_llm_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -2576,8 +2580,9 @@ async def stream_cipherstrike_turn(
     actual_input_tokens = None
     actual_output_tokens = None
 
+    masked_messages = await mask_messages_for_llm(str(session_id), llm_messages)
     path = "api/cipherstrike/llm-stream"
-    body: dict[str, Any] = {"messages": llm_messages}
+    body: dict[str, Any] = {"messages": masked_messages}
     if tool_schemas:
         body["schemas"] = tool_schemas
 
@@ -2847,6 +2852,8 @@ async def stream_cipherstrike_turn(
                     seen_done = True
                     if not tool_pending_persisted:
                         full_text = "".join(assistant_chunks).strip()
+                        if full_text:
+                            full_text = await restore_llm_text(str(session_id), full_text)
                         think_txt = "".join(thinking_chunks) or None
                         if full_text or think_txt:
                             await insert_message(
@@ -2899,6 +2906,8 @@ async def stream_cipherstrike_turn(
 
         if not seen_done and (assistant_chunks or thinking_chunks):
             full_text = "".join(assistant_chunks).strip()
+            if full_text:
+                full_text = await restore_llm_text(str(session_id), full_text)
             think_txt = "".join(thinking_chunks) or None
             if full_text or think_txt:
                 await insert_message(

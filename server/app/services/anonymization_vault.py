@@ -1,0 +1,164 @@
+"""
+server/app/services/anonymization_vault.py
+
+Session-Scoped Semantic Anonymization Vault (Vault Pattern).
+Replaces detected sensitive entities (IPs, hostnames, credentials, tokens) with deterministic
+semantic tokens (e.g. [[VRIKA:HOST:01]], [[VRIKA:IP:01]], [[VRIKA:SECRET:01]]) before LLM turns,
+and restores them via exact token replacement for UI streaming and report generation.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any, Dict, List, Optional, Tuple
+
+from app.redis_client import get_redis
+from app.services.presidio_service import detect_sensitive_entities
+
+logger = logging.getLogger(__name__)
+
+VAULT_REDIS_PREFIX = "vrika:vault:"
+VAULT_TTL_SECONDS = 3600  # 1 Hour TTL per session
+
+# In-process memory fallback cache in case Redis is temporarily disconnected
+_LOCAL_VAULT_CACHE: Dict[str, Dict[str, str]] = {}
+
+
+def _get_vault_key(session_id: str) -> str:
+    return f"{VAULT_REDIS_PREFIX}{session_id.strip()}"
+
+
+async def get_session_vault_map(session_id: str) -> Dict[str, str]:
+    """Retrieve {placeholder: original_value} mapping for a given session."""
+    if not session_id or not session_id.strip():
+        return {}
+
+    key = _get_vault_key(session_id)
+    try:
+        redis_client = get_redis()
+        raw = await redis_client.get(key)
+        if raw:
+            return json.loads(raw)
+    except Exception as exc:
+        logger.debug("Redis vault get failed for session %s: %s", session_id, exc)
+
+    return _LOCAL_VAULT_CACHE.get(session_id, {})
+
+
+async def save_session_vault_map(session_id: str, mapping: Dict[str, str]) -> None:
+    """Persist {placeholder: original_value} mapping in Redis with TTL and local cache."""
+    if not session_id or not session_id.strip():
+        return
+
+    _LOCAL_VAULT_CACHE[session_id] = mapping
+    key = _get_vault_key(session_id)
+    try:
+        redis_client = get_redis()
+        await redis_client.set(key, json.dumps(mapping), ex=VAULT_TTL_SECONDS)
+    except Exception as exc:
+        logger.debug("Redis vault set failed for session %s: %s", session_id, exc)
+
+
+def _allocate_placeholder(
+    category: str,
+    original_value: str,
+    vault_map: Dict[str, str],
+) -> str:
+    """Allocate or reuse a deterministic placeholder token for an entity in the session."""
+    cat = category.upper()
+    norm_val = original_value.strip()
+
+    # Check if this exact value already has a token in this session
+    for token, val in vault_map.items():
+        if val.strip() == norm_val and token.startswith(f"[[VRIKA:{cat}:"):
+            return token
+
+    # Count existing tokens in this category to determine next index
+    count = sum(1 for token in vault_map if token.startswith(f"[[VRIKA:{cat}:"))
+    token = f"[[VRIKA:{cat}:{count + 1:02d}]]"
+    vault_map[token] = norm_val
+    return token
+
+
+async def mask_tool_output(session_id: str, raw_text: str) -> str:
+    """
+    Scans raw security tool output (stdout, stderr, raw findings),
+    replaces all sensitive entities with deterministic [[VRIKA:...]] placeholders,
+    and updates the session vault.
+    """
+    if not raw_text or not raw_text.strip():
+        return raw_text
+
+    entities = await detect_sensitive_entities(raw_text)
+    if not entities:
+        return raw_text
+
+    vault_map = await get_session_vault_map(session_id)
+
+    # Sort spans in reverse order (right-to-left) to replace without offset invalidation
+    sorted_spans = sorted(entities, key=lambda x: x["start"], reverse=True)
+
+    masked_text = raw_text
+    for entity in sorted_spans:
+        start, end = entity["start"], entity["end"]
+        original = raw_text[start:end]
+        token = _allocate_placeholder(entity["category"], original, vault_map)
+        masked_text = masked_text[:start] + token + masked_text[end:]
+
+    await save_session_vault_map(session_id, vault_map)
+    return masked_text
+
+
+async def mask_messages_for_llm(
+    session_id: str,
+    messages: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Sanitizes all context messages before dispatching to the LLM.
+    Masks tool outputs, user inputs, and system snapshots.
+    """
+    if not messages:
+        return []
+
+    sanitized_messages: List[Dict[str, Any]] = []
+    for msg in messages:
+        content = msg.get("content")
+        role = msg.get("role")
+
+        if isinstance(content, str) and content.strip():
+            # Mask tool findings and user turns
+            masked_content = await mask_tool_output(session_id, content)
+            sanitized_messages.append({**msg, "content": masked_content})
+        else:
+            sanitized_messages.append(msg)
+
+    return sanitized_messages
+
+
+async def restore_llm_text(
+    session_id: str,
+    text: str,
+    policy: str = "full",
+) -> str:
+    """
+    Restores [[VRIKA:...]] semantic placeholders in LLM response or report back to real values.
+    policy='full': Restores all infrastructure, hostnames, IPs, and credentials.
+    policy='redact_secrets': Restores IPs and hostnames, but replaces SECRET placeholders with [REDACTED].
+    """
+    if not text or not text.strip():
+        return text
+
+    vault_map = await get_session_vault_map(session_id)
+    if not vault_map:
+        return text
+
+    restored = text
+    for token, original_value in vault_map.items():
+        if token in restored:
+            if policy == "redact_secrets" and token.startswith("[[VRIKA:SECRET:"):
+                restored = restored.replace(token, "[REDACTED_CREDENTIAL]")
+            else:
+                restored = restored.replace(token, original_value)
+
+    return restored
