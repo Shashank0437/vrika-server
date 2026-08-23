@@ -1059,6 +1059,18 @@ async def enrich_penetration_report_tool_args(
     if ui_ctx:
         out["ui_context"] = ui_ctx
     out["session_id"] = str(session_id)
+
+    # This tool call is dispatched directly to the agent's tool endpoint (not through
+    # llm-stream), which otherwise falls back to the agent's global LLM singleton — 503s
+    # when that singleton has no default provider configured, even though the org has a
+    # working per-org LLM config (same one llm-stream already resolves and uses).
+    try:
+        llm_cfg = await resolve_llm_config_for_org(db, settings, organization_id)
+        if llm_cfg:
+            out["llm_config"] = llm_cfg
+    except Exception as exc:
+        logger.warning("enrich_penetration_report_tool_args: failed to resolve org LLM config: %s", exc)
+
     return out
 
 
