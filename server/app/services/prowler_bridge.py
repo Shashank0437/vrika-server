@@ -23,6 +23,29 @@ from app.services import prowler_client
 _EMBED_NONCE_PREFIX = "prowler_embed:"
 _EMBED_TTL_SECONDS = 60
 
+_PROWLER_ADMIN_ROLE = "admin"
+_PROWLER_MEMBER_ROLE = "vrika_member"
+
+# Vrika owns user/account administration, so members never get those in Prowler.
+_PROWLER_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
+    _PROWLER_ADMIN_ROLE: {
+        "manage_users": True,
+        "manage_account": True,
+        "manage_providers": True,
+        "manage_integrations": True,
+        "manage_scans": True,
+        "unlimited_visibility": True,
+    },
+    _PROWLER_MEMBER_ROLE: {
+        "manage_users": False,
+        "manage_account": False,
+        "manage_providers": True,
+        "manage_integrations": True,
+        "manage_scans": True,
+        "unlimited_visibility": True,
+    },
+}
+
 
 class ProwlerBridgeError(Exception):
     def __init__(self, message: str):
@@ -214,6 +237,56 @@ async def _provision_first_org_user(
     }
 
 
+async def _resolve_prowler_role_ids(
+    settings: Settings,
+    *,
+    access_token: str,
+    vrika_roles: Any,
+) -> list[str]:
+    """Map the Vrika role onto a Prowler role, creating it once if missing."""
+    roles = vrika_roles if isinstance(vrika_roles, list) else []
+    target = (
+        _PROWLER_ADMIN_ROLE if "tenant_admin" in roles else _PROWLER_MEMBER_ROLE
+    )
+
+    existing = await _prowler_roles_by_name(settings, access_token=access_token)
+    if target in existing:
+        return [existing[target]]
+
+    try:
+        created = await prowler_client.create_role(
+            settings,
+            access_token=access_token,
+            name=target,
+            permissions=_PROWLER_ROLE_PERMISSIONS[target],
+        )
+    except prowler_client.ProwlerApiError:
+        # Another concurrent provision may have created it first.
+        existing = await _prowler_roles_by_name(settings, access_token=access_token)
+        if target in existing:
+            return [existing[target]]
+        raise
+
+    role_id = (created.get("data") or {}).get("id")
+    if not isinstance(role_id, str) or not role_id:
+        raise ProwlerBridgeError(f"Prowler role '{target}' creation returned no id")
+    return [role_id]
+
+
+async def _prowler_roles_by_name(
+    settings: Settings,
+    *,
+    access_token: str,
+) -> dict[str, str]:
+    by_name: dict[str, str] = {}
+    for role in await prowler_client.list_roles(settings, access_token=access_token):
+        role_id = role.get("id")
+        name = (role.get("attributes") or {}).get("name")
+        if isinstance(role_id, str) and isinstance(name, str):
+            by_name[name] = role_id
+    return by_name
+
+
 async def _provision_additional_org_user(
     db: AsyncIOMotorDatabase,
     settings: Settings,
@@ -248,6 +321,11 @@ async def _provision_additional_org_user(
         settings,
         access_token=owner_access,
         email=email,
+        role_ids=await _resolve_prowler_role_ids(
+            settings,
+            access_token=owner_access,
+            vrika_roles=user.get("roles"),
+        ),
     )
     inv_attrs = prowler_client.parse_json_api_attrs(invitation)
     invitation_token = inv_attrs.get("token")

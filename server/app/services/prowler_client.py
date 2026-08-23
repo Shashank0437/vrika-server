@@ -138,12 +138,54 @@ async def create_user(
     )
 
 
+async def list_roles(
+    settings: Settings,
+    *,
+    access_token: str,
+) -> list[dict[str, Any]]:
+    payload = await _request(
+        settings,
+        "GET",
+        "roles",
+        bearer=access_token,
+        params={"page[size]": "100"},
+    )
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, dict)]
+
+
+async def create_role(
+    settings: Settings,
+    *,
+    access_token: str,
+    name: str,
+    permissions: dict[str, bool],
+) -> dict[str, Any]:
+    return await _request(
+        settings,
+        "POST",
+        "roles",
+        bearer=access_token,
+        json_body={
+            "data": {
+                "type": "roles",
+                "attributes": {"name": name, **permissions},
+            }
+        },
+    )
+
+
 async def create_invitation(
     settings: Settings,
     *,
     access_token: str,
     email: str,
+    role_ids: list[str],
 ) -> dict[str, Any]:
+    if not role_ids:
+        raise ProwlerApiError("Cannot create a Prowler invitation without a role")
     return await _request(
         settings,
         "POST",
@@ -153,6 +195,13 @@ async def create_invitation(
             "data": {
                 "type": "invitations",
                 "attributes": {"email": email},
+                "relationships": {
+                    "roles": {
+                        "data": [
+                            {"type": "roles", "id": role_id} for role_id in role_ids
+                        ]
+                    }
+                },
             }
         },
     )
