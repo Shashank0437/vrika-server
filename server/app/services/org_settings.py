@@ -762,3 +762,26 @@ async def resolve_llm_config_for_org(
         "max_tokens": int(prov_doc.get("max_tokens", 4096)),
         "context_limit": prov_doc.get("context_limit"),
     }
+
+
+async def resolve_config_for_prowler_tenant(
+    db: AsyncIOMotorDatabase,
+    settings: Settings,
+    prowler_tenant_id: str,
+) -> dict[str, Any]:
+    """Resolve active configuration for a Prowler tenant ID."""
+    link = await db.prowler_tenant_links.find_one({"prowler_tenant_id": prowler_tenant_id})
+    org_id = None
+    if link:
+        org_id = link.get("vrika_organization_id")
+    else:
+        u_link = await db.prowler_user_links.find_one({"prowler_tenant_id": prowler_tenant_id})
+        if u_link:
+            org_id = u_link.get("vrika_organization_id")
+
+    if not org_id:
+        return {}
+
+    llm_cfg = await resolve_llm_config_for_org(db, settings, org_id)
+    return {"llm": llm_cfg} if llm_cfg else {}
+
