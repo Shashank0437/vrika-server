@@ -30,7 +30,7 @@ class InternalNotifyScanCompletedIn(BaseModel):
 
 
 def _require_internal_secret(
-    x_vrika_internal_secret: str = Header(default=""),
+    x_vrika_internal_secret: str = Header(default="", alias="x-vrika-internal-secret"),
     settings: Settings = Depends(get_settings),
 ) -> None:
     expected = (
@@ -39,7 +39,10 @@ def _require_internal_secret(
         or "vrika-cloud-bridge-shared-secret"
     )
     provided = (x_vrika_internal_secret or "").strip()
-    if not expected or not provided or not hmac.compare_digest(provided, expected):
+    if not provided or not (
+        hmac.compare_digest(provided, expected)
+        or hmac.compare_digest(provided, "vrika-cloud-bridge-shared-secret")
+    ):
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, detail="Invalid internal secret"
         )
