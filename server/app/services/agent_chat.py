@@ -1058,6 +1058,7 @@ async def enrich_penetration_report_tool_args(
     out["session_transcript"] = transcript
     if ui_ctx:
         out["ui_context"] = ui_ctx
+    out["session_id"] = str(session_id)
     return out
 
 
@@ -1186,6 +1187,7 @@ async def insert_message(
     tool_name: str | None = None,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    turn_id: str | None = None,
 ) -> ObjectId:
     doc: dict[str, Any] = {
         "organization_id": organization_id,
@@ -1202,6 +1204,11 @@ async def insert_message(
         doc["tool_call"] = tool_call
     if tool_calls is not None:
         doc["tool_calls"] = tool_calls
+    if turn_id:
+        # Langfuse trace id for the user message that produced this tool call, so a later
+        # tool-confirm/reject/batch-execute request (a separate HTTP call) can reuse the same
+        # trace instead of minting a new, disconnected one for the approval + follow-up.
+        doc["turn_id"] = turn_id
     if batch_execution_state:
         doc["batch_execution_state"] = batch_execution_state
     if llm_messages_snapshot is not None:
@@ -1689,7 +1696,11 @@ async def maybe_refresh_conversation_summary(
         out = await agent_post_json(
             settings,
             "api/cipherstrike/llm-chat",
-            {"messages": summarizer_messages},
+            {
+                "messages": summarizer_messages,
+                "session_id": str(session_id),
+                "purpose": "conversation_summary",
+            },
             timeout_seconds=settings.agent_timeout_seconds,
         )
     except AgentUnreachableError:
@@ -2250,6 +2261,8 @@ async def plan_router_turn(
     user_message: str,
     explicit_tool_names: list[str] | None = None,
     rows: list[dict[str, Any]] | None = None,
+    session_id: ObjectId | str | None = None,
+    turn_id: str | None = None,
 ) -> RouterTurnResult:
     """Vrika router — replaces classify-task; returns schemas for main LLM or conversational branch."""
     meta: dict[str, Any] = {}
@@ -2285,6 +2298,10 @@ async def plan_router_turn(
                 "tools": router_catalog_pick,
                 "max_tool_names": settings.agent_router_max_tools,
             }
+            if session_id:
+                route_intent_pick_payload["session_id"] = str(session_id)
+            if turn_id:
+                route_intent_pick_payload["turn_id"] = turn_id
             pick_context = _build_router_context(
                 rows, current_user_message=user_message
             )
@@ -2373,6 +2390,10 @@ async def plan_router_turn(
             "tools": router_catalog,
             "max_tool_names": settings.agent_router_max_tools,
         }
+        if session_id:
+            route_intent_payload["session_id"] = str(session_id)
+        if turn_id:
+            route_intent_payload["turn_id"] = turn_id
         if router_context:
             route_intent_payload["context"] = router_context
         raw_route = await agent_post_json(
@@ -2470,6 +2491,8 @@ async def maybe_upgrade_router_result_for_llm(
     user_message: str,
     explicit_tool_names: list[str] | None,
     rt: RouterTurnResult,
+    session_id: ObjectId | str | None = None,
+    turn_id: str | None = None,
 ) -> RouterTurnResult:
     """Re-route or attach fallback schemas when the first router pass would stream the LLM without tool schemas."""
     if _looks_like_tool_pick_question(user_message):
@@ -2504,6 +2527,8 @@ async def maybe_upgrade_router_result_for_llm(
         user_message=augmented,
         explicit_tool_names=explicit_tool_names,
         rows=rows,
+        session_id=session_id,
+        turn_id=turn_id,
     )
     if rt2.intent == "operational" and rt2.schemas:
         meta.update(rt2.meta or {})
@@ -2559,6 +2584,7 @@ async def stream_cipherstrike_turn(
     routing: dict[str, Any] | None = None,
     batch_only_tool_names: frozenset[str] | None = None,
     batch_exclude_tool_names: frozenset[str] | None = None,
+    turn_id: str | None = None,
 ) -> AsyncIterator[str]:
     """
     Forward SSE from NyxStrike cipherstrike bridge and persist assistant message on completion.
@@ -2582,7 +2608,9 @@ async def stream_cipherstrike_turn(
 
     masked_messages = await mask_messages_for_llm(str(session_id), llm_messages)
     path = "api/cipherstrike/llm-stream"
-    body: dict[str, Any] = {"messages": masked_messages}
+    body: dict[str, Any] = {"messages": masked_messages, "session_id": str(session_id)}
+    if turn_id:
+        body["turn_id"] = turn_id
     if tool_schemas:
         body["schemas"] = tool_schemas
 
@@ -2682,6 +2710,7 @@ async def stream_cipherstrike_turn(
                             carry_thinking=carry_pre_tool_thinking,
                             tool_schemas=tool_schemas,
                             auto_accept_tools=auto_accept_tools,
+                            turn_id=turn_id,
                         ):
                             yield line
                         skip_outer_yield = True
@@ -2705,6 +2734,7 @@ async def stream_cipherstrike_turn(
                             llm_tool_schemas=tool_schemas,
                             input_tokens=actual_input_tokens,
                             output_tokens=actual_output_tokens,
+                            turn_id=turn_id,
                         )
                         tool_pending_persisted = True
                         thinking_chunks.clear()
@@ -2801,6 +2831,7 @@ async def stream_cipherstrike_turn(
                             llm_tool_schemas=tool_schemas,
                             input_tokens=actual_input_tokens,
                             output_tokens=actual_output_tokens,
+                            turn_id=turn_id,
                         )
                         tool_pending_persisted = True
                         thinking_chunks.clear()
@@ -3234,6 +3265,7 @@ async def execute_tool_slots_follow_up(
     tool_schemas: list[dict[str, Any]] | None = None,
     auto_accept_tools: bool = False,
     routing: dict[str, Any] | None = None,
+    turn_id: str | None = None,
 ) -> AsyncIterator[str]:
     """Persist executions for each slot (approve/reject/blocked), optionally patch batch parent row, stream LLM follow-up."""
     needs_exec = any(
@@ -3902,6 +3934,7 @@ async def execute_tool_slots_follow_up(
         batch_exclude_tool_names=frozenset(ran_tool_names_lower)
         if ran_tool_names_lower
         else None,
+        turn_id=turn_id,
     ):
         yield chunk
 
@@ -4231,6 +4264,7 @@ async def stream_execute_tool_batch(
         tenant_roles=tenant_roles,
         batch_message_id=message_id,
         routing=msg.get("routing") if isinstance(msg.get("routing"), dict) else None,
+        turn_id=str(msg.get("turn_id") or "") or None,
     ):
         yield chunk
 
@@ -4250,6 +4284,7 @@ async def stream_follow_up_after_tool(
     routing: dict[str, Any] | None = None,
     batch_only_tool_names: frozenset[str] | None = None,
     batch_exclude_tool_names: frozenset[str] | None = None,
+    turn_id: str | None = None,
 ) -> AsyncIterator[str]:
     """Post-tool LLM stream; handles further tool calls like the primary agent stream."""
     roles = list(tenant_roles or [])
@@ -4283,7 +4318,9 @@ async def stream_follow_up_after_tool(
         return
 
     timeout = settings.agent_llm_stream_timeout_seconds
-    body: dict[str, Any] = {"messages": llm_messages}
+    body: dict[str, Any] = {"messages": llm_messages, "session_id": str(session_id)}
+    if turn_id:
+        body["turn_id"] = turn_id
     if tool_schemas:
         body["schemas"] = tool_schemas
     if batch_only_tool_names:
@@ -4468,6 +4505,7 @@ async def stream_follow_up_after_tool(
                             carry_thinking=carry_pre,
                             tool_schemas=tool_schemas,
                             auto_accept_tools=auto_accept_tools,
+                            turn_id=turn_id,
                         ):
                             yield line
                         skip_outer_yield = True
@@ -4496,6 +4534,7 @@ async def stream_follow_up_after_tool(
                             llm_tool_schemas=tool_schemas,
                             input_tokens=actual_input_tokens,
                             output_tokens=actual_output_tokens,
+                            turn_id=turn_id,
                         )
                         tool_pending_persisted = True
                         thinking_chunks.clear()
@@ -4618,6 +4657,7 @@ async def stream_follow_up_after_tool(
                             llm_tool_schemas=tool_schemas,
                             input_tokens=actual_input_tokens,
                             output_tokens=actual_output_tokens,
+                            turn_id=turn_id,
                         )
                         tool_pending_persisted = True
                         thinking_chunks.clear()

@@ -491,7 +491,10 @@ def build_ai_context(session_doc: dict[str, Any], rows: list[dict[str, Any]]) ->
 
 
 async def extract_ai_intelligence(
-    settings: Settings, session_doc: dict[str, Any], rows: list[dict[str, Any]]
+    settings: Settings,
+    session_doc: dict[str, Any],
+    rows: list[dict[str, Any]],
+    session_id: Any = None,
 ) -> dict[str, Any] | None:
     context = build_ai_context(session_doc, rows)
     prompt = (
@@ -507,7 +510,11 @@ async def extract_ai_intelligence(
         resp = await agent_post_json(
             settings,
             "api/cipherstrike/llm-chat",
-            {"messages": [{"role": "user", "content": prompt}]},
+            {
+                "messages": [{"role": "user", "content": prompt}],
+                "session_id": str(session_id) if session_id else None,
+                "purpose": "session_intelligence",
+            },
             timeout_seconds=min(
                 float(getattr(settings, "agent_route_intent_timeout_seconds", 60.0)),
                 90.0,
@@ -558,7 +565,9 @@ async def recalculate_session_intelligence(
         .to_list(length=200)
     )
     ai_payload = (
-        await extract_ai_intelligence(settings, session_doc, rows) if use_ai else None
+        await extract_ai_intelligence(settings, session_doc, rows, session_id=session_id)
+        if use_ai
+        else None
     )
     intel = derive_session_intelligence(session_doc, rows, ai_payload=ai_payload)
     if intel is None:

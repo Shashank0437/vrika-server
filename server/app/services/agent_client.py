@@ -4,12 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import codecs
+import time
 from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 
 from app.config import Settings
+
+# Short-lived cache for /health + /api/tools so a single chat turn (which may consult
+# the catalog several times: runnable-tool check, router pass, router "upgrade" retry,
+# fallback) doesn't refetch and re-serialize the full tool catalog on every call.
+_HEALTH_CATALOG_CACHE_TTL_SECONDS = 8.0
+_health_catalog_cache: dict[str, tuple[float, dict[str, Any], dict[str, Any]]] = {}
+_health_catalog_cache_lock = asyncio.Lock()
 
 # Raw read size for SSE relay. httpx's ``aiter_text()`` wraps ``aiter_bytes()`` which calls
 # ``aiter_raw()`` with no chunk_size, so each iteration may match a large TCP/TLS read and
@@ -51,13 +59,23 @@ def _headers(settings: Settings) -> dict[str, str]:
 
 
 async def fetch_agent_health_and_catalog(
-    settings: Settings,
+    settings: Settings, *, force_refresh: bool = False
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     base = _normalized_base(settings)
     if not base:
         raise AgentUnreachableError(
             "Agent URL is empty (set AGENT_MICROSERVICE_URL or AGENT_BASE_URL)"
         )
+
+    async with _health_catalog_cache_lock:
+        cached = _health_catalog_cache.get(base)
+        if (
+            not force_refresh
+            and cached is not None
+            and (time.monotonic() - cached[0]) < _HEALTH_CATALOG_CACHE_TTL_SECONDS
+        ):
+            return cached[1], cached[2]
+
     timeout = httpx.Timeout(settings.agent_timeout_seconds)
     headers = _headers(settings)
     try:
@@ -81,7 +99,10 @@ async def fetch_agent_health_and_catalog(
         raise AgentUnreachableError(
             f"Agent /api/tools returned HTTP {catalog_r.status_code}"
         )
-    return health_r.json(), catalog_r.json()
+    health, catalog = health_r.json(), catalog_r.json()
+    async with _health_catalog_cache_lock:
+        _health_catalog_cache[base] = (time.monotonic(), health, catalog)
+    return health, catalog
 
 
 # Categories implemented on the Vrika server (no host binary) — same default as workspace tool cards

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
 from typing import Any, AsyncIterator
 
 from bson import ObjectId
@@ -973,9 +974,23 @@ async def post_message_stream(
         explicit_tools.append(n)
 
     async def gen():
+        # One id per user message, threaded through route-intent, the tool-call llm-stream
+        # call, and the post-tool follow-up llm-stream call so all three nest as spans under
+        # ONE Langfuse trace for this turn instead of three separate session-linked traces.
+        turn_id = f"{sid}:{uuid.uuid4().hex[:12]}"
         # Send bytes immediately so the browser/proxy leaves "pending (0 B)" before router + agent work.
         yield ": stream-open\n\n"
         try:
+            # fetch_runnable_tool_name_set has no dependency on chat history/session state —
+            # start it alongside the Mongo history read instead of after several sequential
+            # awaits that don't produce any of its inputs.
+            available_for_chain_task = asyncio.ensure_future(
+                fetch_runnable_tool_name_set(
+                    settings,
+                    db,
+                    organization_id=user["organization_id"],
+                )
+            )
             rows = await list_messages(
                 db,
                 organization_id=user["organization_id"],
@@ -1044,11 +1059,7 @@ async def post_message_stream(
                     retry_rejected_tools_system_note(retry_rejected)
                 )
             ac_sess = (sess_fresh or {}).get("attack_chain")
-            available_for_chain = await fetch_runnable_tool_name_set(
-                settings,
-                db,
-                organization_id=user["organization_id"],
-            )
+            available_for_chain = await available_for_chain_task
             if isinstance(ac_sess, dict) and ac_sess.get("sequential"):
                 hint = attack_chain_execution_hint(
                     sess_fresh or {},
@@ -1155,6 +1166,8 @@ async def post_message_stream(
                     user_message=user_msg,
                     explicit_tool_names=explicit_arg,
                     rows=rows,
+                    session_id=sid,
+                    turn_id=turn_id,
                 )
             except Exception:
                 logger.exception("plan_router_turn")
@@ -1168,6 +1181,8 @@ async def post_message_stream(
                 user_message=user_msg,
                 explicit_tool_names=explicit_arg,
                 rt=rt,
+                session_id=sid,
+                turn_id=turn_id,
             )
 
             if specialist_session_blocks_tools(sess_fresh or {}, user_msg):
@@ -1225,6 +1240,7 @@ async def post_message_stream(
                 routing=routing_hints_from_plan_meta(rt.meta),
                 batch_only_tool_names=batch_only,
                 batch_exclude_tool_names=batch_exclude,
+                turn_id=turn_id,
             ):
                 yield chunk
         except AgentUnreachableError as e:
@@ -1453,6 +1469,7 @@ async def tool_confirm_stream(
                     llm_messages=follow_msgs,
                     tool_schemas=pruned_schemas,
                     batch_exclude_tool_names=frozenset({rejected_name_lower}),
+                    turn_id=str(msg.get("turn_id") or "") or None,
                 ):
                     yield chunk
                 return
@@ -1787,6 +1804,7 @@ async def tool_confirm_stream(
                 tool_schemas=follow_schemas,
                 batch_only_tool_names=follow_batch_only,
                 batch_exclude_tool_names=frozenset({ran_tool_lower}),
+                turn_id=str(msg.get("turn_id") or "") or None,
             ):
                 yield chunk
         except AgentUnreachableError as e:
