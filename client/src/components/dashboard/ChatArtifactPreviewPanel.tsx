@@ -111,12 +111,12 @@ export function ChatArtifactPreviewPanel({
     <div
       className={
         isFullscreen
-          ? "fixed inset-0 z-50 flex flex-col bg-surface-container-lowest transition-all duration-300"
-          : "flex h-full w-full flex-col border-l border-outline-variant/70 bg-surface-container-lowest transition-all duration-300 lg:w-[48%] xl:w-[50%]"
+          ? "fixed inset-0 z-50 flex flex-col bg-surface-container-low transition-all duration-300"
+          : "flex h-full w-full flex-col bg-surface-container-low transition-all duration-300 lg:w-[48%] xl:w-[50%]"
       }
     >
       {/* Panel Header */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant/60 bg-surface-container-lowest px-4 py-3 sm:px-5">
+      <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
         {/* Left: Clean Document Title */}
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[13px] font-semibold text-on-surface" title={title}>
@@ -131,7 +131,7 @@ export function ChatArtifactPreviewPanel({
           <button
             type="button"
             onClick={handleDownload}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
             title="Download PDF"
           >
             <Download className="h-4 w-4" />
@@ -141,7 +141,7 @@ export function ChatArtifactPreviewPanel({
           <button
             type="button"
             onClick={handleOpenNewTab}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
             title="Open in new tab"
           >
             <ExternalLink className="h-4 w-4" />
@@ -152,7 +152,7 @@ export function ChatArtifactPreviewPanel({
             <button
               type="button"
               onClick={onToggleFullscreen}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
               title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
               {isFullscreen ? (
@@ -167,7 +167,7 @@ export function ChatArtifactPreviewPanel({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
             title="Close"
           >
             <X className="h-4 w-4" />
@@ -175,17 +175,17 @@ export function ChatArtifactPreviewPanel({
         </div>
       </div>
 
-      {/* Panel Body - Clean full bleed viewer with pure white background */}
-      <div className="relative min-h-0 flex-1 bg-white">
+      {/* Panel Body - floating document card, framed by breathing room like Gemini's preview */}
+      <div className="relative min-h-0 flex-1 overflow-auto px-4 pb-4 sm:px-6 sm:pb-6">
         {loading ? (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center bg-white">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
             <Loader2 className="h-7 w-7 animate-spin text-primary" />
             <p className="text-[13px] font-medium text-on-surface-variant">
               Loading PDF report preview…
             </p>
           </div>
         ) : error ? (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6 text-center bg-white">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-error/12 text-error">
               <AlertCircle className="h-6 w-6" />
             </div>
@@ -213,11 +213,13 @@ export function ChatArtifactPreviewPanel({
             </div>
           </div>
         ) : blobUrl ? (
-          <iframe
-            src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
-            className="h-full w-full border-0 bg-white"
-            title={attachment.filename || "PDF Report Preview"}
-          />
+          <div className="relative mx-auto h-full w-full max-w-4xl overflow-hidden rounded-2xl border border-outline-variant/50 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)]">
+            <iframe
+              src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+              className="h-full w-full border-0 bg-white"
+              title={attachment.filename || "PDF Report Preview"}
+            />
+          </div>
         ) : null}
       </div>
     </div>
