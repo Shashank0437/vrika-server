@@ -44,6 +44,8 @@ services:
       - ./server/.env
     volumes:
       - ./binary:/binary
+      - ./server/app:/app/app
+
     environment:
       MONGODB_URI: mongodb://mongo:27017
       REDIS_URL: redis://redis:6379/0
