@@ -1,41 +1,57 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Cloud Security Scan Complete</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Vrika Security Audit — Scan Completed</title>
+    <!--[if mso]>
+    <style type="text/css">
+      body, table, td {font-family: Arial, Helvetica, sans-serif !important;}
+    </style>
+    <![endif]-->
   </head>
-  <body style="margin:0;padding:0;background-color:#f1f5f9;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;line-height:1.6;">
-    <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0">{{ preheader | default('Cloud Security Scan Completed — Executive Summary & Full Technical Reports Ready') }}</span>
-    
-    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f1f5f9;padding:40px 16px;">
+  <body style="margin:0;padding:0;background-color:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#1e293b;line-height:1.5;-webkit-font-smoothing:antialiased;">
+    <span style="display:none!important;visibility:hidden;mso-hide:all;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+      {{ preheader | default('Cloud security posture evaluation complete. Executive and technical finding reports ready.') }}
+    </span>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f4f6f8;padding:32px 16px;">
       <tr>
         <td align="center">
-          <!-- Main Card Container -->
-          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:620px;background:#ffffff;border-radius:18px;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(15,23,42,0.06);overflow:hidden;">
+          
+          <!-- Master Container -->
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:580px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.04),0 6px 16px rgba(0,0,0,0.03);overflow:hidden;">
             
-            <!-- Top Gradient Accent Line -->
+            <!-- Top Enterprise Indigo Line -->
             <tr>
-              <td style="height:6px;background:linear-gradient(90deg,#6366f1 0%,#8b5cf6 50%,#ec4899 100%);"></td>
+              <td style="height:3px;background-color:#4f46e5;"></td>
             </tr>
 
-            <!-- Header Section -->
+            <!-- Header & Brand Navigation -->
             <tr>
-              <td style="padding:32px 32px 20px;">
+              <td style="padding:28px 32px 20px;">
                 <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
                   <tr>
-                    <td>
-                      <div style="font-size:11px;letter-spacing:0.25em;text-transform:uppercase;color:#6366f1;font-weight:800;">VRIKA CLOUD SECURITY</div>
-                      <h1 style="margin:8px 0 4px;font-size:24px;line-height:1.25;font-weight:800;color:#0f172a;letter-spacing:-0.02em;">
-                        Cloud Scan &amp; Compliance Complete
-                      </h1>
-                      <p style="margin:0;font-size:14px;color:#64748b;">
-                        Audit finished for <strong style="color:#0f172a;">{{ organization_name }}</strong>. Reports and findings are available below.
-                      </p>
+                    <td valign="middle">
+                      <table role="presentation" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#4f46e5;">
+                            VRIKA CLOUD SECURITY
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding-top:4px;">
+                            <h1 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;letter-spacing:-0.01em;line-height:1.3;">
+                              Security Audit Completed
+                            </h1>
+                          </td>
+                        </tr>
+                      </table>
                     </td>
-                    <td align="right" valign="top" style="padding-left:16px;">
-                      <span style="display:inline-block;padding:6px 14px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:999px;font-size:11px;font-weight:800;color:#059669;text-transform:uppercase;letter-spacing:0.06em;">
-                        ● Completed
+                    <td align="right" valign="top">
+                      <span style="display:inline-block;padding:4px 10px;background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;font-size:11px;font-weight:600;color:#166534;letter-spacing:0.02em;">
+                        PASSED
                       </span>
                     </td>
                   </tr>
@@ -43,122 +59,126 @@
               </td>
             </tr>
 
-            <!-- Metadata Banner -->
+            <!-- Audit Context Meta Grid -->
             <tr>
-              <td style="padding:0 32px 24px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;">
+              <td style="padding:0 32px 20px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 16px;">
                   <tr>
-                    <td style="font-size:13px;color:#475569;">
-                      <div><strong style="color:#0f172a;">Cloud Provider:</strong> {{ provider | upper }}</div>
-                      <div style="margin-top:4px;"><strong style="color:#0f172a;">Target Account:</strong> {{ account_id }} {% if account_name %}({{ account_name }}){% endif %}</div>
+                    <td width="55%" style="font-size:12px;color:#475569;line-height:1.6;">
+                      <div><span style="color:#64748b;">Organization:</span> <strong style="color:#0f172a;">{{ organization_name }}</strong></div>
+                      <div style="margin-top:2px;">
+                        <span style="color:#64748b;">Target Account:</span> 
+                        <strong style="color:#0f172a;">{{ provider | upper }} • {{ account_id }}</strong>
+                        {% if account_name and account_name != 'None' %}<span style="color:#64748b;"> ({{ account_name }})</span>{% endif %}
+                      </div>
                     </td>
-                    <td align="right" style="font-size:12px;color:#64748b;">
-                      <div><strong>Scan ID:</strong> {{ scan_id }}</div>
-                      <div style="margin-top:4px;">{{ completed_at | default('Just now') }}</div>
+                    <td width="45%" align="right" valign="top" style="font-size:11px;color:#64748b;line-height:1.6;">
+                      <div>Scan ID: <span style="font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#334155;">{{ scan_id[:13] }}</span></div>
+                      <div style="margin-top:2px;">{{ completed_at | default('Just now') }}</div>
                     </td>
                   </tr>
                 </table>
               </td>
             </tr>
 
-            <!-- Executive KPI Summary (3-column cards) -->
+            <!-- Executive KPI Row (Clean Divided Bar) -->
             <tr>
               <td style="padding:0 32px 24px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e2e8f0;border-radius:6px;background-color:#ffffff;text-align:center;">
                   <tr>
                     <!-- Compliance Score -->
-                    <td width="31%" style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:14px;padding:18px 12px;text-align:center;">
-                      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#7e22ce;">Compliance Score</div>
-                      <div style="font-size:30px;font-weight:900;color:{% if compliance_score >= 80 %}#059669{% elif compliance_score >= 60 %}#d97706{% else %}#dc2626{% endif %};margin-top:6px;">
+                    <td width="33%" style="padding:14px 10px;">
+                      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;">Compliance Score</div>
+                      <div style="font-size:24px;font-weight:700;color:{% if compliance_score >= 80 %}#16a34a{% elif compliance_score >= 60 %}#d97706{% else %}#dc2626{% endif %};margin-top:2px;">
                         {{ compliance_score }}%
                       </div>
-                      <div style="font-size:11px;color:#6b21a8;margin-top:4px;">CIS / NIST Benchmark</div>
+                      <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Benchmark Posture</div>
                     </td>
-                    <td width="3%"></td>
-                    <!-- Scanned Resources -->
-                    <td width="31%" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:14px;padding:18px 12px;text-align:center;">
-                      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#0369a1;">Audited Assets</div>
-                      <div style="font-size:30px;font-weight:900;color:#0284c7;margin-top:6px;">
+                    <td width="1" style="background-color:#e2e8f0;"></td>
+                    <!-- Scanned Assets -->
+                    <td width="33%" style="padding:14px 10px;">
+                      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;">Evaluated Assets</div>
+                      <div style="font-size:24px;font-weight:700;color:#0f172a;margin-top:2px;">
                         {{ scanned_resources | default(0) }}
                       </div>
-                      <div style="font-size:11px;color:#075985;margin-top:4px;">Cloud Resources</div>
+                      <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Total Resources</div>
                     </td>
-                    <td width="3%"></td>
-                    <!-- Critical Risks -->
-                    <td width="31%" style="background:#fef2f2;border:1px solid #fecaca;border-radius:14px;padding:18px 12px;text-align:center;">
-                      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#991b1b;">Critical / High</div>
-                      <div style="font-size:30px;font-weight:900;color:#dc2626;margin-top:6px;">
-                        {{ (findings.critical | default(0)) + (findings.high | default(0)) }}
+                    <td width="1" style="background-color:#e2e8f0;"></td>
+                    <!-- Critical / High Findings -->
+                    {% set crit = findings.critical | default(0) %}
+                    {% set high = findings.high | default(0) %}
+                    {% set med = findings.medium | default(0) %}
+                    {% set low = findings.low | default(0) %}
+                    <td width="33%" style="padding:14px 10px;">
+                      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;">Critical / High</div>
+                      <div style="font-size:24px;font-weight:700;color:{% if (crit + high) > 0 %}#dc2626{% else %}#16a34a{% endif %};margin-top:2px;">
+                        {{ crit + high }}
                       </div>
-                      <div style="font-size:11px;color:#b91c1c;margin-top:4px;">Immediate Action</div>
+                      <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Requires Action</div>
                     </td>
                   </tr>
                 </table>
               </td>
             </tr>
 
-            <!-- Finding Severity Distribution Bar Chart & Table -->
+            <!-- Findings Severity Section -->
             <tr>
-              <td style="padding:0 32px 24px;">
-                <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#0f172a;margin-bottom:12px;">
-                  Findings Severity Breakdown
+              <td style="padding:0 32px 20px;">
+                <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#0f172a;margin-bottom:8px;">
+                  Finding Severity Distribution
                 </div>
-                
-                <!-- Visual Stacked Bar Chart -->
-                {% set crit = findings.critical | default(0) %}
-                {% set high = findings.high | default(0) %}
-                {% set med = findings.medium | default(0) %}
-                {% set low = findings.low | default(0) %}
+
+                <!-- Sleek Proportional Bar -->
                 {% set total_fails = crit + high + med + low %}
                 {% if total_fails > 0 %}
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="height:12px;border-radius:6px;overflow:hidden;margin-bottom:16px;background:#e2e8f0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="height:6px;border-radius:3px;overflow:hidden;margin-bottom:12px;background-color:#f1f5f9;">
                   <tr>
-                    {% if crit > 0 %}<td width="{{ (crit / total_fails * 100) | round }}%" style="background:#dc2626;"></td>{% endif %}
-                    {% if high > 0 %}<td width="{{ (high / total_fails * 100) | round }}%" style="background:#ea580c;"></td>{% endif %}
-                    {% if med > 0 %}<td width="{{ (med / total_fails * 100) | round }}%" style="background:#d97706;"></td>{% endif %}
-                    {% if low > 0 %}<td width="{{ (low / total_fails * 100) | round }}%" style="background:#3b82f6;"></td>{% endif %}
+                    {% if crit > 0 %}<td width="{{ (crit / total_fails * 100) | round }}%" style="background-color:#dc2626;"></td>{% endif %}
+                    {% if high > 0 %}<td width="{{ (high / total_fails * 100) | round }}%" style="background-color:#ea580c;"></td>{% endif %}
+                    {% if med > 0 %}<td width="{{ (med / total_fails * 100) | round }}%" style="background-color:#d97706;"></td>{% endif %}
+                    {% if low > 0 %}<td width="{{ (low / total_fails * 100) | round }}%" style="background-color:#64748b;"></td>{% endif %}
                   </tr>
                 </table>
                 {% endif %}
 
-                <!-- Detailed Severity Cards -->
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;border-collapse:collapse;">
-                  <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
-                    <th align="left" style="padding:10px 16px;font-size:12px;color:#475569;font-weight:700;">Severity Level</th>
-                    <th align="right" style="padding:10px 16px;font-size:12px;color:#475569;font-weight:700;">Findings Count</th>
-                    <th align="right" style="padding:10px 16px;font-size:12px;color:#475569;font-weight:700;">Action Required</th>
+                <!-- Detailed Table -->
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e2e8f0;border-radius:6px;border-collapse:collapse;font-size:12px;">
+                  <tr style="background-color:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                    <th align="left" style="padding:8px 12px;font-weight:600;color:#475569;">Severity</th>
+                    <th align="right" style="padding:8px 12px;font-weight:600;color:#475569;">Count</th>
+                    <th align="right" style="padding:8px 12px;font-weight:600;color:#475569;">Remediation SLA</th>
                   </tr>
                   <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:10px 16px;font-size:13px;color:#0f172a;">
-                      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#dc2626;margin-right:8px;"></span>
-                      <strong>Critical</strong>
+                    <td style="padding:8px 12px;color:#0f172a;">
+                      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background-color:#dc2626;margin-right:6px;vertical-align:middle;"></span>
+                      Critical
                     </td>
-                    <td align="right" style="padding:10px 16px;font-size:13px;font-weight:800;color:#dc2626;">{{ crit }}</td>
-                    <td align="right" style="padding:10px 16px;font-size:12px;color:#991b1b;font-weight:600;">Fix within 24h</td>
+                    <td align="right" style="padding:8px 12px;font-weight:600;color:#dc2626;">{{ crit }}</td>
+                    <td align="right" style="padding:8px 12px;color:#64748b;">Within 24 hours</td>
                   </tr>
                   <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:10px 16px;font-size:13px;color:#0f172a;">
-                      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ea580c;margin-right:8px;"></span>
-                      <strong>High</strong>
+                    <td style="padding:8px 12px;color:#0f172a;">
+                      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background-color:#ea580c;margin-right:6px;vertical-align:middle;"></span>
+                      High
                     </td>
-                    <td align="right" style="padding:10px 16px;font-size:13px;font-weight:800;color:#ea580c;">{{ high }}</td>
-                    <td align="right" style="padding:10px 16px;font-size:12px;color:#c2410c;font-weight:600;">Fix within 7d</td>
+                    <td align="right" style="padding:8px 12px;font-weight:600;color:#ea580c;">{{ high }}</td>
+                    <td align="right" style="padding:8px 12px;color:#64748b;">Within 7 days</td>
                   </tr>
                   <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:10px 16px;font-size:13px;color:#0f172a;">
-                      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#d97706;margin-right:8px;"></span>
-                      <strong>Medium</strong>
+                    <td style="padding:8px 12px;color:#0f172a;">
+                      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background-color:#d97706;margin-right:6px;vertical-align:middle;"></span>
+                      Medium
                     </td>
-                    <td align="right" style="padding:10px 16px;font-size:13px;font-weight:800;color:#d97706;">{{ med }}</td>
-                    <td align="right" style="padding:10px 16px;font-size:12px;color:#b45309;font-weight:600;">Fix within 30d</td>
+                    <td align="right" style="padding:8px 12px;font-weight:600;color:#d97706;">{{ med }}</td>
+                    <td align="right" style="padding:8px 12px;color:#64748b;">Within 30 days</td>
                   </tr>
                   <tr>
-                    <td style="padding:10px 16px;font-size:13px;color:#0f172a;">
-                      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#3b82f6;margin-right:8px;"></span>
-                      <strong>Low / Informational</strong>
+                    <td style="padding:8px 12px;color:#0f172a;">
+                      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background-color:#64748b;margin-right:6px;vertical-align:middle;"></span>
+                      Low / Informational
                     </td>
-                    <td align="right" style="padding:10px 16px;font-size:13px;font-weight:800;color:#3b82f6;">{{ low }}</td>
-                    <td align="right" style="padding:10px 16px;font-size:12px;color:#1d4ed8;font-weight:600;">Monitor / Review</td>
+                    <td align="right" style="padding:8px 12px;font-weight:600;color:#334155;">{{ low }}</td>
+                    <td align="right" style="padding:8px 12px;color:#64748b;">Periodic Review</td>
                   </tr>
                 </table>
               </td>
@@ -166,17 +186,16 @@
 
             <!-- Attached Reports Section -->
             <tr>
-              <td style="padding:0 32px 28px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px 20px;">
+              <td style="padding:0 32px 24px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 16px;">
                   <tr>
-                    <td valign="top" width="32" style="padding-right:12px;">
-                      <div style="font-size:22px;">📎</div>
-                    </td>
                     <td>
-                      <div style="font-size:14px;font-weight:800;color:#4c1d95;">Attached Security Reports (2 PDFs)</div>
-                      <div style="font-size:13px;color:#6d28d9;margin-top:4px;">
-                        1. <strong>Executive Summary Report</strong> (C-level posture, compliance score, top risks)<br />
-                        2. <strong>Full Technical Findings Report</strong> (Full finding catalog with remediation commands)
+                      <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#475569;">
+                        ATTACHED AUDIT ARTIFACTS
+                      </div>
+                      <div style="font-size:12px;color:#334155;margin-top:6px;line-height:1.6;">
+                        • <strong>Executive Summary Report</strong> (High-level posture &amp; risk summary)<br />
+                        • <strong>Full Technical Findings Report</strong> (Detailed checks &amp; remediation scripts)
                       </div>
                     </td>
                   </tr>
@@ -184,24 +203,26 @@
               </td>
             </tr>
 
-            <!-- CTA Action Button -->
+            <!-- Primary Action CTA Button -->
             <tr>
-              <td align="center" style="padding:0 32px 36px;">
-                <a href="{{ dashboard_url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:14px;font-weight:800;letter-spacing:0.02em;box-shadow:0 4px 14px rgba(79,70,229,0.3);">
-                  Open Cloud Security Workspace →
-                </a>
+              <td align="center" style="padding:0 32px 32px;">
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center" style="background-color:#0f172a;border-radius:6px;">
+                      <a href="{{ dashboard_url }}" target="_blank" style="display:inline-block;padding:11px 24px;font-size:13px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:0.01em;">
+                        View in Cloud Security Workspace &rarr;
+                      </a>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
 
-            <!-- Footer Section -->
+            <!-- Enterprise Footer -->
             <tr>
-              <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 32px;text-align:center;font-size:12px;color:#94a3b8;">
-                <p style="margin:0 0 6px;">
-                  Sent by <strong>Vrika Cloud Security</strong> • Automated Post-Scan Dispatch
-                </p>
-                <p style="margin:0;">
-                  This email was dispatched to <strong>{{ scanner_email }}</strong> and authorized organization administrators.
-                </p>
+              <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:18px 32px;text-align:center;font-size:11px;color:#64748b;line-height:1.5;">
+                <div>Vrika Cloud Security Platform &bull; Automated Audit Dispatch</div>
+                <div style="margin-top:2px;">Dispatched to authorized organization administrators.</div>
               </td>
             </tr>
 
