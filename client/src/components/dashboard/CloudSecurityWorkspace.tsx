@@ -245,10 +245,21 @@ export function CloudSecurityWorkspace() {
 
         {/* Central Simple Light Card */}
         <div className="relative m-auto flex w-full max-w-sm flex-col items-center justify-center rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-8 text-center shadow-lg shadow-primary/5">
-          {/* Animated Purple Shield Icon */}
-          <div className="relative mb-5 flex size-14 items-center justify-center rounded-full bg-primary-container text-primary">
-            <span className="material-symbols-outlined text-3xl">shield</span>
-            <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+          {/* Animated Purple Shield & Spinner Icon */}
+          <div className="relative mb-5 flex size-16 items-center justify-center rounded-2xl bg-primary-container text-primary">
+            <LoaderSvg className="absolute inset-0 size-16" label="Loading security workspace" />
+            <svg
+              className="size-7 text-primary"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
           </div>
 
           <h3 className="text-base font-semibold text-on-surface">
