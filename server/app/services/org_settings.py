@@ -208,13 +208,17 @@ def _branding_out(section: dict[str, Any]) -> BrandingConfigOut:
 
 
 def _smtp_out(section: dict[str, Any]) -> SmtpConfigOut:
+    has_pwd = bool(section.get("password_encrypted") or section.get("password_enc"))
+    sec = section.get("security") or ("starttls" if section.get("use_tls", True) else "none")
     return SmtpConfigOut(
         host=section.get("host") or "",
         port=int(section.get("port") or 587),
         username=section.get("username") or "",
-        has_password=bool(section.get("password_enc")),
-        use_tls=bool(section.get("use_tls", True)),
+        has_password=has_pwd,
+        security=sec,
         from_email=section.get("from_email"),
+        from_name=section.get("from_name") or "Vrika Security",
+        enabled=bool(section.get("enabled", True)),
         updated_at=_iso(section.get("updated_at")),
     )
 
@@ -373,21 +377,9 @@ async def update_smtp(
     org_id: ObjectId,
     payload: SmtpConfigIn,
 ) -> SmtpConfigOut:
-    existing = (await _get_doc(db, org_id)).get("smtp") or {}
-    section: dict[str, Any] = {
-        "host": payload.host,
-        "port": payload.port,
-        "username": payload.username,
-        "use_tls": payload.use_tls,
-        "from_email": str(payload.from_email) if payload.from_email else None,
-        "updated_at": _now(),
-    }
-    if payload.password:
-        section["password_enc"] = encrypt_password(settings, payload.password)
-    elif existing.get("password_enc"):
-        section["password_enc"] = existing["password_enc"]
-    await _set_section(db, org_id, "smtp", section)
-    return _smtp_out(section)
+    from app.services.smtp_service import save_org_smtp_config
+
+    return await save_org_smtp_config(db, settings, org_id, payload)
 
 
 async def update_llm_settings(

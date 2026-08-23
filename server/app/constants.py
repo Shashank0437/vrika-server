@@ -4,6 +4,8 @@ REG_COMPLETE_REDIS_PREFIX = "vrika:reg_complete:"
 ORG_INVITE_REDIS_PREFIX = "vrika:org_invite:"
 SAML_RELAY_REDIS_PREFIX = "vrika:saml_relay:"
 
+ORGANIZATIONS_COLLECTION = "organizations"
+USERS_COLLECTION = "users"
 SSO_CONFIGS_COLLECTION = "sso_configs"
 
 ORG_TOOL_POLICY_COLLECTION = "organization_tool_policy"

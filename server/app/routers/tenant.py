@@ -101,10 +101,16 @@ async def create_invitation(
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> dict[str, str]:
     s = get_settings()
-    if not s.brevo_api_key.strip() or not s.brevo_sender_email.strip():
+    org_id = user["organization_id"]
+    from app.services.smtp_service import get_org_smtp_config
+
+    smtp_cfg = await get_org_smtp_config(db, s, org_id)
+    has_smtp = bool(smtp_cfg and smtp_cfg.get("enabled"))
+    has_brevo = bool(s.brevo_api_key.strip() and s.brevo_sender_email.strip())
+    if not has_smtp and not has_brevo:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Email delivery is not configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL.",
+            detail="Email delivery is not configured. Please configure SMTP in Organization Settings.",
         )
 
     email_norm = body.email.lower().strip()
@@ -158,16 +164,24 @@ async def create_invitation(
     )
 
     try:
-        await send_transactional_email_one(
-            to_email=email_norm, subject=subject, html=html, text=text
+        from app.services.smtp_service import send_mail_for_org
+
+        await send_mail_for_org(
+            db,
+            s,
+            org_id,
+            to=email_norm,
+            subject=subject,
+            body=text,
+            html_body=html,
         )
-    except Exception:
-        logger.exception("Failed to send organization invitation email via Brevo")
+    except Exception as exc:
+        logger.exception("Failed to send organization invitation email: %s", exc)
         await r.delete(redis_key)
         await db.organization_invitations.delete_one({"_id": inv_oid})
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
-            detail="Could not send invitation email. Verify Brevo sender and API key.",
+            detail=f"Could not send invitation email: {exc}",
         )
 
     logger.info(

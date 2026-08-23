@@ -63,6 +63,33 @@ export type SsoSettingsOut = {
   updated_at: string | null;
 };
 
+export type SmtpSettingsIn = {
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  security: "starttls" | "ssl" | "none";
+  from_email?: string | null;
+  from_name?: string | null;
+  enabled: boolean;
+};
+
+export type SmtpSettingsOut = {
+  host: string;
+  port: number;
+  username: string;
+  has_password: boolean;
+  security: "starttls" | "ssl" | "none";
+  from_email: string | null;
+  from_name: string | null;
+  enabled: boolean;
+  updated_at: string | null;
+};
+
+export type TestSmtpIn = {
+  test_recipient: string;
+};
+
 /**
  * Payload of `GET /org/settings`.
  */
@@ -70,4 +97,5 @@ export type OrgSettingsOut = {
   branding: BrandingOut;
   llm: LlmSettingsOut;
   sso?: SsoSettingsOut;
+  smtp?: SmtpSettingsOut;
 };

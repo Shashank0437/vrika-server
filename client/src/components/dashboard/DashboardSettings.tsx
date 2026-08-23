@@ -7,11 +7,13 @@ import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { BrandingSettingsCard } from "./settings/BrandingSettingsCard";
 import { LlmSettingsCard } from "./settings/LlmSettingsCard";
+import { SmtpSettingsCard } from "./settings/SmtpSettingsCard";
 import { SsoSettingsCard } from "./settings/SsoSettingsCard";
 import type {
   BrandingOut,
   LlmSettingsOut,
   OrgSettingsOut,
+  SmtpSettingsOut,
   SsoSettingsOut,
 } from "./settings/types";
 
@@ -20,11 +22,19 @@ export function DashboardSettings() {
   const isAdmin = !!user?.roles?.includes("tenant_admin");
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
-  const activeTab = rawTab === "llm" ? "llm" : rawTab === "sso" ? "sso" : "branding";
+  const activeTab =
+    rawTab === "llm"
+      ? "llm"
+      : rawTab === "sso"
+        ? "sso"
+        : rawTab === "smtp"
+          ? "smtp"
+          : "branding";
 
   const [branding, setBranding] = useState<BrandingOut | null>(null);
   const [llm, setLlm] = useState<LlmSettingsOut | null>(null);
   const [sso, setSso] = useState<SsoSettingsOut | null>(null);
+  const [smtp, setSmtp] = useState<SmtpSettingsOut | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -34,6 +44,7 @@ export function DashboardSettings() {
       setBranding(res.branding);
       setLlm(res.llm);
       setSso(res.sso ?? null);
+      setSmtp(res.smtp ?? null);
       setFetchError(null);
     } catch (err) {
       setFetchError(
@@ -78,6 +89,8 @@ export function DashboardSettings() {
             <LlmSettingsCard settings={llm} onChange={setLlm} />
           ) : activeTab === "sso" ? (
             <SsoSettingsCard sso={sso} onChange={setSso} />
+          ) : activeTab === "smtp" ? (
+            <SmtpSettingsCard smtp={smtp} onChange={setSmtp} />
           ) : (
             <BrandingSettingsCard branding={branding} onChange={setBranding} />
           )

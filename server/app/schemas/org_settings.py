@@ -42,8 +42,10 @@ class SmtpConfigIn(BaseModel):
     username: str = Field(default="", max_length=255)
     # Optional: keep the existing stored password when omitted/blank.
     password: str = Field(default="", max_length=1024)
-    use_tls: bool = True
+    security: str = Field(default="starttls")  # "starttls" | "ssl" | "none"
     from_email: EmailStr | None = None
+    from_name: str | None = Field(default="Vrika Security", max_length=255)
+    enabled: bool = True
 
 
 class SmtpConfigOut(BaseModel):
@@ -51,9 +53,15 @@ class SmtpConfigOut(BaseModel):
     port: int = 587
     username: str = ""
     has_password: bool = False  # never expose the real password
-    use_tls: bool = True
+    security: str = "starttls"
     from_email: str | None = None
+    from_name: str | None = "Vrika Security"
+    enabled: bool = True
     updated_at: str | None = None
+
+
+class TestSmtpIn(BaseModel):
+    test_recipient: EmailStr
 
 
 # ---------------------------------------------------------------------------

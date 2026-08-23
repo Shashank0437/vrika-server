@@ -1,4 +1,4 @@
-"""Org admin config API — the central place to manage per-org settings."""
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -20,8 +20,10 @@ from app.schemas.org_settings import (
     SsoSettingsOut,
     TestLlmConnectionIn,
     TestLlmConnectionOut,
+    TestSmtpIn,
 )
 from app.services import org_settings as svc
+from app.services.smtp_service import send_mail_for_org, test_org_smtp_connection
 
 router = APIRouter(prefix="/org/settings", tags=["org-settings"])
 
@@ -66,6 +68,42 @@ async def update_smtp_endpoint(
         return await svc.update_smtp(db, settings, user["organization_id"], payload)
     except svc.OrgSettingsError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=exc.message)
+
+
+@router.post("/smtp/test")
+async def test_smtp_endpoint(
+    payload: TestSmtpIn,
+    user: dict = Depends(require_tenant_admin),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    try:
+        recipient = str(payload.test_recipient).strip().lower()
+        res = await send_mail_for_org(
+            db,
+            settings,
+            user["organization_id"],
+            to=recipient,
+            subject="✅ Vrika SMTP Configuration Test",
+            body="This is an automated test email confirming your organization's SMTP settings work properly in Vrika.",
+            html_body="""
+            <div style="font-family: sans-serif; background: #0f0a1c; color: #f3f0fa; padding: 28px; border-radius: 12px;">
+              <h2 style="color: #a855f7; margin-top: 0;">Vrika SMTP Test Successful</h2>
+              <p style="font-size: 14px; color: #d8b4fe; line-height: 1.6;">
+                This test email confirms that your organization's outbound SMTP server is properly connected and functioning.
+              </p>
+              <p style="font-size: 12px; color: #948aa8; margin-top: 24px; border-top: 1px solid #3d2b6b; padding-top: 12px;">
+                Sent from Vrika Organization Settings.
+              </p>
+            </div>
+            """,
+        )
+        return {"status": "success", "detail": res}
+    except Exception as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"SMTP test failed: {exc}",
+        )
 
 
 @router.patch("/llm", response_model=LlmSettingsOut)

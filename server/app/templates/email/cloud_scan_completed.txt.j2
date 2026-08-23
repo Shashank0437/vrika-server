@@ -1,0 +1,30 @@
+VRIKA CLOUD SECURITY - SCAN & ATTACK GRAPH COMPLETED
+=====================================================
+Organization: {{ organization_name }}
+Cloud Provider: {{ provider | upper }}
+Account / Target: {{ account_id }} {% if account_name %}({{ account_name }}){% endif %}
+Scan ID: {{ scan_id }}
+Completed At: {{ completed_at | default('Just now') }}
+
+EXECUTIVE METRICS:
+-----------------
+- Compliance Score: {{ compliance_score }}%
+- Scanned Assets: {{ scanned_resources | default('100+') }}
+- Attack Paths Detected: {{ attack_paths_count }}
+
+FINDINGS BREAKDOWN:
+------------------
+- Critical: {{ findings.critical | default(0) }}
+- High: {{ findings.high | default(0) }}
+- Medium: {{ findings.medium | default(0) }}
+- Low: {{ findings.low | default(0) }}
+- Passed Checks: {{ findings.passed | default(0) }}
+
+{% if top_attack_path %}
+TOP ATTACK PATH:
+----------------
+{{ top_attack_path }}
+{% endif %}
+
+View full interactive attack graph & remediation report:
+{{ dashboard_url }}

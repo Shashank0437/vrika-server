@@ -25,6 +25,12 @@ const SETTINGS_SUBNAV = [
     label: "Single Sign-On (SSO)",
     icon: "key",
   },
+  {
+    id: "smtp",
+    href: "/dashboard/settings?tab=smtp",
+    label: "SMTP Email",
+    icon: "mail",
+  },
 ];
 
 export function SettingsSidebarSection() {
@@ -32,7 +38,14 @@ export function SettingsSidebarSection() {
   const searchParams = useSearchParams();
   const settingsActive = pathname.startsWith(SETTINGS_HREF);
   const rawTab = searchParams.get("tab");
-  const currentTab = rawTab === "llm" ? "llm" : rawTab === "sso" ? "sso" : "branding";
+  const currentTab =
+    rawTab === "llm"
+      ? "llm"
+      : rawTab === "sso"
+        ? "sso"
+        : rawTab === "smtp"
+          ? "smtp"
+          : "branding";
 
   if (!settingsActive) {
     return (
