@@ -4288,6 +4288,14 @@ async def stream_follow_up_after_tool(
         body["schemas"] = tool_schemas
     if batch_only_tool_names:
         body["attack_chain_force_next_tool"] = True
+
+    try:
+        llm_cfg = await resolve_llm_config_for_org(db, settings, organization_id)
+        if llm_cfg:
+            body["llm_config"] = llm_cfg
+    except Exception as exc:
+        logger.warning("stream_follow_up_after_tool: failed to resolve org LLM config: %s", exc)
+
     # Build a set of (tool_name, args_json) for tool results already in the snapshot — these
     # already ran in this turn chain. If the follow-up LLM tries to re-call any of them with
     # identical args, drop the call to break the loop instead of re-launching the tool.
