@@ -111,125 +111,117 @@ export function ChatArtifactPreviewPanel({
     <div
       className={
         isFullscreen
-          ? "fixed inset-0 z-50 flex flex-col bg-background/98 backdrop-blur-md transition-all duration-300"
-          : "flex h-full w-full flex-col border-l border-outline-variant/70 bg-surface-container-lowest transition-all duration-300 lg:w-[48%] xl:w-[50%]"
+          ? "fixed inset-0 z-50 flex flex-col bg-background/98 p-3 sm:p-6 backdrop-blur-md transition-all duration-300"
+          : "flex h-full w-full flex-col border-l border-outline-variant/60 bg-[#fbfbfa] p-2.5 dark:bg-[#141416] sm:p-3.5 transition-all duration-300 lg:w-[48%] xl:w-[50%]"
       }
     >
-      {/* Panel Header */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant/60 bg-surface px-4 py-3 sm:px-5">
-        {/* Left: Document Info */}
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary shadow-xs">
-            <FileText className="h-4 w-4" />
-            <span className="absolute -bottom-1 -right-1 rounded-[3px] bg-red-600 px-1 py-[1px] font-mono text-[7px] font-bold text-white uppercase">
-              PDF
-            </span>
-          </div>
-          <div className="min-w-0">
-            <h3 className="truncate text-[13.5px] font-bold text-on-surface" title={title}>
-              {title}
+      {/* Floating Card Container */}
+      <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-outline-variant/80 bg-white shadow-md dark:bg-surface-container-lowest ring-1 ring-black/[0.03]">
+        {/* Panel Header */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant/50 px-4 py-2.5 sm:px-5">
+          {/* Left: Clean Document Title */}
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-[13px] font-medium text-on-surface" title={title}>
+              {title}{" "}
+              <span className="font-normal text-on-surface-variant">· PDF</span>
             </h3>
-            <p className="truncate text-[11px] text-on-surface-variant">
-              {sessionTitle ? `${sessionTitle} · ` : ""}Document · PDF
-            </p>
           </div>
-        </div>
 
-        {/* Right: Actions */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {/* Download Button */}
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/80 bg-surface-container-high px-2.5 py-1.5 text-[12px] font-semibold text-on-surface shadow-xs transition hover:border-primary/40 hover:bg-surface-container-highest active:scale-95"
-            title="Download PDF file"
-          >
-            <Download className="h-3.5 w-3.5 text-on-surface-variant" />
-            <span className="hidden sm:inline">Download</span>
-          </button>
-
-          {/* Open in New Tab */}
-          <button
-            type="button"
-            onClick={handleOpenNewTab}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant/80 bg-surface-container-high text-on-surface shadow-xs transition hover:border-primary/40 hover:bg-surface-container-highest active:scale-95"
-            title="Open in new tab"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </button>
-
-          {/* Fullscreen Toggle */}
-          {onToggleFullscreen ? (
+          {/* Right: Actions */}
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+            {/* Download Button */}
             <button
               type="button"
-              onClick={onToggleFullscreen}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant/80 bg-surface-container-high text-on-surface shadow-xs transition hover:border-primary/40 hover:bg-surface-container-highest active:scale-95"
-              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              onClick={handleDownload}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
+              title="Download PDF"
             >
-              {isFullscreen ? (
-                <Minimize2 className="h-3.5 w-3.5" />
-              ) : (
-                <Maximize2 className="h-3.5 w-3.5" />
-              )}
+              <Download className="h-4 w-4" />
             </button>
-          ) : null}
 
-          {/* Close Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant/80 bg-surface-container-high text-on-surface-variant shadow-xs transition hover:border-error/40 hover:bg-error/10 hover:text-error active:scale-95"
-            title="Close preview"
-          >
-            <X className="h-4 w-4" />
-          </button>
+            {/* Open in New Tab */}
+            <button
+              type="button"
+              onClick={handleOpenNewTab}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
+              title="Open in new tab"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </button>
+
+            {/* Fullscreen Toggle */}
+            {onToggleFullscreen ? (
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
+                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </button>
+            ) : null}
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface active:scale-95"
+              title="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Panel Body */}
-      <div className="relative min-h-0 flex-1 bg-surface-container-low/40">
-        {loading ? (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-[13px] font-medium text-on-surface-variant">
-              Loading PDF report preview…
-            </p>
-          </div>
-        ) : error ? (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-error/12 text-error">
-              <AlertCircle className="h-6 w-6" />
+        {/* Panel Body */}
+        <div className="relative min-h-0 flex-1 bg-[#fbfbfa] p-2.5 dark:bg-[#141416] sm:p-4">
+          {loading ? (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              <p className="text-[13px] font-medium text-on-surface-variant">
+                Loading PDF report preview…
+              </p>
             </div>
-            <div className="max-w-md">
-              <h4 className="text-[14px] font-bold text-on-surface">Unable to load PDF preview</h4>
-              <p className="mt-1 text-[12px] text-on-surface-variant">{error}</p>
+          ) : error ? (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-error/12 text-error">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+              <div className="max-w-md">
+                <h4 className="text-[14px] font-bold text-on-surface">Unable to load PDF preview</h4>
+                <p className="mt-1 text-[12px] text-on-surface-variant">{error}</p>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => void loadPdfBlob()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-high px-3 py-1.5 text-[12px] font-semibold text-on-surface hover:bg-surface-container-highest"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-bold text-on-primary hover:opacity-90"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download PDF
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => void loadPdfBlob()}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-surface-container-high px-3 py-1.5 text-[12px] font-semibold text-on-surface hover:bg-surface-container-highest"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Retry
-              </button>
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-bold text-on-primary hover:opacity-90"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Download PDF
-              </button>
-            </div>
-          </div>
-        ) : blobUrl ? (
-          <iframe
-            src={`${blobUrl}#toolbar=1&navpanes=0`}
-            className="h-full w-full border-0 bg-white"
-            title={attachment.filename || "PDF Report Preview"}
-          />
-        ) : null}
+          ) : blobUrl ? (
+            <iframe
+              src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+              className="h-full w-full rounded-xl border border-outline-variant/60 bg-white shadow-sm ring-1 ring-black/[0.03]"
+              title={attachment.filename || "PDF Report Preview"}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );

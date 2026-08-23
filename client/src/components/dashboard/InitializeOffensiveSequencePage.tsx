@@ -2124,64 +2124,41 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
               Vrika v1.0.0 — Offensive AI Subsystem
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+          <div className="flex shrink-0 items-center gap-3">
             {/* Top-right Report Generation / Download Multi-State Action Button */}
             {selectedSessionId ? (
               reportBusyId === selectedSessionId ? (
                 <button
                   type="button"
                   disabled
-                  className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary shadow-xs transition cursor-wait"
+                  className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/8 px-3.5 py-1.5 text-xs font-semibold text-primary shadow-xs transition cursor-wait"
                 >
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                  <span>Generating report…</span>
+                  <span>Generating Report…</span>
                 </button>
               ) : latestReportAttachment && !isReportStaleOrNewToolsRan ? (
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (latestReportAttachment && selectedSessionId) {
-                        setActivePreviewAttachment({
-                          sessionId: selectedSessionId,
-                          attachment: latestReportAttachment,
-                        });
-                      }
-                    }}
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 shadow-xs transition hover:bg-emerald-500/20 active:scale-95"
-                    title="Click to preview PDF report (instant preview)"
-                  >
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 opacity-60" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                    </span>
-                    <FileText className="h-3.5 w-3.5 text-emerald-500" />
-                    <span>Download PDF report</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (latestReportAttachment && selectedSessionId) {
-                        void downloadChatPdf(
-                          selectedSessionId,
-                          latestReportAttachment.id,
-                          latestReportAttachment.filename,
-                        );
-                      }
-                    }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 transition hover:bg-emerald-500/20 active:scale-95"
-                    title="Download PDF directly"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (latestReportAttachment && selectedSessionId) {
+                      setActivePreviewAttachment({
+                        sessionId: selectedSessionId,
+                        attachment: latestReportAttachment,
+                      });
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-outline-variant/80 bg-surface-container-lowest px-3.5 py-1.5 text-xs font-semibold text-on-surface shadow-xs transition hover:border-primary/50 hover:bg-surface-container hover:text-primary active:scale-[0.98]"
+                  title="Click to preview and download PDF report"
+                >
+                  <FileText className="h-4 w-4 text-primary" />
+                  <span>Download PDF Report</span>
+                </button>
               ) : (
                 <button
                   type="button"
                   disabled={currentMessages.length === 0 || reportBusyId !== null}
                   onClick={() => void handleGenerateReport()}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-low px-3.5 py-1.5 text-xs font-semibold text-on-surface shadow-xs transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-2 rounded-lg border border-outline-variant/80 bg-surface-container-lowest px-3.5 py-1.5 text-xs font-semibold text-on-surface shadow-xs transition hover:border-primary/50 hover:bg-primary/8 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                   title={
                     latestReportAttachment && isReportStaleOrNewToolsRan
                       ? "New tool execution results detected — click to generate updated PDF report"
@@ -2191,28 +2168,13 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                   <FileText className="h-3.5 w-3.5 text-primary" />
                   <span>
                     {latestReportAttachment && isReportStaleOrNewToolsRan
-                      ? "Generate updated report"
-                      : "Generate report"}
+                      ? "Generate Updated Report"
+                      : "Generate Report"}
                   </span>
                 </button>
               )
             ) : null}
 
-            <div className="hidden items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1.5 sm:flex">
-              <span className="relative flex h-2 w-2">
-                {agentReachable ? (
-                  <>
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 opacity-60" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                  </>
-                ) : (
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
-                )}
-              </span>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
-                System health: {agentReachable ? (agentStatus || "nominal") : "unreachable"}
-              </span>
-            </div>
             <DashboardHeaderProfile user={user} />
           </div>
         </header>
