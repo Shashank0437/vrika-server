@@ -107,6 +107,11 @@ async def mask_tool_output(session_id: str, raw_text: str) -> str:
         masked_text = masked_text[:start] + token + masked_text[end:]
 
     await save_session_vault_map(session_id, vault_map)
+    logger.info(
+        "[PRESIDIO_VAULT] Masked %d entity spans into semantic placeholders for session=%s",
+        len(entities),
+        session_id,
+    )
     return masked_text
 
 
@@ -154,11 +159,21 @@ async def restore_llm_text(
         return text
 
     restored = text
+    restored_count = 0
     for token, original_value in vault_map.items():
         if token in restored:
+            restored_count += 1
             if policy == "redact_secrets" and token.startswith("[[VRIKA:SECRET:"):
                 restored = restored.replace(token, "[REDACTED_CREDENTIAL]")
             else:
                 restored = restored.replace(token, original_value)
+
+    if restored_count > 0:
+        logger.info(
+            "[PRESIDIO_VAULT] Restored %d semantic placeholders for session=%s (policy=%s)",
+            restored_count,
+            session_id,
+            policy,
+        )
 
     return restored
