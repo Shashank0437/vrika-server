@@ -18,7 +18,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings
-from app.constants import SSO_CONFIGS_COLLECTION
+from app.constants import ORGANIZATIONS_COLLECTION, SSO_CONFIGS_COLLECTION
 from app.schemas.org_settings import (
     BrandingConfigIn,
     BrandingConfigOut,
@@ -270,14 +270,22 @@ async def get_org_settings(
     db: AsyncIOMotorDatabase, settings: Settings, org_id: ObjectId
 ) -> OrgSettingsOut:
     doc = await _get_doc(db, org_id)
+
+    smtp_sec = doc.get("smtp") or {}
+    if not smtp_sec or not smtp_sec.get("host"):
+        org_doc = await db[ORGANIZATIONS_COLLECTION].find_one({"_id": org_id})
+        if org_doc and org_doc.get("smtp"):
+            smtp_sec = org_doc["smtp"]
+
     sso_sec = doc.get("sso") or {}
     if not sso_sec:
         sso_doc = await db[SSO_CONFIGS_COLLECTION].find_one({"organization_id": org_id})
         if sso_doc:
             sso_sec = sso_doc
+
     return OrgSettingsOut(
         branding=_branding_out(doc.get("branding") or {}),
-        smtp=_smtp_out(doc.get("smtp") or {}),
+        smtp=_smtp_out(smtp_sec),
         llm=_llm_out(doc.get("llm") or {}),
         sso=_sso_out(sso_sec, settings),
     )

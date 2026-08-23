@@ -78,6 +78,7 @@ async def save_org_smtp_config(
     else:
         enc_pwd = existing.get("password_encrypted") or ""
 
+    now = datetime.now(UTC)
     section: Dict[str, Any] = {
         "host": payload.host.strip(),
         "port": payload.port,
@@ -87,12 +88,17 @@ async def save_org_smtp_config(
         "from_email": str(payload.from_email).strip().lower() if payload.from_email else None,
         "from_name": (payload.from_name or "Vrika Security").strip(),
         "enabled": payload.enabled,
-        "updated_at": doc.get("updated_at") if doc else None,
+        "updated_at": now,
     }
 
     await db[ORGANIZATIONS_COLLECTION].update_one(
         {"_id": org_id},
         {"$set": {"smtp": section}},
+    )
+    await db["organization_settings"].update_one(
+        {"organization_id": org_id},
+        {"$set": {"smtp": section, "updated_at": now}},
+        upsert=True,
     )
 
     return SmtpConfigOut(
