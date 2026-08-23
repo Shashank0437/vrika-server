@@ -152,9 +152,6 @@ async def send_cloud_scan_completed_notification(
         len(cc_emails),
         len(attachments or []),
     )
-        scanner_norm,
-        len(cc_emails),
-    )
 
     return await send_mail_for_org(
         db,
