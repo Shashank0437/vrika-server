@@ -93,6 +93,48 @@
   animation: landing-hero-breathe 18s ease-in-out infinite;
 }
 
+@keyframes agent-status-breathe {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes agent-status-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.agent-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6d5ce8;
+  flex-shrink: 0;
+  animation: agent-status-breathe 1.8s ease-in-out infinite;
+}
+
+.agent-status-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: linear-gradient(100deg, #a9a6c4 30%, #6d5ce8 50%, #a9a6c4 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: agent-status-shimmer 1.8s linear infinite;
+}
+
 .landing-hero-orb-delay {
   animation-delay: -9s;
 }

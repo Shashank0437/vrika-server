@@ -285,6 +285,76 @@ function singleToolSlotFromMessage(m: AgentChatMessage): AgentChatBatchSlot {
   };
 }
 
+/** Vrika status → rotating phrase pool. Phrases cycle on an interval but the pool itself is picked from live agent state (thinking / running a tool / queued / composing), not a fixed generic list. */
+function agentStatusPhrases(params: {
+  reasoningStreaming: boolean;
+  waitingForFirstToken: boolean;
+  runningToolNames: string[];
+  queuedToolNames: string[];
+}): string[] {
+  const { reasoningStreaming, waitingForFirstToken, runningToolNames, queuedToolNames } = params;
+
+  if (runningToolNames.length > 0) {
+    const phrases = runningToolNames.map((name) => `Running ${name}…`);
+    phrases.push("Analyzing responses…");
+    if (queuedToolNames.length > 0) {
+      phrases.push(`Queued: ${queuedToolNames.join(", ")}…`);
+    }
+    return phrases;
+  }
+
+  if (reasoningStreaming) {
+    return ["Thinking through next steps…", "Weighing findings so far…", "Planning the next move…"];
+  }
+
+  if (waitingForFirstToken) {
+    return ["Scanning target for vulnerabilities…", "Analyzing responses…", "Compiling findings…"];
+  }
+
+  return ["Working…", "Compiling findings…"];
+}
+
+function AgentStatusIndicator({
+  reasoningStreaming,
+  waitingForFirstToken,
+  runningToolNames,
+  queuedToolNames,
+  intervalMs = 2200,
+}: {
+  reasoningStreaming: boolean;
+  waitingForFirstToken: boolean;
+  runningToolNames: string[];
+  queuedToolNames: string[];
+  intervalMs?: number;
+}) {
+  const phrases = agentStatusPhrases({
+    reasoningStreaming,
+    waitingForFirstToken,
+    runningToolNames,
+    queuedToolNames,
+  });
+  const [phraseIdx, setPhraseIdx] = useState(0);
+
+  useEffect(() => {
+    setPhraseIdx(0);
+  }, [phrases.join("|")]);
+
+  useEffect(() => {
+    if (phrases.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setPhraseIdx((prev) => (prev + 1) % phrases.length);
+    }, intervalMs);
+    return () => window.clearInterval(timer);
+  }, [phrases.length, intervalMs]);
+
+  return (
+    <div className="agent-status" role="status" aria-live="polite">
+      <span className="agent-status-dot" aria-hidden />
+      <span className="agent-status-text">{phrases[phraseIdx % phrases.length]}</span>
+    </div>
+  );
+}
+
 function BatchRunStatusChip({ batchState, slot }: { batchState: string; slot: AgentChatBatchSlot }) {
   if (batchState === "awaiting_quorum") return null;
   const rs = String(slot.run_status ?? "").toLowerCase();
@@ -1943,6 +2013,31 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
     batchToolsRunning ||
     visibleStreamPreview.trim().length > 0;
 
+  const { runningToolNames, queuedToolNames } = useMemo(() => {
+    const running = new Set<string>();
+    const queued = new Set<string>();
+    const track = (rs: string, name: string) => {
+      if (!name) return;
+      if (rs === "running") running.add(name);
+      else if (rs === "queued") queued.add(name);
+    };
+    for (const m of visibleMessages) {
+      if (m.role !== "assistant") continue;
+      if (m.tool_calls && m.tool_calls.length > 0) {
+        m.tool_calls.forEach((slot, slotIdx) => {
+          const overlay = liveBatchSlotOverlay[`${m.id}-${slotIdx}`];
+          const rs = String(overlay?.run_status ?? slot.run_status ?? "").toLowerCase();
+          track(rs, String(slot.tool_name ?? "").trim());
+        });
+      } else if (m.tool_call) {
+        const overlay = liveBatchSlotOverlay[`${m.id}-0`];
+        const rs = String(overlay?.run_status ?? m.tool_call.run_status ?? "").toLowerCase();
+        track(rs, String(m.tool_call.tool_name ?? "").trim());
+      }
+    }
+    return { runningToolNames: Array.from(running), queuedToolNames: Array.from(queued) };
+  }, [visibleMessages, liveBatchSlotOverlay]);
+
   useEffect(() => {
     if (!selectedSessionId) {
       setFollowupPreview(null);
@@ -2776,6 +2871,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                       {/* Compact card for auto-executed (non-pending) tool calls */}
                       {m.role === "assistant" &&
                       m.tool_call &&
+                      m.tool_call.tool_name !== "penetration-report" &&
                       String(m.tool_call.state) !== "pending" &&
                       String(m.tool_call.run_status ?? "").trim() &&
                       !batchPanelOpen(m)
@@ -2859,19 +2955,12 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                   ) : null}
                   {(waitingForFirstToken || (agentActivelyWorking && !visibleStreamPreview && !reasoningStreaming)) && (
                     <div className="mr-auto w-full max-w-[min(100%,48rem)] sm:max-w-[min(100%,52rem)] lg:max-w-[min(100%,58rem)] xl:max-w-[min(100%,62rem)] py-2 text-left">
-                      <div
-                        className="flex items-center gap-1.5"
-                        role="img"
-                        aria-label="AI agent is working"
-                      >
-                        {[0, 1, 2].map((i) => (
-                          <span
-                            key={i}
-                            className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-duration:0.9s]"
-                            style={{ animationDelay: `${i * 0.15}s` }}
-                          />
-                        ))}
-                      </div>
+                      <AgentStatusIndicator
+                        reasoningStreaming={reasoningStreaming}
+                        waitingForFirstToken={waitingForFirstToken}
+                        runningToolNames={runningToolNames}
+                        queuedToolNames={queuedToolNames}
+                      />
                     </div>
                   )}
                   <div ref={bottomRef} />
