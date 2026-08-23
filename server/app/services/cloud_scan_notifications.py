@@ -190,25 +190,59 @@ async def send_cloud_scan_completed_notification(
         except Exception as exc:
             logger.warning("Could not auto-generate executive PDF report: %s", exc)
 
+    safe_attachments: List[Dict[str, Any]] = []
+    total_size = 0
+    MAX_ATTACHMENT_BUDGET = 20 * 1024 * 1024  # 20MB budget for standard SMTP relays
+
+    for att in attachments:
+        c = att.get("content")
+        size = len(c) if isinstance(c, (bytes, bytearray)) else len(str(c))
+        if total_size + size <= MAX_ATTACHMENT_BUDGET:
+            safe_attachments.append(att)
+            total_size += size
+        else:
+            logger.warning(
+                "Attachment %s (%d bytes) exceeds safe SMTP limit, omitting to prevent socket disconnect",
+                att.get("filename"),
+                size,
+            )
+
     logger.info(
-        "Sending Cloud Security scan email for org_id=%s (To: %s, CC: %d teammates, Attachments: %d)",
+        "Sending Cloud Security scan email for org_id=%s (To: %s, CC: %d teammates, Attachments: %d, Total Attachment Size: %.2f MB)",
         org_id,
         scanner_norm,
         len(cc_emails),
-        len(attachments),
+        len(safe_attachments),
+        total_size / (1024 * 1024),
     )
 
-    return await send_mail_for_org(
-        db,
-        settings,
-        org_id,
-        to=scanner_norm,
-        cc=cc_emails if cc_emails else None,
-        subject=subject,
-        body=text_body,
-        html_body=html_body,
-        attachments=attachments if attachments else None,
-    )
+    try:
+        return await send_mail_for_org(
+            db,
+            settings,
+            org_id,
+            to=scanner_norm,
+            cc=cc_emails if cc_emails else None,
+            subject=subject,
+            body=text_body,
+            html_body=html_body,
+            attachments=safe_attachments if safe_attachments else None,
+        )
+    except Exception as exc:
+        logger.warning("Primary scan email send encountered error: %s. Retrying with executive attachment only...", exc)
+        exec_only = [safe_attachments[0]] if safe_attachments else None
+        return await send_mail_for_org(
+            db,
+            settings,
+            org_id,
+            to=scanner_norm,
+            cc=cc_emails if cc_emails else None,
+            subject=subject,
+            body=text_body,
+            html_body=html_body,
+            attachments=exec_only,
+        )
+
 
 
 async def send_attack_paths_completed_notification(

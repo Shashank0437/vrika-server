@@ -185,13 +185,18 @@ def _send_mail_sync(
 
     # 3. Attach File Artifacts (e.g. Executive PDF Report)
     if attachments:
+        import base64
         for att in attachments:
             if not isinstance(att, dict):
                 continue
             filename = att.get("filename") or "document.pdf"
             content = att.get("content")
             if isinstance(content, str):
-                raw_bytes = content.encode("utf-8")
+                try:
+                    # Try base64 decoding in case a base64 string was passed directly
+                    raw_bytes = base64.b64decode(content, validate=True)
+                except Exception:
+                    raw_bytes = content.encode("utf-8")
             elif isinstance(content, bytes):
                 raw_bytes = content
             else:
@@ -205,12 +210,12 @@ def _send_mail_sync(
     sec_mode = security.strip().lower()
     if sec_mode == "ssl" or port == 465:
         context = ssl.create_default_context()
-        with smtplib.SMTP_SSL(host, port, context=context, timeout=20.0) as server:
+        with smtplib.SMTP_SSL(host, port, context=context, timeout=60.0) as server:
             if username and password:
                 server.login(username, password)
             server.sendmail(from_addr, all_recipients, msg.as_string())
     else:
-        with smtplib.SMTP(host, port, timeout=20.0) as server:
+        with smtplib.SMTP(host, port, timeout=60.0) as server:
             server.ehlo()
             if sec_mode == "starttls" or port == 587:
                 context = ssl.create_default_context()
@@ -219,6 +224,7 @@ def _send_mail_sync(
             if username and password:
                 server.login(username, password)
             server.sendmail(from_addr, all_recipients, msg.as_string())
+
 
     return {
         "status": "sent",
