@@ -143,6 +143,7 @@ export function CloudSecurityWorkspace() {
       if (data?.type !== VRIKA_PATHNAME_MESSAGE || typeof data.path !== "string") {
         return;
       }
+      setIframeReady(true);
 
       const pendingAck = pendingAckRef.current;
       if (pendingAck !== null && !isBridgePathForView(data.path, pendingAck)) {
@@ -181,6 +182,23 @@ export function CloudSecurityWorkspace() {
     postNavigate(target);
   };
 
+  const [stepIndex, setStepIndex] = useState(0);
+
+  useEffect(() => {
+    if (iframeReady) return;
+    const interval = setInterval(() => {
+      setStepIndex((prev) => (prev + 1) % 4);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [iframeReady]);
+
+  const LOADING_STEPS = [
+    "Connecting to security workspace...",
+    "Authenticating tenant boundary...",
+    "Synchronizing cloud assets...",
+    "Loading dashboard...",
+  ];
+
   if (error) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 rounded-xl border border-outline-variant bg-surface-container-low p-8 text-center">
@@ -190,28 +208,75 @@ export function CloudSecurityWorkspace() {
     );
   }
 
-  if (!embedPath) {
-    return (
-      <div
-        className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-on-surface-variant"
-        aria-busy="true"
-      >
-        <LoaderSvg className="size-10" label="Loading Cloud Security" />
-        <p className="text-sm font-medium">Preparing Cloud Security…</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-[calc(100dvh-4rem)] flex-col overflow-hidden">
-      <iframe
-        ref={iframeRef}
-        title="Cloud Security"
-        src={embedPath}
-        onLoad={handleIframeLoad}
-        className="min-h-[calc(100dvh-4rem)] w-full flex-1 border-0 bg-background"
-        allow="clipboard-read; clipboard-write"
-      />
+    <div className="relative flex min-h-[calc(100dvh-4rem)] flex-1 flex-col overflow-hidden bg-background">
+      {/* Light Theme Loading Screen with Ambient Skeleton & Clean Floating HUD */}
+      <div
+        className={`absolute inset-0 z-10 flex flex-col bg-background p-6 transition-opacity duration-300 ${
+          iframeReady ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+        aria-hidden={iframeReady}
+      >
+        {/* Background Skeleton Wireframe */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col gap-6 p-6 opacity-40">
+          {/* Skeleton Header */}
+          <div className="flex items-center justify-between">
+            <div className="h-7 w-48 animate-pulse rounded-lg bg-surface-container" />
+            <div className="flex gap-3">
+              <div className="h-9 w-28 animate-pulse rounded-lg bg-surface-container" />
+              <div className="h-9 w-28 animate-pulse rounded-lg bg-surface-container" />
+            </div>
+          </div>
+
+          {/* Skeleton KPI Cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="h-28 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4" />
+            <div className="h-28 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4" />
+            <div className="h-28 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4" />
+            <div className="h-28 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4" />
+          </div>
+
+          {/* Skeleton Content Area */}
+          <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="col-span-2 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6" />
+            <div className="animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6" />
+          </div>
+        </div>
+
+        {/* Central Simple Light Card */}
+        <div className="relative m-auto flex w-full max-w-sm flex-col items-center justify-center rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-8 text-center shadow-lg shadow-primary/5">
+          {/* Animated Purple Shield Icon */}
+          <div className="relative mb-5 flex size-14 items-center justify-center rounded-full bg-primary-container text-primary">
+            <span className="material-symbols-outlined text-3xl">shield</span>
+            <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+          </div>
+
+          <h3 className="text-base font-semibold text-on-surface">
+            Loading Cloud Security
+          </h3>
+
+          <p className="mt-1.5 min-h-[1.25rem] text-xs font-medium text-on-surface-variant">
+            {LOADING_STEPS[stepIndex]}
+          </p>
+
+          {/* Slim Progress Bar */}
+          <div className="mt-5 h-1 w-full overflow-hidden rounded-full bg-surface-container">
+            <div className="h-full w-full origin-left animate-[progress_1.5s_ease-in-out_infinite] rounded-full bg-primary" />
+          </div>
+        </div>
+      </div>
+
+      {/* Embedded Prowler Iframe */}
+      {embedPath && (
+        <iframe
+          ref={iframeRef}
+          title="Cloud Security"
+          src={embedPath}
+          onLoad={handleIframeLoad}
+          className="min-h-[calc(100dvh-4rem)] w-full flex-1 border-0 bg-background"
+          allow="clipboard-read; clipboard-write"
+        />
+      )}
     </div>
   );
 }
