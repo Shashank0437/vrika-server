@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Critical Attack Paths Discovered</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f8fafc;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;line-height:1.6;">
+    <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0">{{ preheader | default('Critical Attack Paths Identified — Immediate Action Required') }}</span>
+    
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f8fafc;padding:40px 16px;">
+      <tr>
+        <td align="center">
+          <!-- Main Card Container -->
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:620px;background:#ffffff;border-radius:18px;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(15,23,42,0.06);overflow:hidden;">
+            
+            <!-- Top Alert Accent Line (Red / Crimson) -->
+            <tr>
+              <td style="height:6px;background:linear-gradient(90deg,#dc2626 0%,#ea580c 50%,#f59e0b 100%);"></td>
+            </tr>
+
+            <!-- Header Section -->
+            <tr>
+              <td style="padding:32px 32px 20px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td>
+                      <div style="font-size:11px;letter-spacing:0.25em;text-transform:uppercase;color:#dc2626;font-weight:800;">⚡ VRIKA ATTACK PATH ENGINE</div>
+                      <h1 style="margin:8px 0 4px;font-size:24px;line-height:1.25;font-weight:800;color:#0f172a;letter-spacing:-0.02em;">
+                        Exploitable Attack Paths Discovered
+                      </h1>
+                      <p style="margin:0;font-size:14px;color:#64748b;">
+                        Graph analysis identified multi-stage exploit chains in <strong style="color:#0f172a;">{{ organization_name }}</strong>.
+                      </p>
+                    </td>
+                    <td align="right" valign="top" style="padding-left:16px;">
+                      <span style="display:inline-block;padding:6px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:999px;font-size:11px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:0.06em;">
+                        ● Urgent Alert
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Metadata Banner -->
+            <tr>
+              <td style="padding:0 32px 24px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#fff1f2;border:1px solid #ffe4e6;border-radius:12px;padding:14px 18px;">
+                  <tr>
+                    <td style="font-size:13px;color:#9f1239;">
+                      <div><strong style="color:#881337;">Cloud Provider:</strong> {{ provider | upper }}</div>
+                      <div style="margin-top:4px;"><strong style="color:#881337;">Target Account:</strong> {{ account_id }} {% if account_name %}({{ account_name }}){% endif %}</div>
+                    </td>
+                    <td align="right" style="font-size:12px;color:#be123c;">
+                      <div><strong>Analysis ID:</strong> {{ scan_id }}</div>
+                      <div style="margin-top:4px;">{{ completed_at | default('Just now') }}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Attack Path KPIs (2-column cards) -->
+            <tr>
+              <td style="padding:0 32px 24px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <!-- Total Attack Paths -->
+                    <td width="48%" style="background:#fef2f2;border:1px solid #fecaca;border-radius:14px;padding:18px 16px;text-align:center;">
+                      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#991b1b;">Critical Exploit Paths</div>
+                      <div style="font-size:32px;font-weight:900;color:#dc2626;margin-top:6px;">
+                        {{ attack_paths_count | default(1) }}
+                      </div>
+                      <div style="font-size:11px;color:#b91c1c;margin-top:4px;">Direct Paths to Crown Jewels</div>
+                    </td>
+                    <td width="4%"></td>
+                    <!-- Blast Radius -->
+                    <td width="48%" style="background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:18px 16px;text-align:center;">
+                      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#92400e;">Critical Blast Radius</div>
+                      <div style="font-size:32px;font-weight:900;color:#d97706;margin-top:6px;">
+                        {{ blast_radius_count | default('High') }}
+                      </div>
+                      <div style="font-size:11px;color:#b45309;margin-top:4px;">Exposed Dependent Assets</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Visual Attack Graph Flow Diagram (Light Theme Node-and-Arrow) -->
+            <tr>
+              <td style="padding:0 32px 24px;">
+                <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#0f172a;margin-bottom:12px;">
+                  Top Exploitation Chain (Attack Graph Flow)
+                </div>
+
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:20px 18px;">
+                  
+                  <!-- Step 1: Entry Point -->
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:10px;">
+                    <tr>
+                      <td width="36" valign="middle" align="center">
+                        <div style="width:28px;height:28px;border-radius:50%;background:#fee2e2;color:#dc2626;font-weight:900;font-size:12px;line-height:28px;text-align:center;">1</div>
+                      </td>
+                      <td style="padding-left:12px;">
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#ef4444;letter-spacing:0.06em;">Public Entry Point</div>
+                        <div style="font-size:14px;font-weight:800;color:#0f172a;margin-top:2px;">
+                          🌐 Public Internet ➔ Exposed Gateway / Web App
+                        </div>
+                        <div style="font-size:12px;color:#64748b;margin-top:2px;">
+                          Port 443 / 80 publicly open with known vulnerability
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <!-- Connector Arrow -->
+                  <div style="padding-left:10px;margin-bottom:10px;">
+                    <div style="width:2px;height:16px;background:#cbd5e1;margin-left:13px;"></div>
+                    <div style="font-size:11px;color:#64748b;padding-left:36px;font-weight:600;">▼ Exploit Vulnerability (RCE / SSRF)</div>
+                    <div style="width:2px;height:16px;background:#cbd5e1;margin-left:13px;"></div>
+                  </div>
+
+                  <!-- Step 2: Lateral Movement / IAM Escalation -->
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:10px;">
+                    <tr>
+                      <td width="36" valign="middle" align="center">
+                        <div style="width:28px;height:28px;border-radius:50%;background:#fef3c7;color:#d97706;font-weight:900;font-size:12px;line-height:28px;text-align:center;">2</div>
+                      </td>
+                      <td style="padding-left:12px;">
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#d97706;letter-spacing:0.06em;">Privilege Escalation</div>
+                        <div style="font-size:14px;font-weight:800;color:#0f172a;margin-top:2px;">
+                          🔑 Over-Privileged Instance Profile ➔ IAM Role
+                        </div>
+                        <div style="font-size:12px;color:#64748b;margin-top:2px;">
+                          Role contains <code>AdministratorAccess</code> or <code>s3:*</code> permissions
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <!-- Connector Arrow -->
+                  <div style="padding-left:10px;margin-bottom:10px;">
+                    <div style="width:2px;height:16px;background:#cbd5e1;margin-left:13px;"></div>
+                    <div style="font-size:11px;color:#64748b;padding-left:36px;font-weight:600;">▼ Assume Role &amp; Lateral Movement</div>
+                    <div style="width:2px;height:16px;background:#cbd5e1;margin-left:13px;"></div>
+                  </div>
+
+                  <!-- Step 3: Target Impact -->
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" valign="middle" align="center">
+                        <div style="width:28px;height:28px;border-radius:50%;background:#fee2e2;color:#b91c1c;font-weight:900;font-size:12px;line-height:28px;text-align:center;">3</div>
+                      </td>
+                      <td style="padding-left:12px;">
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#dc2626;letter-spacing:0.06em;">Crown Jewel Impact</div>
+                        <div style="font-size:14px;font-weight:800;color:#0f172a;margin-top:2px;">
+                          🗄️ Full Data Exfiltration (Production Storage / DB)
+                        </div>
+                        <div style="font-size:12px;color:#64748b;margin-top:2px;">
+                          Direct read/write access to sensitive customer databases
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+
+                </div>
+              </td>
+            </tr>
+
+            <!-- Choke Point Recommendation -->
+            <tr>
+              <td style="padding:0 32px 28px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 20px;">
+                  <tr>
+                    <td valign="top" width="28" style="padding-right:12px;">
+                      <div style="font-size:20px;">💡</div>
+                    </td>
+                    <td>
+                      <div style="font-size:13px;font-weight:800;color:#166534;">Recommended Choke Point Remediation</div>
+                      <div style="font-size:13px;color:#15803d;margin-top:4px;">
+                        Severing the IAM Instance Profile permission from <code>AdministratorAccess</code> to least-privilege breaks <strong>100%</strong> of identified attack paths.
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- CTA Action Button -->
+            <tr>
+              <td align="center" style="padding:0 32px 36px;">
+                <a href="{{ dashboard_url }}/attack-paths" style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:10px;font-size:14px;font-weight:800;letter-spacing:0.02em;box-shadow:0 4px 14px rgba(220,38,38,0.3);">
+                  Explore Interactive Attack Graph →
+                </a>
+              </td>
+            </tr>
+
+            <!-- Footer Section -->
+            <tr>
+              <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 32px;text-align:center;font-size:12px;color:#94a3b8;">
+                <p style="margin:0 0 6px;">
+                  Sent by <strong>Vrika Cloud Security</strong> • Attack Path Intelligence
+                </p>
+                <p style="margin:0;">
+                  This urgent alert was dispatched to <strong>{{ scanner_email }}</strong> and organization security leads.
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

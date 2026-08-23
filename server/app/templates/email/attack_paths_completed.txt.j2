@@ -1,0 +1,21 @@
+[⚡ VRIKA ATTACK PATH ALERT]
+==============================================
+Exploitable Attack Paths Discovered
+Organization: {{ organization_name }}
+Provider: {{ provider | upper }}
+Target Account: {{ account_id }}
+Analysis ID: {{ scan_id }}
+
+CRITICAL METRICS:
+- Critical Exploit Paths: {{ attack_paths_count | default(1) }}
+- Blast Radius: {{ blast_radius_count | default('High') }}
+
+TOP EXPLOITATION CHAIN:
+1. Public Entry Point: Internet -> Exposed Port (443/80)
+2. Lateral Movement / Escalation: Instance Profile -> IAM Role
+3. Target Impact: Full Data Access on Production DB / S3
+
+RECOMMENDED REMEDIATION:
+Sever IAM AdministratorAccess permissions on instance profile to break all paths.
+
+Explore Graph: {{ dashboard_url }}/attack-paths
