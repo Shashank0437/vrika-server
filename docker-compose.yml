@@ -52,6 +52,7 @@ services:
       AGENT_TOOL_STREAM_REDIS_URL: redis://host.docker.internal:6379/0
       PRESIDIO_ANALYZER_URL: http://presidio-analyzer:3000
       PRESIDIO_ANONYMIZER_URL: http://presidio-anonymizer:3000
+      PROWLER_API_BASE_URL: http://api:8080/api/v1
     networks:
       default: {}
       prowler:
