@@ -3166,7 +3166,6 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
               </div>
             </div>
           ) : null}
-            </div>
           </div>
 
           {/* Claude-style Side Artifact / PDF Preview Panel */}

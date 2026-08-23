@@ -143,6 +143,7 @@ export function AgentChatMarkdown({
   collapseToolExecutions = true,
   attachments,
   onDownloadAttachment,
+  onPreviewAttachment,
 }: Props) {
   const trimmed = normalizeMarkdownTables(stripAttachmentLinks(text.trim(), attachments));
 
