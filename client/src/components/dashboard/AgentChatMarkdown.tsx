@@ -81,6 +81,7 @@ type Props = {
   collapseToolExecutions?: boolean;
   attachments?: AgentChatAttachment[] | null;
   onDownloadAttachment?: (attachmentId: string, filename: string) => void;
+  onPreviewAttachment?: (attachmentId: string, filename: string) => void;
 };
 
 /** Renders model text as Markdown (bold, lists, code, links). Safe: no raw HTML execution. */
@@ -192,14 +193,18 @@ export function AgentChatMarkdown({
           );
         });
 
-      if (matchingAttachment && onDownloadAttachment) {
+      if (matchingAttachment && (onPreviewAttachment || onDownloadAttachment)) {
         return (
           <a
             href="#"
             className="text-primary underline underline-offset-2 cursor-pointer font-semibold"
             onClick={(e) => {
               e.preventDefault();
-              onDownloadAttachment(matchingAttachment.id, matchingAttachment.filename);
+              if (onPreviewAttachment) {
+                onPreviewAttachment(matchingAttachment.id, matchingAttachment.filename);
+              } else if (onDownloadAttachment) {
+                onDownloadAttachment(matchingAttachment.id, matchingAttachment.filename);
+              }
             }}
           >
             {children}
@@ -238,7 +243,7 @@ export function AgentChatMarkdown({
     td: ({ children }) => (
       <td className="border border-outline-variant/35 px-3 py-2 align-top leading-relaxed text-on-surface">{children}</td>
     ),
-  }), [attachments, onDownloadAttachment]);
+  }), [attachments, onDownloadAttachment, onPreviewAttachment]);
   if (!trimmed) return null;
 
   if (!collapseToolExecutions) {

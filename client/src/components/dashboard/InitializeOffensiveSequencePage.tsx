@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowDown, ArrowUp, Loader2, Terminal } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, FileText, Loader2, Terminal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { AgentChatMarkdown, extractToolResultJsonFromExecContent } from "@/components/dashboard/AgentChatMarkdown";
 import { DashboardHeaderProfile } from "@/components/dashboard/DashboardHeaderProfile";
 import { AgentChatExecModeDropdown } from "@/components/dashboard/AgentChatExecModeDropdown";
+import { ChatAttachmentCard } from "@/components/dashboard/ChatAttachmentCard";
+import { ChatArtifactPreviewPanel } from "@/components/dashboard/ChatArtifactPreviewPanel";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import type { AuthUser } from "@/lib/auth-context";
 import {
@@ -14,10 +16,12 @@ import {
   deleteAgentChatSession,
   downloadAgentChatAttachment,
   fetchAgentChatOrgTools,
+  generateAgentChatSessionReport,
   listAgentChatMessages,
   listAgentChatSessions,
   patchAgentChatToolBatchDecisions,
   agentChatMessageFromBatchPendingPayload,
+  type AgentChatAttachment,
   type AgentChatBatchSlot,
   type AgentChatMessage,
   type AgentChatSession,
@@ -718,6 +722,14 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
 
+  const [reportBusyId, setReportBusyId] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [activePreviewAttachment, setActivePreviewAttachment] = useState<{
+    sessionId: string;
+    attachment: AgentChatAttachment;
+  } | null>(null);
+  const [previewFullscreen, setPreviewFullscreen] = useState(false);
+
   const [streamStates, setStreamStates] = useState<Record<string, SessionStreamState>>({});
 
   const updateSessionStreamState = useCallback(
@@ -907,6 +919,107 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       setActionErr(formatChatError(e));
     }
   }, []);
+
+  useEffect(() => {
+    setActivePreviewAttachment(null);
+    setPreviewFullscreen(false);
+  }, [selectedSessionId]);
+
+  const sessionAttachments = useMemo<AgentChatAttachment[]>(() => {
+    const list: AgentChatAttachment[] = [];
+    const seen = new Set<string>();
+    for (const m of currentMessages) {
+      if (m.attachments && Array.isArray(m.attachments)) {
+        for (const a of m.attachments) {
+          if (a && a.id && !seen.has(a.id)) {
+            seen.add(a.id);
+            list.push(a);
+          }
+        }
+      }
+    }
+    return list;
+  }, [currentMessages]);
+
+  const latestReportAttachment = useMemo<AgentChatAttachment | null>(() => {
+    return sessionAttachments.length > 0 ? sessionAttachments[sessionAttachments.length - 1] : null;
+  }, [sessionAttachments]);
+
+  const isReportStaleOrNewToolsRan = useMemo<boolean>(() => {
+    if (!latestReportAttachment) return false;
+
+    let reportMsgIdx = -1;
+    for (let i = currentMessages.length - 1; i >= 0; i--) {
+      const m = currentMessages[i];
+      if (
+        (m.attachments && m.attachments.some((a) => a.id === latestReportAttachment.id)) ||
+        (m.role === "assistant" && m.tool_call?.tool_name === "penetration-report") ||
+        (m.role === "tool" && m.tool_name === "penetration-report")
+      ) {
+        reportMsgIdx = i;
+        break;
+      }
+    }
+
+    if (reportMsgIdx === -1) return false;
+
+    for (let i = reportMsgIdx + 1; i < currentMessages.length; i++) {
+      const m = currentMessages[i];
+      if (m.role === "tool" && m.tool_name && m.tool_name !== "penetration-report") {
+        return true;
+      }
+      if (
+        m.role === "assistant" &&
+        m.tool_call &&
+        m.tool_call.tool_name &&
+        m.tool_call.tool_name !== "penetration-report" &&
+        String(m.tool_call.run_status ?? "").toLowerCase() === "done"
+      ) {
+        return true;
+      }
+      if (
+        m.role === "assistant" &&
+        m.tool_calls &&
+        m.tool_calls.some((s) => s.tool_name !== "penetration-report" && String(s.run_status ?? "").toLowerCase() === "done")
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [currentMessages, latestReportAttachment]);
+
+  const handleGenerateReport = useCallback(
+    async (downloadAfter = false) => {
+      if (!selectedSessionId) return;
+      setReportBusyId(selectedSessionId);
+      setReportError(null);
+      try {
+        const result = await generateAgentChatSessionReport(selectedSessionId);
+        await refreshMessages(selectedSessionId, { silent: true });
+        if (result.attachment) {
+          setActivePreviewAttachment({
+            sessionId: selectedSessionId,
+            attachment: result.attachment,
+          });
+          if (downloadAfter) {
+            await downloadChatPdf(
+              selectedSessionId,
+              result.attachment.id,
+              result.attachment.filename,
+            );
+          }
+        }
+      } catch (err) {
+        const msg = formatChatError(err);
+        setReportError(msg);
+        setActionErr(msg);
+      } finally {
+        setReportBusyId(null);
+      }
+    },
+    [selectedSessionId, refreshMessages, downloadChatPdf],
+  );
 
   const captureThoughtDuration = useCallback((sessionId: string) => {
     const start = reasoningStartedAtRef.current[sessionId];
@@ -2011,7 +2124,80 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
               Vrika v1.0.0 — Offensive AI Subsystem
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-4">
+          <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+            {/* Top-right Report Generation / Download Multi-State Action Button */}
+            {selectedSessionId ? (
+              reportBusyId === selectedSessionId ? (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold text-primary shadow-xs transition cursor-wait"
+                >
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span>Generating report…</span>
+                </button>
+              ) : latestReportAttachment && !isReportStaleOrNewToolsRan ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (latestReportAttachment && selectedSessionId) {
+                        setActivePreviewAttachment({
+                          sessionId: selectedSessionId,
+                          attachment: latestReportAttachment,
+                        });
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 shadow-xs transition hover:bg-emerald-500/20 active:scale-95"
+                    title="Click to preview PDF report (instant preview)"
+                  >
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 opacity-60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </span>
+                    <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Download PDF report</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (latestReportAttachment && selectedSessionId) {
+                        void downloadChatPdf(
+                          selectedSessionId,
+                          latestReportAttachment.id,
+                          latestReportAttachment.filename,
+                        );
+                      }
+                    }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 transition hover:bg-emerald-500/20 active:scale-95"
+                    title="Download PDF directly"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={currentMessages.length === 0 || reportBusyId !== null}
+                  onClick={() => void handleGenerateReport()}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-low px-3.5 py-1.5 text-xs font-semibold text-on-surface shadow-xs transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  title={
+                    latestReportAttachment && isReportStaleOrNewToolsRan
+                      ? "New tool execution results detected — click to generate updated PDF report"
+                      : "Generate a penetration testing PDF report for this session"
+                  }
+                >
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  <span>
+                    {latestReportAttachment && isReportStaleOrNewToolsRan
+                      ? "Generate updated report"
+                      : "Generate report"}
+                  </span>
+                </button>
+              )
+            ) : null}
+
             <div className="hidden items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1.5 sm:flex">
               <span className="relative flex h-2 w-2">
                 {agentReachable ? (
@@ -2031,8 +2217,9 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-8 lg:px-8 lg:pt-8 lg:pb-9 xl:px-10">
+        <div className="flex min-h-0 flex-1 flex-row overflow-hidden relative">
+          <div className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-all duration-200 ${activePreviewAttachment && !previewFullscreen ? "hidden lg:flex" : "flex"}`}>
+            <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-8 lg:px-8 lg:pt-8 lg:pb-9 xl:px-10">
             <div
               className={
                 hasThread
@@ -2296,6 +2483,19 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                               onDownloadAttachment={(id, filename) =>
                                 selectedSessionId && void downloadChatPdf(selectedSessionId, id, filename)
                               }
+                              onPreviewAttachment={(id, filename) => {
+                                if (selectedSessionId) {
+                                  const matching = renderAttachments.find((a) => a.id === id) || {
+                                    id,
+                                    filename,
+                                    content_type: "application/pdf",
+                                  };
+                                  setActivePreviewAttachment({
+                                    sessionId: selectedSessionId,
+                                    attachment: matching,
+                                  });
+                                }
+                              }}
                             />
                           )
                         ) : (
@@ -2303,17 +2503,29 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                         )}
                       </div>
                       {selectedSessionId && renderAttachments.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="mt-2 flex flex-col gap-2.5">
                           {renderAttachments.map((a) => (
-                            <button
+                            <ChatAttachmentCard
                               key={a.id}
-                              type="button"
-                              onClick={() => selectedSessionId && void downloadChatPdf(selectedSessionId, a.id, a.filename)}
-                              className="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant bg-surface-container-high px-3 py-1.5 text-[13px] font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/8"
-                            >
-                              <MaterialSymbol name="picture_as_pdf" className="text-lg" />
-                              {a.filename || "Download PDF"}
-                            </button>
+                              attachment={a}
+                              onPreview={(attachment) => {
+                                if (selectedSessionId) {
+                                  setActivePreviewAttachment({
+                                    sessionId: selectedSessionId,
+                                    attachment,
+                                  });
+                                }
+                              }}
+                              onDownload={(attachment) => {
+                                if (selectedSessionId) {
+                                  void downloadChatPdf(
+                                    selectedSessionId,
+                                    attachment.id,
+                                    attachment.filename,
+                                  );
+                                }
+                              }}
+                            />
                           ))}
                         </div>
                       ) : null}
@@ -2953,6 +3165,24 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Claude-style Side Artifact / PDF Preview Panel */}
+          {activePreviewAttachment ? (
+            <ChatArtifactPreviewPanel
+              sessionId={activePreviewAttachment.sessionId}
+              attachment={activePreviewAttachment.attachment}
+              sessionTitle={sessions.find((s) => s.id === activePreviewAttachment.sessionId)?.title}
+              isFullscreen={previewFullscreen}
+              onToggleFullscreen={() => setPreviewFullscreen((prev) => !prev)}
+              onClose={() => {
+                setActivePreviewAttachment(null);
+                setPreviewFullscreen(false);
+              }}
+              onDownload={(att) => {
+                void downloadChatPdf(activePreviewAttachment.sessionId, att.id, att.filename);
+              }}
+            />
           ) : null}
         </div>
       </div>
