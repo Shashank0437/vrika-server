@@ -56,8 +56,7 @@ from app.services.agent_attack_chains import (
 from app.services.anonymization_vault import (
     StreamingRestorer,
     get_session_vault_map,
-    mask_messages_for_llm,
-    mask_tool_output,
+    mask_tool_messages_for_llm,
     restore_llm_text,
 )
 
@@ -1700,7 +1699,6 @@ async def maybe_refresh_conversation_summary(
         buf_parts.append(f"{role}: {str(row.get('content') or '')[:600]}")
     packed = "\n".join(buf_parts)[:12000]
     try:
-        packed = await mask_tool_output(str(session_id), packed)
         summarizer_messages = [
             {
                 "role": "system",
@@ -1726,9 +1724,6 @@ async def maybe_refresh_conversation_summary(
     summary = str(out.get("content") or "").strip()
     if not summary:
         return
-    # Persist real values: the vault has a 1h TTL, so storing placeholders would make
-    # them permanently unresolvable. Re-masking happens on the next outbound turn.
-    summary = await restore_llm_text(str(session_id), summary)
     await db[AGENT_CHAT_SESSIONS_COLLECTION].update_one(
         {"_id": session_id},
         {"$set": {"conversation_summary": summary, "updated_at": _utc_now()}},
@@ -2625,7 +2620,7 @@ async def stream_cipherstrike_turn(
     actual_input_tokens = None
     actual_output_tokens = None
 
-    masked_messages = await mask_messages_for_llm(str(session_id), llm_messages)
+    masked_messages = await mask_tool_messages_for_llm(str(session_id), llm_messages)
     restorer = StreamingRestorer(await get_session_vault_map(str(session_id)))
     path = "api/cipherstrike/llm-stream"
     body: dict[str, Any] = {"messages": masked_messages, "session_id": str(session_id)}
@@ -4356,9 +4351,10 @@ async def stream_follow_up_after_tool(
         return
 
     timeout = settings.agent_llm_stream_timeout_seconds
-    # Tool results carry raw scanner output (IPs, hostnames, credentials). Mask before the
-    # follow-up turn leaves our network, exactly as the primary chat stream does.
-    masked_messages = await mask_messages_for_llm(str(session_id), llm_messages)
+    # Tool results carry raw scanner output (IPs, hostnames, credentials). Mask only those
+    # tool-result messages before the follow-up turn leaves our network; user/system turns
+    # (which carry the operator-supplied target verbatim) are left untouched.
+    masked_messages = await mask_tool_messages_for_llm(str(session_id), llm_messages)
     restorer = StreamingRestorer(await get_session_vault_map(str(session_id)))
     body: dict[str, Any] = {"messages": masked_messages, "session_id": str(session_id)}
     if turn_id:

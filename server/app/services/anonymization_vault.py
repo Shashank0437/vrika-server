@@ -141,6 +141,34 @@ async def mask_messages_for_llm(
     return sanitized_messages
 
 
+async def mask_tool_messages_for_llm(
+    session_id: str,
+    messages: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Mask only ``role == "tool"`` messages before dispatching to the LLM.
+
+    Tool results carry raw scanner output (IPs, hostnames, credentials) that must not
+    reach the LLM in the clear. User, system and assistant turns are left untouched so
+    that operator-supplied targets (e.g. ``https://mail.google.com/``) survive verbatim
+    into tool arguments — masking them corrupts the value handed to nmap and friends.
+    """
+    if not messages:
+        return []
+
+    sanitized_messages: List[Dict[str, Any]] = []
+    for msg in messages:
+        content = msg.get("content")
+        role = str(msg.get("role") or "")
+
+        if role == "tool" and isinstance(content, str) and content.strip():
+            masked_content = await mask_tool_output(session_id, content)
+            sanitized_messages.append({**msg, "content": masked_content})
+        else:
+            sanitized_messages.append(msg)
+
+    return sanitized_messages
+
+
 async def restore_llm_text(
     session_id: str,
     text: str,
