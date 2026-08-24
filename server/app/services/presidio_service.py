@@ -20,8 +20,20 @@ logger = logging.getLogger(__name__)
 # Default Presidio endpoints (Docker bridge service names with localhost fallback)
 PRESIDIO_ANALYZER_URL = os.getenv("PRESIDIO_ANALYZER_URL", "http://presidio-analyzer:3000")
 PRESIDIO_ANONYMIZER_URL = os.getenv("PRESIDIO_ANONYMIZER_URL", "http://presidio-anonymizer:3000")
+# Fallbacks are tried in order when the configured endpoint is unreachable. The
+# ``vrika-presidio-*`` entries are the compose ``container_name`` values: they still
+# resolve when the containers are started outside compose and therefore never get a
+# service-name network alias. The 127.0.0.1 entries only work for host-network setups.
 PRESIDIO_FALLBACK_ANALYZER_URL = "http://127.0.0.1:5001"
 PRESIDIO_FALLBACK_ANONYMIZER_URL = "http://127.0.0.1:5002"
+PRESIDIO_ANALYZER_FALLBACKS = (
+    "http://vrika-presidio-analyzer:3000",
+    PRESIDIO_FALLBACK_ANALYZER_URL,
+)
+PRESIDIO_ANONYMIZER_FALLBACKS = (
+    "http://vrika-presidio-anonymizer:3000",
+    PRESIDIO_FALLBACK_ANONYMIZER_URL,
+)
 
 # High-precision security pattern recognizers (narrow regexes avoiding surrounding syntax/key names)
 SECURITY_RECOGNIZERS = [
@@ -81,21 +93,84 @@ SECURITY_RECOGNIZERS = [
 
 async def _call_presidio_post(
     url_primary: str,
-    url_fallback: str,
+    url_fallback: str | tuple[str, ...],
     path: str,
     payload: Dict[str, Any],
 ) -> Optional[Any]:
-    """Execute POST request with automatic fallback between Docker service name and localhost."""
-    for base in (url_primary, url_fallback):
+    """Execute POST request, trying the configured endpoint then each fallback in turn."""
+    fallbacks = (url_fallback,) if isinstance(url_fallback, str) else tuple(url_fallback)
+    attempts: List[str] = []
+    for base in (url_primary, *fallbacks):
+        if not base or base in attempts:
+            continue
+        attempts.append(base)
         url = f"{base.rstrip('/')}/{path.lstrip('/')}"
         try:
             async with httpx.AsyncClient(timeout=4.0) as client:
                 res = await client.post(url, json=payload)
                 if res.status_code == 200:
                     return res.json()
+                logger.warning(
+                    "Presidio endpoint %s returned HTTP %s: %s",
+                    url,
+                    res.status_code,
+                    res.text[:200],
+                )
         except Exception as exc:
             logger.debug("Presidio endpoint %s unreachable: %s", url, exc)
+
+    # Every endpoint failed: masking silently degrades to regex-only detection, so make
+    # this loud rather than hiding it behind DEBUG.
+    logger.error(
+        "Presidio unreachable at all endpoints %s for /%s — falling back to regex-only "
+        "detection; NLP entities (PERSON, PHONE_NUMBER, CREDIT_CARD, ...) will NOT be masked",
+        attempts,
+        path.lstrip("/"),
+    )
     return None
+
+
+def _resolve_overlapping_spans(
+    entities: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Reduce detected spans to a non-overlapping set.
+
+    Presidio routinely reports overlapping spans for the same text (e.g. it tags
+    ``john@acme.com`` as EMAIL_ADDRESS while also tagging ``acme.com`` inside it as
+    URL). Replacing overlapping spans corrupts the output: an earlier replacement
+    rewrites bytes that a later span still points at, producing mangled placeholders
+    such as ``[[VRIKA:HOST:03]]:EMAIL:01]]HOST:02]]`` and leaking partial values.
+
+    Winners are chosen by span length first, then confidence, then position. Coverage
+    deliberately outranks confidence: a short high-confidence span (Presidio often tags
+    the ``0132`` of a phone number as DATE_TIME with score 0.85) would otherwise beat the
+    longer PHONE_NUMBER span and leave the rest of the value exposed. Over-masking is the
+    safe failure mode here; under-masking leaks data to the LLM.
+    """
+    if not entities:
+        return []
+
+    ranked = sorted(
+        entities,
+        key=lambda e: (
+            -(int(e["end"]) - int(e["start"])),
+            -float(e.get("score") or 0.0),
+            int(e["start"]),
+        ),
+    )
+
+    kept: List[Dict[str, Any]] = []
+    for candidate in ranked:
+        c_start, c_end = int(candidate["start"]), int(candidate["end"])
+        if c_end <= c_start:
+            continue
+        # Half-open intervals: [a, b) and [c, d) overlap iff a < d and c < b.
+        if any(c_start < int(k["end"]) and int(k["start"]) < c_end for k in kept):
+            continue
+        kept.append(candidate)
+
+    kept.sort(key=lambda e: int(e["start"]))
+    return kept
 
 
 async def detect_sensitive_entities(text: str, language: str = "en") -> List[Dict[str, Any]]:
@@ -112,7 +187,7 @@ async def detect_sensitive_entities(text: str, language: str = "en") -> List[Dic
     payload = {"text": text, "language": language}
     analyzer_res = await _call_presidio_post(
         PRESIDIO_ANALYZER_URL,
-        PRESIDIO_FALLBACK_ANALYZER_URL,
+        PRESIDIO_ANALYZER_FALLBACKS,
         "analyze",
         payload,
     )
@@ -150,19 +225,21 @@ async def detect_sensitive_entities(text: str, language: str = "en") -> List[Dic
             if not val or len(val.strip()) < 4:
                 continue
 
-            # Check if span already covered by existing entity
-            if not any(e["start"] <= span_start and e["end"] >= span_end for e in entities):
-                entities.append(
-                    {
-                        "start": span_start,
-                        "end": span_end,
-                        "score": 0.98,
-                        "entity_type": recognizer["name"],
-                        "category": recognizer["category"],
-                        "text": val,
-                    }
-                )
+            # Always record the span. Duplicates and partial overlaps against Presidio
+            # results are settled by _resolve_overlapping_spans, which keeps the
+            # highest-confidence/longest span instead of dropping these high-precision
+            # matches whenever a lower-confidence Presidio span happens to cover them.
+            entities.append(
+                {
+                    "start": span_start,
+                    "end": span_end,
+                    "score": 0.98,
+                    "entity_type": recognizer["name"],
+                    "category": recognizer["category"],
+                    "text": val,
+                }
+            )
 
-    # Sort spans from earliest to latest
-    entities.sort(key=lambda x: (x["start"], -x["end"]))
-    return entities
+    # 3. Collapse to a non-overlapping, position-sorted span set so callers can safely
+    #    substitute right-to-left without corrupting neighbouring replacements.
+    return _resolve_overlapping_spans(entities)

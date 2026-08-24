@@ -54,7 +54,10 @@ from app.services.agent_attack_chains import (
     sync_attack_chain_to_runnable_step,
 )
 from app.services.anonymization_vault import (
+    StreamingRestorer,
+    get_session_vault_map,
     mask_messages_for_llm,
+    mask_tool_output,
     restore_llm_text,
 )
 
@@ -1697,6 +1700,7 @@ async def maybe_refresh_conversation_summary(
         buf_parts.append(f"{role}: {str(row.get('content') or '')[:600]}")
     packed = "\n".join(buf_parts)[:12000]
     try:
+        packed = await mask_tool_output(str(session_id), packed)
         summarizer_messages = [
             {
                 "role": "system",
@@ -1722,6 +1726,9 @@ async def maybe_refresh_conversation_summary(
     summary = str(out.get("content") or "").strip()
     if not summary:
         return
+    # Persist real values: the vault has a 1h TTL, so storing placeholders would make
+    # them permanently unresolvable. Re-masking happens on the next outbound turn.
+    summary = await restore_llm_text(str(session_id), summary)
     await db[AGENT_CHAT_SESSIONS_COLLECTION].update_one(
         {"_id": session_id},
         {"$set": {"conversation_summary": summary, "updated_at": _utc_now()}},
@@ -2619,6 +2626,7 @@ async def stream_cipherstrike_turn(
     actual_output_tokens = None
 
     masked_messages = await mask_messages_for_llm(str(session_id), llm_messages)
+    restorer = StreamingRestorer(await get_session_vault_map(str(session_id)))
     path = "api/cipherstrike/llm-stream"
     body: dict[str, Any] = {"messages": masked_messages, "session_id": str(session_id)}
     if turn_id:
@@ -2893,6 +2901,10 @@ async def stream_cipherstrike_turn(
 
                 elif payload == "[DONE]":
                     seen_done = True
+                    tail = restorer.flush()
+                    if tail:
+                        yield f"data: {json.dumps(tail)}\n\n"
+                        await _sse_flush_tick()
                     if not tool_pending_persisted:
                         full_text = "".join(assistant_chunks).strip()
                         if full_text:
@@ -2936,6 +2948,15 @@ async def stream_cipherstrike_turn(
                         tok = json.loads(payload)
                         if isinstance(tok, str):
                             assistant_chunks.append(tok)
+                            if restorer.enabled:
+                                # Swap placeholders back to real values for the UI. The
+                                # restorer may withhold a partial token, in which case
+                                # there is nothing to emit for this frame.
+                                visible = restorer.feed(tok)
+                                if visible:
+                                    block_to_yield = f"data: {json.dumps(visible)}"
+                                else:
+                                    skip_outer_yield = True
                     except json.JSONDecodeError:
                         pass
 
@@ -2945,6 +2966,11 @@ async def stream_cipherstrike_turn(
 
         if buffer.strip():
             yield buffer if buffer.endswith("\n\n") else buffer + "\n\n"
+            await _sse_flush_tick()
+
+        tail = restorer.flush()
+        if tail:
+            yield f"data: {json.dumps(tail)}\n\n"
             await _sse_flush_tick()
 
         if not seen_done and (assistant_chunks or thinking_chunks):
@@ -4330,7 +4356,11 @@ async def stream_follow_up_after_tool(
         return
 
     timeout = settings.agent_llm_stream_timeout_seconds
-    body: dict[str, Any] = {"messages": llm_messages, "session_id": str(session_id)}
+    # Tool results carry raw scanner output (IPs, hostnames, credentials). Mask before the
+    # follow-up turn leaves our network, exactly as the primary chat stream does.
+    masked_messages = await mask_messages_for_llm(str(session_id), llm_messages)
+    restorer = StreamingRestorer(await get_session_vault_map(str(session_id)))
+    body: dict[str, Any] = {"messages": masked_messages, "session_id": str(session_id)}
     if turn_id:
         body["turn_id"] = turn_id
     if tool_schemas:
@@ -4381,6 +4411,8 @@ async def stream_follow_up_after_tool(
 
     async def _persist_partial_before_tool() -> None:
         full_text = "".join(assistant_chunks).strip()
+        if full_text:
+            full_text = await restore_llm_text(str(session_id), full_text)
         think_txt = "".join(thinking_chunks).strip() or None
         if not full_text and not think_txt:
             return
@@ -4681,8 +4713,15 @@ async def stream_follow_up_after_tool(
 
                 if payload == "[DONE]":
                     seen_done = True
+                    tail = restorer.flush()
+                    if tail:
+                        yield f"data: {json.dumps(tail)}\n\n"
                     if not tool_pending_persisted:
                         full_text = "".join(assistant_chunks).strip()
+                        if full_text:
+                            full_text = await restore_llm_text(
+                                str(session_id), full_text
+                            )
                         think_txt = "".join(thinking_chunks) or None
                         if full_text or think_txt:
                             await insert_message(
@@ -4752,6 +4791,15 @@ async def stream_follow_up_after_tool(
                         tok = json.loads(payload)
                         if isinstance(tok, str):
                             assistant_chunks.append(tok)
+                            if restorer.enabled:
+                                # Swap placeholders back to real values for the UI. The
+                                # restorer may withhold a partial token, in which case
+                                # there is nothing to emit for this frame.
+                                visible = restorer.feed(tok)
+                                if visible:
+                                    raw_event = f"data: {json.dumps(visible)}"
+                                else:
+                                    skip_outer_yield = True
                     except json.JSONDecodeError:
                         pass
                 if not skip_outer_yield:
@@ -4760,9 +4808,15 @@ async def stream_follow_up_after_tool(
         if buffer.strip():
             yield buffer if buffer.endswith("\n\n") else buffer + "\n\n"
 
+        tail = restorer.flush()
+        if tail:
+            yield f"data: {json.dumps(tail)}\n\n"
+
         if not seen_done and (assistant_chunks or thinking_chunks):
             if not tool_pending_persisted:
                 full_text = "".join(assistant_chunks).strip()
+                if full_text:
+                    full_text = await restore_llm_text(str(session_id), full_text)
                 think_txt = "".join(thinking_chunks) or None
                 if full_text or think_txt:
                     await insert_message(

@@ -177,3 +177,110 @@ async def restore_llm_text(
         )
 
     return restored
+
+
+_TOKEN_PREFIX = "[[VRIKA:"
+# Longest realistic placeholder is ~24 chars; cap how much text we withhold so a stray
+# "[" in ordinary prose can never stall the stream indefinitely.
+_MAX_PARTIAL_TOKEN_HOLD = 64
+
+
+def _looks_like_partial_token(tail: str) -> bool:
+    """True when ``tail`` could still grow into a complete ``[[VRIKA:...]]`` placeholder."""
+    if not tail.startswith("[") or "]]" in tail:
+        return False
+    if len(tail) <= len(_TOKEN_PREFIX):
+        return _TOKEN_PREFIX.startswith(tail)
+    return tail.startswith(_TOKEN_PREFIX)
+
+
+class StreamingRestorer:
+    """Incrementally restore vault placeholders inside an SSE token stream.
+
+    The LLM streams text in arbitrary chunks, so a placeholder such as
+    ``[[VRIKA:IP:01]]`` is frequently split across two frames. Restoring each chunk
+    independently would therefore miss the split ones and leak raw placeholders into
+    the UI. This buffers only a possible partial token at the tail and emits
+    everything else immediately, preserving progressive rendering.
+    """
+
+    def __init__(self, vault_map: Optional[Dict[str, str]], policy: str = "full") -> None:
+        self._vault = dict(vault_map or {})
+        self._policy = policy
+        self._buffer = ""
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self._vault)
+
+    def _replace(self, text: str) -> str:
+        for token, original_value in self._vault.items():
+            if token not in text:
+                continue
+            if self._policy == "redact_secrets" and token.startswith("[[VRIKA:SECRET:"):
+                text = text.replace(token, "[REDACTED_CREDENTIAL]")
+            else:
+                text = text.replace(token, original_value)
+        return text
+
+    def _hold_index(self, text: str) -> int:
+        """Index from which the tail may be an unfinished placeholder."""
+        limit = max(0, len(text) - _MAX_PARTIAL_TOKEN_HOLD)
+        idx = text.find("[", limit)
+        while idx != -1:
+            if _looks_like_partial_token(text[idx:]):
+                return idx
+            idx = text.find("[", idx + 1)
+        return len(text)
+
+    def feed(self, chunk: str) -> str:
+        """Consume a stream chunk and return the text that is safe to emit now."""
+        if not self._vault or not chunk:
+            return chunk
+        self._buffer += chunk
+        replaced = self._replace(self._buffer)
+        hold_at = self._hold_index(replaced)
+        emit, self._buffer = replaced[:hold_at], replaced[hold_at:]
+        return emit
+
+    def flush(self) -> str:
+        """Return any text still withheld once the stream ends."""
+        if not self._buffer:
+            return ""
+        remainder, self._buffer = self._replace(self._buffer), ""
+        return remainder
+
+
+async def restore_llm_json(
+    session_id: str,
+    payload: Any,
+    policy: str = "full",
+) -> Any:
+    """Recursively restore placeholders inside a parsed LLM JSON structure.
+
+    Restoring the raw JSON *string* before parsing is unsafe: an original value may
+    contain quotes or backslashes and would corrupt the document. Walking the parsed
+    structure instead keeps the JSON valid whatever the vaulted values contain.
+    """
+    vault_map = await get_session_vault_map(session_id)
+    if not vault_map:
+        return payload
+
+    def _walk(node: Any) -> Any:
+        if isinstance(node, str):
+            out = node
+            for token, original_value in vault_map.items():
+                if token not in out:
+                    continue
+                if policy == "redact_secrets" and token.startswith("[[VRIKA:SECRET:"):
+                    out = out.replace(token, "[REDACTED_CREDENTIAL]")
+                else:
+                    out = out.replace(token, original_value)
+            return out
+        if isinstance(node, list):
+            return [_walk(item) for item in node]
+        if isinstance(node, dict):
+            return {key: _walk(value) for key, value in node.items()}
+        return node
+
+    return _walk(payload)

@@ -20,6 +20,7 @@ else:
 from app.config import Settings
 from app.constants import AGENT_CHAT_MESSAGES_COLLECTION, AGENT_CHAT_SESSIONS_COLLECTION
 from app.services.agent_client import AgentUnreachableError, agent_post_json
+from app.services.anonymization_vault import mask_tool_output, restore_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -497,6 +498,9 @@ async def extract_ai_intelligence(
     session_id: Any = None,
 ) -> dict[str, Any] | None:
     context = build_ai_context(session_doc, rows)
+    if session_id:
+        # The context is assembled from raw tool output; mask before it leaves our network.
+        context = await mask_tool_output(str(session_id), context)
     prompt = (
         "You are a security session intelligence extractor. Return ONLY compact JSON with keys "
         "title, summary, findings. Findings must be evidence-backed and use severities "
@@ -541,7 +545,13 @@ async def extract_ai_intelligence(
             "session_intelligence: AI returned non-JSON content=%r", content[:300]
         )
         return None
-    return parsed if isinstance(parsed, dict) else None
+    if not isinstance(parsed, dict):
+        return None
+    if session_id:
+        # Findings/evidence are stored and rendered into reports, so put the real
+        # hostnames, IPs and identifiers back before persisting.
+        parsed = await restore_llm_json(str(session_id), parsed)
+    return parsed
 
 
 async def recalculate_session_intelligence(
