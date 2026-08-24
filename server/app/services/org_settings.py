@@ -790,6 +790,36 @@ async def resolve_config_for_prowler_tenant(
     if not org_id:
         return {}
 
+    doc = await _get_doc(db, org_id)
+    branding = doc.get("branding") or {}
+    smtp = doc.get("smtp") or {}
+
+    smtp_out: dict[str, Any] = {}
+    if smtp.get("host"):
+        smtp_out = {
+            "host": smtp.get("host"),
+            "port": int(smtp.get("port") or 587),
+            "username": smtp.get("username") or "",
+            "use_tls": bool(smtp.get("use_tls", True)),
+            "from_email": smtp.get("from_email"),
+        }
+        if smtp.get("password_enc"):
+            try:
+                smtp_out["password"] = decrypt_password(settings, smtp["password_enc"])
+            except Exception:
+                smtp_out["password"] = ""
+
+    config: dict[str, Any] = {
+        "branding": {
+            "logo_base64": branding.get("logo_base64") or "",
+            "logo_content_type": branding.get("logo_content_type") or "",
+            "logo_filename": branding.get("logo_filename") or "",
+        },
+        "smtp": smtp_out,
+    }
+
     llm_cfg = await resolve_llm_config_for_org(db, settings, org_id)
-    return {"llm": llm_cfg} if llm_cfg else {}
+    if llm_cfg:
+        config["llm"] = llm_cfg
+    return config
 
