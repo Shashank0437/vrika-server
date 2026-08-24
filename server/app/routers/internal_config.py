@@ -1,8 +1,9 @@
 import base64
 import hmac
-from typing import Any, Dict, Optional
+import logging
+from typing import Any, Callable, Coroutine, Dict, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
@@ -14,7 +15,28 @@ from app.services.cloud_scan_notifications import (
 )
 from app.services import org_settings as svc
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+async def _send_in_background(
+    send: Callable[[], Coroutine[Any, Any, Any]],
+    *,
+    kind: str,
+    scan_id: str,
+) -> None:
+    """Run a notification send after the response, logging the real outcome.
+
+    The caller is a Celery worker that only learns the request was accepted, so
+    this log line is the record of whether delivery actually succeeded.
+    """
+    try:
+        result = await send()
+    except Exception:
+        logger.exception("%s notification failed to send (scan=%s)", kind, scan_id)
+    else:
+        logger.info("%s notification sent (scan=%s): %s", kind, scan_id, result)
 
 
 class InternalNotifyScanCompletedIn(BaseModel):
@@ -80,9 +102,14 @@ async def internal_org_config(
     )
 
 
-@router.post("/notify-scan-completed", dependencies=[Depends(_require_internal_secret)])
+@router.post(
+    "/notify-scan-completed",
+    dependencies=[Depends(_require_internal_secret)],
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def internal_notify_scan_completed(
     payload: InternalNotifyScanCompletedIn,
+    background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_database),
     settings: Settings = Depends(get_settings),
 ) -> dict:
@@ -137,23 +164,31 @@ async def internal_notify_scan_completed(
         except Exception:
             pass
 
-    res = await send_cloud_scan_completed_notification(
-        db,
-        settings,
-        org_id=org_id,
-        scanner_email=scanner_email,
-        provider=payload.provider,
-        account_id=payload.account_id,
-        account_name=payload.account_name,
+    # Hand off to the background so the worker isn't held open for the SMTP
+    # round trip; a multi-MB attachment can take longer than the caller's
+    # timeout, which previously logged a failure for mail that was delivered.
+    background_tasks.add_task(
+        _send_in_background,
+        lambda: send_cloud_scan_completed_notification(
+            db,
+            settings,
+            org_id=org_id,
+            scanner_email=scanner_email,
+            provider=payload.provider,
+            account_id=payload.account_id,
+            account_name=payload.account_name,
+            scan_id=payload.scan_id,
+            compliance_score=payload.compliance_score,
+            scanned_resources=payload.scanned_resources,
+            findings=payload.findings,
+            attack_paths_count=payload.attack_paths_count,
+            top_attack_path=payload.top_attack_path,
+            pdf_attachments=pdf_attachments if pdf_attachments else None,
+        ),
+        kind="Cloud scan completed",
         scan_id=payload.scan_id,
-        compliance_score=payload.compliance_score,
-        scanned_resources=payload.scanned_resources,
-        findings=payload.findings,
-        attack_paths_count=payload.attack_paths_count,
-        top_attack_path=payload.top_attack_path,
-        pdf_attachments=pdf_attachments if pdf_attachments else None,
     )
-    return {"status": "success", "result": res}
+    return {"status": "accepted"}
 
 
 @router.post("/notify-attack-paths-completed", dependencies=[Depends(_require_internal_secret)])
