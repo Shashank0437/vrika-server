@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { getApiPendingSnapshot, subscribeApiPending } from "@/lib/api-pending";
 import { LoaderSvg } from "@/components/ui/LoaderSvg";
 
@@ -9,6 +10,7 @@ const SHOW_AFTER_MS = 320;
 
 /** Full-screen translucent overlay shown while authenticated API calls (`api`/`apiPublic`) are in flight on the client. */
 export function GlobalPendingApiOverlay() {
+  const pathname = usePathname();
   const count = useSyncExternalStore(subscribeApiPending, getApiPendingSnapshot, () => 0);
   const [visible, setVisible] = useState(false);
 
@@ -28,6 +30,9 @@ export function GlobalPendingApiOverlay() {
       window.clearTimeout(t);
     };
   }, [count]);
+
+  // Cloud Security has its own dedicated loader card and skeleton screen
+  if (pathname?.startsWith("/dashboard/cloud-security")) return null;
 
   if (!visible || count <= 0) return null;
 

@@ -29,12 +29,13 @@ export class ApiError extends Error {
 
 export async function api<T>(
   path: string,
-  opts?: RequestInit & { json?: unknown },
+  opts?: RequestInit & { json?: unknown; skipPendingOverlay?: boolean },
 ): Promise<T> {
-  if (typeof window !== "undefined") bumpApiPending(1);
+  const shouldBump = typeof window !== "undefined" && !opts?.skipPendingOverlay;
+  if (shouldBump) bumpApiPending(1);
   try {
     const headers = new Headers(opts?.headers);
-    const { json, ...rest } = opts ?? {};
+    const { json, skipPendingOverlay: _s, ...rest } = opts ?? {};
     if (!headers.has("Content-Type") && (json !== undefined || typeof rest.body === "string")) {
       headers.set("Content-Type", "application/json");
     }
@@ -62,19 +63,20 @@ export async function api<T>(
     if (!text) return undefined as T;
     return JSON.parse(text) as T;
   } finally {
-    if (typeof window !== "undefined") bumpApiPending(-1);
+    if (shouldBump) bumpApiPending(-1);
   }
 }
 
 /** Same as `api` but never attaches `Authorization` (public preview / signup flows while another session may be stored). */
 export async function apiPublic<T>(
   path: string,
-  opts?: RequestInit & { json?: unknown },
+  opts?: RequestInit & { json?: unknown; skipPendingOverlay?: boolean },
 ): Promise<T> {
-  if (typeof window !== "undefined") bumpApiPending(1);
+  const shouldBump = typeof window !== "undefined" && !opts?.skipPendingOverlay;
+  if (shouldBump) bumpApiPending(1);
   try {
     const headers = new Headers(opts?.headers);
-    const { json, ...rest } = opts ?? {};
+    const { json, skipPendingOverlay: _s, ...rest } = opts ?? {};
     if (!headers.has("Content-Type") && (json !== undefined || typeof rest.body === "string")) {
       headers.set("Content-Type", "application/json");
     }
@@ -98,6 +100,6 @@ export async function apiPublic<T>(
     if (!text) return undefined as T;
     return JSON.parse(text) as T;
   } finally {
-    if (typeof window !== "undefined") bumpApiPending(-1);
+    if (shouldBump) bumpApiPending(-1);
   }
 }

@@ -91,7 +91,9 @@ export function CloudSecurityWorkspace() {
 
     async function loadEmbed() {
       try {
-        const res = await api<EmbedResponse>("/auth/cloud-security/embed");
+        const res = await api<EmbedResponse>("/auth/cloud-security/embed", {
+          skipPendingOverlay: true,
+        });
         if (!cancelled) {
           setEmbedPath(res.embed_path);
           setError(null);
