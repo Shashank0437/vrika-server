@@ -57,6 +57,7 @@ from app.services.anonymization_vault import (
     StreamingRestorer,
     get_session_vault_map,
     mask_tool_messages_for_llm,
+    mask_tool_output,
     restore_llm_text,
 )
 
@@ -1057,10 +1058,23 @@ async def enrich_penetration_report_tool_args(
     if truncated:
         transcript += "\n\n[Note: message log exceeded size budget; middle section omitted via head/tail.]\n"
 
-    out["session_transcript"] = transcript
-    if ui_ctx:
-        out["ui_context"] = ui_ctx
     out["session_id"] = str(session_id)
+
+    # Anonymize session transcript & ui_context using Presidio Semantic Vault so external LLMs (OpenRouter)
+    # never receive raw customer IPs, internal hostnames, or credentials.
+    try:
+        masked_transcript = await mask_tool_output(str(session_id), transcript)
+        out["session_transcript"] = masked_transcript
+        if ui_ctx:
+            out["ui_context"] = await mask_tool_output(str(session_id), ui_ctx)
+        vault_map = await get_session_vault_map(str(session_id))
+        if vault_map:
+            out["vault_map"] = vault_map
+    except Exception as mask_exc:
+        logger.warning("enrich_penetration_report_tool_args: vault masking failed: %s", mask_exc)
+        out["session_transcript"] = transcript
+        if ui_ctx:
+            out["ui_context"] = ui_ctx
 
     # This tool call is dispatched directly to the agent's tool endpoint (not through
     # llm-stream), which otherwise falls back to the agent's global LLM singleton — 503s
