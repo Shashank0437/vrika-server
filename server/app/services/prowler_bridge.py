@@ -34,6 +34,8 @@ _PROWLER_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "manage_providers": True,
         "manage_integrations": True,
         "manage_scans": True,
+        "manage_triage": True,
+        "manage_triage_exceptions": True,
         "unlimited_visibility": True,
     },
     _PROWLER_MEMBER_ROLE: {
@@ -42,6 +44,8 @@ _PROWLER_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "manage_providers": True,
         "manage_integrations": True,
         "manage_scans": True,
+        "manage_triage": True,
+        "manage_triage_exceptions": False,
         "unlimited_visibility": True,
     },
 }

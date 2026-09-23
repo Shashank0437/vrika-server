@@ -4,6 +4,13 @@ Monorepo with a **Next.js** client (`client/`) and **FastAPI** API (`server/`), 
 
 ## Run everything with Docker Compose
 
+The Cloud Security bridge provisions `admin` with ordinary and exception triage
+permissions, and `vrika_member` with ordinary status/note editing only. Existing
+managed roles are upgraded by the Cloud Security `0100_triage_managed_roles`
+migration; embed login does not reset customized role permissions. Deploy the
+matching Cloud Security API schema before the bridge update. Triage is separately
+feature-gated in Cloud Security and does not create additional email notifications.
+
 From the repository root:
 
 1. Copy the API example env file and set secrets (at minimum **`JWT_SECRET`**):
