@@ -62,7 +62,7 @@ def render_cloud_scan_email(
         "preheader": f"Cloud scan completed for {account_id} ({provider.upper()}): {compliance_score}% Compliance, {findings.get('critical', 0)} Critical findings",
     }
 
-    subject = f"🛡️ [Vrika] Cloud Scan Complete — {provider.upper()} ({account_id})"
+    subject = f"Vrika Cloud Scan Complete — {provider.upper()} ({account_id})"
     return subject, html_template.render(**ctx), text_template.render(**ctx)
 
 
