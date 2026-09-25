@@ -20,6 +20,8 @@ const NO_OUTLINE_SUFFIX = new Set([
   "update",
   "radar",
   "expand-more",
+  "add",
+  "add-circle",
   "flight",
   "stacked-line-chart",
   "arrow-back",

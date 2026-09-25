@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, type ReactNode } from "react";
 import { CloudSecuritySidebarSection } from "@/components/dashboard/CloudSecuritySidebarSection";
 import { DashboardHeaderProfile } from "@/components/dashboard/DashboardHeaderProfile";
 import { SettingsSidebarSection } from "@/components/dashboard/SettingsSidebarSection";
+import { WebSecuritySidebarSection } from "@/components/dashboard/WebSecuritySidebarSection";
 import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { useAuth } from "@/lib/auth-context";
@@ -17,25 +18,18 @@ type NavMain = {
   icon: string;
   match: "exact" | "prefix";
   adminOnly?: boolean;
+  webSecurity?: boolean;
   cloudSecurity?: boolean;
   settingsNav?: boolean;
 };
 
 const MAIN_NAV: NavMain[] = [
-  { href: "/dashboard", label: "Sessions", icon: "history", match: "exact" },
   {
-    href: "/dashboard/usage",
-    label: "Usage",
-    icon: "analytics",
+    href: "/dashboard",
+    label: "Web Security",
+    icon: "language",
     match: "prefix",
-    adminOnly: true,
-  },
-  {
-    href: "/dashboard/tools",
-    label: "Tools",
-    icon: "construction",
-    match: "prefix",
-    adminOnly: true,
+    webSecurity: true,
   },
   {
     href: "/dashboard/cloud-security",
@@ -62,6 +56,15 @@ const MAIN_NAV: NavMain[] = [
 ];
 
 function navActive(pathname: string, item: NavMain): boolean {
+  if (item.webSecurity) {
+    return (
+      pathname === "/dashboard" ||
+      pathname.startsWith("/dashboard/scan") ||
+      pathname.startsWith("/dashboard/usage") ||
+      pathname.startsWith("/dashboard/tools") ||
+      pathname.startsWith("/dashboard/session")
+    );
+  }
   if (item.cloudSecurity) {
     return pathname.startsWith(item.href);
   }
@@ -109,7 +112,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen items-start bg-background font-sans text-on-surface">
       <aside className="sticky top-0 flex h-[100dvh] max-h-[100dvh] w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-r border-outline-variant bg-surface-container-low">
-        <div className="shrink-0 px-6 pb-2 pt-6">
+        <div className="shrink-0 px-6 pb-4 pt-6">
           <Link
             href="/dashboard"
             className="flex items-center gap-3 rounded-lg transition hover:opacity-95"
@@ -123,26 +126,27 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
           </Link>
         </div>
 
-        <div className="shrink-0 px-6 pb-4 pt-2">
-          <Link
-            href="/dashboard/scan?new=1"
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-bold text-on-primary shadow-sm transition hover:opacity-90 active:scale-[0.99]"
-          >
-            <MaterialSymbol
-              name="add"
-              className="text-base text-on-primary"
-              filled
-            />
-            Run Scan
-          </Link>
-        </div>
-
         <nav
-          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-0 pb-2"
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-0 pb-2"
           aria-label="Main"
         >
           <div className="flex flex-col">
             {visibleMain.map((item) => {
+              if (item.webSecurity) {
+                return (
+                  <Suspense
+                    key={item.href}
+                    fallback={
+                      <div className="px-6 py-3 text-sm text-on-surface-variant">
+                        Web Security
+                      </div>
+                    }
+                  >
+                    <WebSecuritySidebarSection isAdmin={isAdmin} />
+                  </Suspense>
+                );
+              }
+
               if (item.cloudSecurity) {
                 return (
                   <Suspense
