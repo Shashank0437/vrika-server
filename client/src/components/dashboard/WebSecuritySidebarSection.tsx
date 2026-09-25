@@ -24,14 +24,20 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
     return (
       <Link
         href="/dashboard"
-        className="flex items-center gap-3 px-6 py-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+        className="flex items-center justify-between px-6 py-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
       >
+        <div className="flex items-center gap-3">
+          <MaterialSymbol
+            name="language"
+            className="text-xl shrink-0 text-on-surface-variant"
+            filled
+          />
+          <span>Web Security</span>
+        </div>
         <MaterialSymbol
-          name="language"
-          className="text-xl shrink-0 text-on-surface-variant"
-          filled
+          name="expand_more"
+          className="text-base shrink-0 text-on-surface-variant/70"
         />
-        Web Security
       </Link>
     );
   }
@@ -40,18 +46,41 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
     <div>
       <Link
         href="/dashboard"
-        className="flex items-center gap-3 border-r-4 border-primary bg-primary-container px-6 py-3 text-sm font-semibold text-on-primary-container transition-colors"
+        className="flex items-center justify-between border-r-4 border-primary bg-primary-container px-6 py-3 text-sm font-semibold text-on-primary-container transition-colors"
       >
+        <div className="flex items-center gap-3">
+          <MaterialSymbol
+            name="language"
+            className="text-xl shrink-0 text-on-primary-container"
+            filled
+          />
+          <span>Web Security</span>
+        </div>
         <MaterialSymbol
-          name="language"
-          className="text-xl shrink-0 text-on-primary-container"
-          filled
+          name="expand_less"
+          className="text-base shrink-0 text-on-primary-container"
         />
-        Web Security
       </Link>
 
       <div className="border-r-4 border-primary bg-primary-container/40 py-1 space-y-0.5">
-        {/* Sessions */}
+        {/* 1. New Scan - Order 1 of 4, bold purple colored */}
+        <Link
+          href="/dashboard/scan?new=1"
+          className={
+            isScanActive
+              ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-bold text-primary transition-colors bg-primary-container/80"
+              : "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-bold text-primary transition-colors hover:bg-surface-container hover:text-primary"
+          }
+        >
+          <MaterialSymbol
+            name="add"
+            className="text-base shrink-0 text-primary font-bold"
+            filled
+          />
+          <span>New Scan</span>
+        </Link>
+
+        {/* 2. Sessions - Order 2 of 4 */}
         <Link
           href="/dashboard"
           className={
@@ -67,27 +96,10 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
             }`}
             filled
           />
-          Sessions
+          <span>Sessions</span>
         </Link>
 
-        {/* Run New Scan - bold purple colored, rest all same */}
-        <Link
-          href="/dashboard/scan?new=1"
-          className={
-            isScanActive
-              ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-bold text-primary transition-colors bg-primary-container/80"
-              : "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-bold text-primary transition-colors hover:bg-surface-container hover:text-primary"
-          }
-        >
-          <MaterialSymbol
-            name="add_circle"
-            className="text-base shrink-0 text-primary"
-            filled
-          />
-          Run New Scan
-        </Link>
-
-        {/* Tools */}
+        {/* 3. Tools - Order 3 of 4 */}
         {isAdmin && (
           <Link
             href="/dashboard/tools"
@@ -104,11 +116,11 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
               }`}
               filled
             />
-            Tools
+            <span>Tools</span>
           </Link>
         )}
 
-        {/* Usage */}
+        {/* 4. Usage - Order 4 of 4 */}
         {isAdmin && (
           <Link
             href="/dashboard/usage"
@@ -119,13 +131,13 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
             }
           >
             <MaterialSymbol
-              name="analytics"
+              name="bar_chart"
               className={`text-base shrink-0 ${
                 isUsageActive ? "text-on-primary-container" : "text-on-surface-variant"
               }`}
               filled
             />
-            Usage
+            <span>Usage</span>
           </Link>
         )}
       </div>

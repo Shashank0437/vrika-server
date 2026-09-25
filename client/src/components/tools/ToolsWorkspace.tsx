@@ -247,7 +247,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
 
   const shell =
     intro === "dashboard"
-      ? "w-full max-w-7xl mx-auto px-0 pb-16 pt-2"
+      ? "mx-auto max-w-[1360px] px-8 py-6"
       : "mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6";
 
   const statsTop = intro === "dashboard" ? "mt-6" : "mt-8";
@@ -275,14 +275,13 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
           </p>
         </>
       ) : (
-        <>
-          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">Tools</p>
-          <h1 className="mt-2 text-[1.75rem] font-bold tracking-tight text-on-surface">Tooling</h1>
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-on-surface-variant">
-            Launcher, pinning, and live availability for sanctioned binaries stay on this page—probe status and the full
-            catalog are below.
+        <header className="mb-6">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Web Security</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-on-surface">Tools & Arsenal</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            Launcher, pinning, and live availability for sanctioned binaries and offensive probes.
           </p>
-        </>
+        </header>
       )}
 
       {error ? (

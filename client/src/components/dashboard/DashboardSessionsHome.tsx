@@ -119,6 +119,8 @@ export function DashboardSessionsHome() {
   const [statusFilter, setStatusFilter] = useState<AgentChatSessionStatus | "ALL">("ALL");
   const [severityFilter, setSeverityFilter] = useState<AgentChatFindingSeverity | "ALL">("ALL");
   const [sortMode, setSortMode] = useState<"newest" | "oldest">("newest");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [analyzeBusyId, setAnalyzeBusyId] = useState<string | null>(null);
@@ -127,6 +129,10 @@ export function DashboardSessionsHome() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisTitle, setAnalysisTitle] = useState("");
   const [reportError, setReportError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, statusFilter, severityFilter, sortMode]);
 
   async function load(silent = false) {
     if (!silent) setLoading(true);
@@ -230,10 +236,9 @@ export function DashboardSessionsHome() {
       {
         label: "Total scans",
         value: String(totalSessions),
-        sub: totalSessions === 1 ? "1 intelligence session" : `${totalSessions} intelligence sessions`,
+        sub: totalSessions === 1 ? "+1 intelligence session" : `+${totalSessions} intelligence sessions`,
         trend: "up" as const,
-        icon: "schedule",
-        iconWrap: "bg-primary-container text-primary",
+        icon: "description",
       },
       {
         label: "Vulnerabilities found",
@@ -241,15 +246,13 @@ export function DashboardSessionsHome() {
         sub: critical > 0 ? `${critical} critical active` : "Evidence-backed findings",
         trend: null,
         icon: "verified_user",
-        iconWrap: "bg-primary-container text-tertiary",
       },
       {
         label: "Avg. time to breach",
         value: formatDuration(avgSeconds),
         sub: "Unique active tool time",
         trend: null,
-        icon: "speed",
-        iconWrap: "bg-primary-container text-primary",
+        icon: "schedule",
       },
     ];
   }, [rows]);
@@ -280,45 +283,58 @@ export function DashboardSessionsHome() {
     return sortRows(filtered, sortMode);
   }, [query, rows, severityFilter, sortMode, statusFilter]);
 
+  const totalItems = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validPage = Math.min(Math.max(1, currentPage), totalPages);
+  const paginatedRows = useMemo(() => {
+    const start = (validPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, validPage, pageSize]);
+  const startItem = totalItems === 0 ? 0 : (validPage - 1) * pageSize + 1;
+  const endItem = Math.min(validPage * pageSize, totalItems);
+
   const selected = selectedId ? rows.find((row) => row.session_id === selectedId) ?? null : null;
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10 pb-20">
-      <header className="mb-10">
-        <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">Sessions</p>
-        <h1 className="mt-2 text-[1.85rem] font-bold tracking-tight text-on-surface">Session History</h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-on-surface-variant">
+    <div className="mx-auto max-w-[1360px] px-8 py-6">
+      <header className="mb-6">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Web Security</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-on-surface">Session History</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
           Manage and review offensive security operations and automated breach reports.
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* KPI Cards matching Figma */}
+      <div className="grid gap-5 md:grid-cols-3">
         {metrics.map((m) => (
           <div
             key={m.label}
-            className="rounded-2xl border border-outline-variant bg-surface px-6 py-5 shadow-sm transition-shadow hover:shadow-md"
+            className="flex items-center gap-4 rounded-2xl border border-outline-variant/60 bg-surface px-6 py-5 shadow-xs transition-shadow hover:shadow-sm"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[13px] font-semibold text-on-surface-variant">{m.label}</p>
-                <p className="mt-2 text-3xl font-bold tracking-tight text-on-surface">{m.value}</p>
-                <p className="mt-2 flex items-center gap-1.5 text-[13px] text-on-surface-variant">
-                  {m.trend === "up" ? (
-                    <MaterialSymbol name="trending_up" className="text-lg text-emerald-600" filled />
-                  ) : null}
-                  {m.sub}
-                </p>
-              </div>
-              <span className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ${m.iconWrap}`}>
-                <MaterialSymbol name={m.icon} className="text-[26px]" filled />
-              </span>
+            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <MaterialSymbol name={m.icon} className="text-2xl" filled />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-on-surface-variant">{m.label}</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-on-surface">{m.value}</p>
+              <p className="mt-1 flex items-center gap-1 text-xs text-on-surface-variant font-medium">
+                {m.trend === "up" ? (
+                  <span className="text-emerald-600 font-semibold flex items-center gap-0.5">
+                    <MaterialSymbol name="trending_up" className="text-base" filled />
+                    {m.sub}
+                  </span>
+                ) : (
+                  m.sub
+                )}
+              </p>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-10 rounded-2xl border border-outline-variant bg-surface shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-outline-variant px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-8 rounded-2xl border border-outline-variant/70 bg-surface shadow-xs">
+        <div className="flex flex-col gap-4 border-b border-outline-variant/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <label className="relative block max-w-xl flex-1">
             <MaterialSymbol
               name="search"
@@ -329,36 +345,36 @@ export function DashboardSessionsHome() {
               value={query}
               onChange={(e) => setQuery(e.currentTarget.value)}
               placeholder="Search by target or session ID…"
-              className="h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest py-2.5 pr-3 pl-11 text-[15px] text-on-surface outline-none transition-[border-color,box-shadow] placeholder:text-on-surface-variant focus:border-primary focus:ring-1 focus:ring-primary"
+              className="h-10 w-full rounded-xl border border-outline-variant/70 bg-surface-container-lowest py-2 pr-3 pl-10 text-sm text-on-surface outline-none transition-[border-color,box-shadow] placeholder:text-on-surface-variant focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             <button
               type="button"
               onClick={() => setShowFilters((v) => !v)}
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-variant px-4 text-[13px] font-semibold text-on-surface hover:bg-surface-container-high"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-variant/70 px-4 text-xs font-semibold text-on-surface hover:bg-surface-container-high transition-colors"
             >
-              <MaterialSymbol name="filter_list" className="text-lg text-on-surface-variant" /> Filter
+              <MaterialSymbol name="filter_list" className="text-base text-on-surface-variant" /> Filter
             </button>
             <button
               type="button"
               onClick={() => setSortMode((v) => (v === "newest" ? "oldest" : "newest"))}
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-variant px-4 text-[13px] font-semibold text-on-surface hover:bg-surface-container-high"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-outline-variant/70 px-4 text-xs font-semibold text-on-surface hover:bg-surface-container-high transition-colors"
             >
-              Sort: {sortMode === "newest" ? "Newest" : "Oldest"}
-              <MaterialSymbol name="expand_more" className="text-lg" />
+              <span>Sort: {sortMode === "newest" ? "Newest" : "Oldest"}</span>
+              <MaterialSymbol name="expand_more" className="text-base text-on-surface-variant" />
             </button>
           </div>
         </div>
 
         {showFilters ? (
-          <div className="flex flex-wrap gap-2 border-b border-outline-variant px-5 py-3 text-[12px]">
+          <div className="flex flex-wrap gap-2 border-b border-outline-variant/70 px-6 py-3 text-xs">
             {(["ALL", "IN_PROGRESS", "COMPLETED", "FAILED"] as const).map((status) => (
               <button
                 key={status}
                 type="button"
                 onClick={() => setStatusFilter(status)}
-                className={`rounded-full px-3 py-1 font-bold ${
+                className={`rounded-full px-3 py-1 font-bold transition-colors ${
                   statusFilter === status ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
                 }`}
               >
@@ -370,7 +386,7 @@ export function DashboardSessionsHome() {
                 key={sev}
                 type="button"
                 onClick={() => setSeverityFilter(sev)}
-                className={`rounded-full px-3 py-1 font-bold ${
+                className={`rounded-full px-3 py-1 font-bold transition-colors ${
                   severityFilter === sev ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant"
                 }`}
               >
@@ -381,47 +397,72 @@ export function DashboardSessionsHome() {
         ) : null}
 
         {error ? (
-          <div className="border-b border-outline-variant px-5 py-3 text-[13px] font-semibold text-red-700">
+          <div className="border-b border-outline-variant px-6 py-3 text-xs font-semibold text-red-700">
             {error}
           </div>
         ) : null}
         {reportError ? (
-          <div className="border-b border-outline-variant px-5 py-3 text-[13px] font-semibold text-red-700">
+          <div className="border-b border-outline-variant px-6 py-3 text-xs font-semibold text-red-700">
             {reportError}
           </div>
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="min-w-[760px] w-full border-collapse text-left text-[14px]">
+          <table className="min-w-[760px] w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-outline-variant text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
-                <th className="px-5 py-3.5">Target</th>
-                <th className="px-5 py-3.5">Status</th>
-                <th className="px-5 py-3.5">Date started</th>
-                <th className="px-5 py-3.5">Executed By</th>
-                <th className="px-5 py-3.5">Findings</th>
-                <th className="px-5 py-3.5 text-right">Actions</th>
+              <tr className="border-b border-outline-variant/70 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
+                <th className="px-6 py-3.5">
+                  <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setSortMode((v) => (v === "newest" ? "oldest" : "newest"))}>
+                    <span>Target</span>
+                    <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
+                  </div>
+                </th>
+                <th className="px-6 py-3.5">
+                  <div className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <span>Status</span>
+                    <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
+                  </div>
+                </th>
+                <th className="px-6 py-3.5">
+                  <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setSortMode((v) => (v === "newest" ? "oldest" : "newest"))}>
+                    <span>Date started</span>
+                    <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
+                  </div>
+                </th>
+                <th className="px-6 py-3.5">
+                  <div className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <span>Executed By</span>
+                    <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
+                  </div>
+                </th>
+                <th className="px-6 py-3.5">
+                  <div className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <span>Findings</span>
+                    <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
+                  </div>
+                </th>
+                <th className="px-6 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-on-surface-variant">
+                  <td colSpan={6} className="px-6 py-12 text-center text-on-surface-variant">
                     Loading session intelligence…
                   </td>
                 </tr>
-              ) : filteredRows.length === 0 ? (
+              ) : paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="mx-auto max-w-md">
                       <MaterialSymbol name="travel_explore" className="text-4xl text-primary" />
-                      <p className="mt-3 text-[15px] font-bold text-on-surface">No completed tool sessions yet</p>
-                      <p className="mt-1 text-[13px] text-on-surface-variant">
+                      <p className="mt-3 text-sm font-bold text-on-surface">No completed tool sessions yet</p>
+                      <p className="mt-1 text-xs text-on-surface-variant">
                         Sessions appear here after a chat thread successfully executes at least one tool.
                       </p>
                       <Link
                         href="/dashboard/scan?new=1"
-                        className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-bold text-on-primary hover:opacity-90"
+                        className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-on-primary hover:opacity-90 transition-opacity"
                       >
                         <MaterialSymbol name="add" className="text-base text-on-primary" filled />
                         Start scan
@@ -430,35 +471,55 @@ export function DashboardSessionsHome() {
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((r) => {
+                paginatedRows.map((r) => {
                   const chips = severityChips(r);
                   const reportAttachment = latestReportAttachment(r);
                   const reportBusy = reportBusyId === r.session_id;
+                  const isHttp = r.targets[0]?.startsWith("http");
                   return (
-                    <tr key={r.session_id} className="border-b border-outline-variant/80 hover:bg-primary-container/[0.12]">
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-on-surface">{r.title}</p>
-                        <p className="text-[13px] text-on-surface-variant">
-                          {sxId(r.session_id)}
-                          {r.targets[0] ? ` · ${r.targets[0]}` : ""}
-                        </p>
+                    <tr key={r.session_id} className="border-b border-outline-variant/60 hover:bg-primary-container/[0.08] transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <MaterialSymbol name={isHttp ? "language" : "computer"} className="text-base" filled />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-on-surface text-sm leading-snug">{r.title}</p>
+                            <p className="text-xs text-on-surface-variant font-mono mt-0.5">
+                              {sxId(r.session_id)}{r.targets[0] ? ` · ${r.targets[0]}` : ""}
+                            </p>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-bold tracking-wide ${statusClass(r.status)}`}>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          r.status === "COMPLETED"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
+                            : r.status === "FAILED"
+                              ? "bg-red-50 text-red-700 border border-red-200/80"
+                              : "bg-primary-container text-on-primary-container border border-primary/20"
+                        }`}>
+                          <span className={`size-1.5 rounded-full ${
+                            r.status === "COMPLETED"
+                              ? "bg-emerald-500"
+                              : r.status === "FAILED"
+                                ? "bg-red-500"
+                                : "bg-primary"
+                          }`} />
                           {STATUS_LABELS[r.status]}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-on-surface-variant">{formatDate(r.started_at)}</td>
-                      <td className="px-5 py-4 text-on-surface-variant font-medium">{r.executed_by || "—"}</td>
-                      <td className="px-5 py-4">
+                      <td className="px-6 py-4 text-xs text-on-surface-variant">{formatDate(r.started_at)}</td>
+                      <td className="px-6 py-4 text-xs text-on-surface-variant font-medium">{r.executed_by || "—"}</td>
+                      <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1.5">
                           {chips.length === 0 ? (
-                            <span className="text-on-surface-variant">—</span>
+                            <span className="text-on-surface-variant text-xs">—</span>
                           ) : (
                             chips.map((f) => (
                               <span
                                 key={f}
-                                className="rounded-lg bg-surface-container-high px-2 py-0.5 text-[11px] font-semibold uppercase text-on-surface-variant"
+                                className="rounded-md bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-semibold"
                               >
                                 {f}
                               </span>
@@ -466,15 +527,25 @@ export function DashboardSessionsHome() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="inline-flex gap-2 text-on-surface-variant">
+                      <td className="px-6 py-4 text-right">
+                        <div className="inline-flex gap-1 text-on-surface-variant">
                           <Tooltip content={reportAvailable(r) ? "Description and report" : "Description"} align="right">
                             <button
                               type="button"
                               onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
-                              className="rounded-lg p-2 hover:bg-primary-container hover:text-primary"
+                              className="rounded-lg p-1.5 hover:bg-surface-container hover:text-primary transition-colors"
                             >
-                              <MaterialSymbol name="description" filled />
+                              <MaterialSymbol name="description" filled className="text-lg" />
+                            </button>
+                          </Tooltip>
+
+                          <Tooltip content="Scan Target" align="right">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
+                              className="rounded-lg p-1.5 hover:bg-surface-container hover:text-primary transition-colors"
+                            >
+                              <MaterialSymbol name="radar" filled className="text-lg" />
                             </button>
                           </Tooltip>
 
@@ -483,11 +554,11 @@ export function DashboardSessionsHome() {
                               type="button"
                               disabled={analyzeBusyId === r.session_id}
                               onClick={() => handleAnalyze(r)}
-                              className="rounded-lg p-2 hover:bg-primary-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                              className="rounded-lg p-1.5 hover:bg-surface-container hover:text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <MaterialSymbol
-                                name={analyzeBusyId === r.session_id ? "progress_activity" : "psychology"}
-                                className={analyzeBusyId === r.session_id ? "animate-spin" : ""}
+                                name={analyzeBusyId === r.session_id ? "progress_activity" : "analytics"}
+                                className={analyzeBusyId === r.session_id ? "animate-spin text-lg" : "text-lg"}
                                 filled
                               />
                             </button>
@@ -496,9 +567,9 @@ export function DashboardSessionsHome() {
                           <Tooltip content="Terminal" align="right">
                             <Link
                               href={`/dashboard/scan?chat_id=${encodeURIComponent(r.session_id)}`}
-                              className="rounded-lg p-2 hover:bg-primary-container hover:text-primary"
+                              className="rounded-lg p-1.5 hover:bg-surface-container hover:text-primary transition-colors"
                             >
-                              <MaterialSymbol name="terminal" filled />
+                              <MaterialSymbol name="terminal" filled className="text-lg" />
                             </Link>
                           </Tooltip>
 
@@ -516,7 +587,7 @@ export function DashboardSessionsHome() {
                               type="button"
                               disabled={reportBusy}
                               onClick={() => handleReportAction(r)}
-                              className={`rounded-lg p-2 hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-40 ${
+                              className={`rounded-lg p-1.5 hover:bg-surface-container transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                                 reportAttachment
                                   ? "text-emerald-700 hover:text-emerald-800"
                                   : "text-primary hover:text-primary"
@@ -524,24 +595,19 @@ export function DashboardSessionsHome() {
                             >
                               <MaterialSymbol
                                 name={reportBusy ? "progress_activity" : reportAttachment ? "picture_as_pdf" : "note_add"}
-                                className={reportBusy ? "animate-spin" : ""}
+                                className={reportBusy ? "animate-spin text-lg" : "text-lg"}
                                 filled
                               />
                             </button>
                           </Tooltip>
 
-                          {reportAttachment ? (
-                            <Tooltip content="Regenerate PDF report" align="right">
-                              <button
-                                type="button"
-                                disabled={reportBusy}
-                                onClick={() => generateReport(r)}
-                                className="rounded-lg p-2 text-primary hover:bg-primary-container hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                <MaterialSymbol name="published_with_changes" filled />
-                              </button>
-                            </Tooltip>
-                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
+                            className="rounded-lg p-1.5 hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
+                          >
+                            <MaterialSymbol name="more_vert" className="text-lg" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -552,20 +618,68 @@ export function DashboardSessionsHome() {
           </table>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-outline-variant px-5 py-4 text-[13px] text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
+        {/* Pagination matching Figma */}
+        <div className="flex flex-col gap-3 border-t border-outline-variant/70 px-6 py-4 text-xs text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
           <span>
-            Showing {filteredRows.length === 0 ? 0 : 1} to {filteredRows.length} of {filteredRows.length} sessions
+            Showing {startItem}–{endItem} of {totalItems} sessions
           </span>
-          <div className="flex items-center gap-2">
-            <button type="button" className="rounded-lg px-3 py-1.5 font-semibold hover:bg-surface-container-high">
-              ‹
-            </button>
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-[13px] font-bold text-on-primary">
-              1
-            </span>
-            <button type="button" className="rounded-lg px-3 py-1.5 font-semibold hover:bg-surface-container-high">
-              ›
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={validPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="flex size-8 items-center justify-center rounded-lg border border-outline-variant/60 text-on-surface-variant hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                aria-label="Previous page"
+              >
+                <MaterialSymbol name="chevron_left" className="text-lg" />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .slice(0, 5)
+                .map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`flex size-8 items-center justify-center rounded-lg text-xs font-bold transition-colors ${
+                      page === validPage
+                        ? "bg-primary text-on-primary shadow-xs"
+                        : "text-on-surface-variant hover:bg-surface-container"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              <button
+                type="button"
+                disabled={validPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="flex size-8 items-center justify-center rounded-lg border border-outline-variant/60 text-on-surface-variant hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                aria-label="Next page"
+              >
+                <MaterialSymbol name="chevron_right" className="text-lg" />
+              </button>
+            </div>
+
+            <div className="relative">
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="h-8 appearance-none rounded-lg border border-outline-variant/70 bg-surface pl-3 pr-7 text-xs font-medium text-on-surface outline-none cursor-pointer hover:bg-surface-container-low transition-colors"
+              >
+                <option value={5}>5 per page</option>
+                <option value={10}>10 per page</option>
+                <option value={20}>20 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+              <MaterialSymbol
+                name="expand_more"
+                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant"
+              />
+            </div>
           </div>
         </div>
       </div>

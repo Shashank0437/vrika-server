@@ -125,14 +125,20 @@ export function CloudSecuritySidebarSection() {
     return (
       <Link
         href={CLOUD_SECURITY_HREF}
-        className="flex items-center gap-3 px-6 py-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+        className="flex items-center justify-between px-6 py-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
       >
+        <div className="flex items-center gap-3">
+          <MaterialSymbol
+            name="cloud"
+            className="text-xl shrink-0 text-on-surface-variant"
+            filled
+          />
+          <span>Cloud Security</span>
+        </div>
         <MaterialSymbol
-          name="cloud"
-          className="text-xl shrink-0 text-on-surface-variant"
-          filled
+          name="expand_more"
+          className="text-base shrink-0 text-on-surface-variant/70"
         />
-        Cloud Security
       </Link>
     );
   }
@@ -141,14 +147,20 @@ export function CloudSecuritySidebarSection() {
     <div>
       <Link
         href={CLOUD_SECURITY_HREF}
-        className="flex items-center gap-3 border-r-4 border-primary bg-primary-container px-6 py-3 text-sm font-semibold text-on-primary-container transition-colors"
+        className="flex items-center justify-between border-r-4 border-primary bg-primary-container px-6 py-3 text-sm font-semibold text-on-primary-container transition-colors"
       >
+        <div className="flex items-center gap-3">
+          <MaterialSymbol
+            name="cloud"
+            className="text-xl shrink-0 text-on-primary-container"
+            filled
+          />
+          <span>Cloud Security</span>
+        </div>
         <MaterialSymbol
-          name="cloud"
-          className="text-xl shrink-0 text-on-primary-container"
-          filled
+          name="expand_less"
+          className="text-base shrink-0 text-on-primary-container"
         />
-        Cloud Security
       </Link>
       <div className="border-r-4 border-primary bg-primary-container/40 py-1 space-y-0.5">
         {CLOUD_SECURITY_NAV.map((item) =>

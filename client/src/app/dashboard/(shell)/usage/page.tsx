@@ -32,6 +32,12 @@ export default function UsagePage() {
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<"newest" | "oldest" | "tokens-desc" | "calls-desc">("newest");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, sortMode]);
 
   async function load(silent = false) {
     if (!silent) setLoading(true);
@@ -115,70 +121,78 @@ export default function UsagePage() {
     });
   }, [sessions, query, sortMode]);
 
+  const totalItems = filteredSessions.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validPage = Math.min(Math.max(1, currentPage), totalPages);
+  const paginatedSessions = useMemo(() => {
+    const start = (validPage - 1) * pageSize;
+    return filteredSessions.slice(start, start + pageSize);
+  }, [filteredSessions, validPage, pageSize]);
+  const startItem = totalItems === 0 ? 0 : (validPage - 1) * pageSize + 1;
+  const endItem = Math.min(validPage * pageSize, totalItems);
+
   const cards = [
     {
       label: "Total Tokens",
       value: formatNumber(stats.grandTotal),
       sub: "Across all chat operations",
       icon: "generating_tokens",
-      iconWrap: "bg-primary-container text-primary",
+      iconWrap: "bg-primary/10 text-primary",
     },
     {
       label: "Input Tokens",
       value: formatNumber(stats.totalInput),
       sub: `${stats.grandTotal > 0 ? Math.round((stats.totalInput / stats.grandTotal) * 100) : 0}% of consumption`,
       icon: "login",
-      iconWrap: "bg-primary-container text-tertiary",
+      iconWrap: "bg-primary/10 text-primary",
     },
     {
       label: "Output Tokens",
       value: formatNumber(stats.totalOutput),
       sub: `${stats.grandTotal > 0 ? Math.round((stats.totalOutput / stats.grandTotal) * 100) : 0}% of consumption`,
       icon: "logout",
-      iconWrap: "bg-primary-container text-primary",
+      iconWrap: "bg-primary/10 text-primary",
     },
     {
       label: "LLM Interactions",
       value: formatNumber(stats.totalCalls),
       sub: stats.totalCalls === 1 ? "1 API completion call" : `${formatNumber(stats.totalCalls)} API completion calls`,
       icon: "smart_toy",
-      iconWrap: "bg-primary-container text-tertiary",
+      iconWrap: "bg-primary/10 text-primary",
     },
   ];
 
   return (
-    <div className="mx-auto max-w-[1200px] px-6 py-10 pb-20">
-      <header className="mb-10">
-        <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">Usage</p>
-        <h1 className="mt-2 text-[1.85rem] font-bold tracking-tight text-on-surface">LLM Token Usage</h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-on-surface-variant">
+    <div className="mx-auto max-w-[1360px] px-8 py-6">
+      <header className="mb-6">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Web Security</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-on-surface">LLM Token Usage</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
           Monitor and audit precise token usage and LLM API call metrics per chat session in real time.
         </p>
       </header>
 
-      {/* Overview Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Overview Cards matching Figma */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
           <div
             key={c.label}
-            className="rounded-2xl border border-outline-variant bg-surface px-5 py-4.5 shadow-sm transition-all hover:shadow-md"
+            className="flex items-center gap-4 rounded-2xl border border-outline-variant/60 bg-surface px-5 py-4.5 shadow-xs transition-shadow hover:shadow-sm"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[13px] font-semibold text-on-surface-variant">{c.label}</p>
-                <p className="mt-2 text-2.5xl font-bold tracking-tight text-on-surface">{c.value}</p>
-                <p className="mt-1.5 text-[12px] text-on-surface-variant">{c.sub}</p>
-              </div>
-              <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${c.iconWrap}`}>
-                <MaterialSymbol name={c.icon} className="text-[22px]" filled />
-              </span>
+            <div className={`flex size-14 shrink-0 items-center justify-center rounded-2xl ${c.iconWrap}`}>
+              <MaterialSymbol name={c.icon} className="text-2xl" filled />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-on-surface-variant">{c.label}</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-on-surface">{c.value}</p>
+              <p className="mt-1 text-[12px] text-on-surface-variant">{c.sub}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Accordion List Container */}
-      <div className="mt-10 rounded-2xl border border-outline-variant bg-surface shadow-sm">
+      <div className="mt-6 rounded-2xl border border-outline-variant/60 bg-surface shadow-xs">
         {/* Filter Bar */}
         <div className="flex flex-col gap-4 border-b border-outline-variant px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <label className="relative block max-w-xl flex-1">
@@ -241,7 +255,7 @@ export default function UsagePage() {
               </div>
             </div>
           ) : (
-            filteredSessions.map((session) => {
+            paginatedSessions.map((session) => {
               const promptTokens = session.input_tokens ?? 0;
               const completionTokens = session.output_tokens ?? 0;
               const totalTokens = promptTokens + completionTokens;
@@ -415,14 +429,70 @@ export default function UsagePage() {
           )}
         </div>
 
-        {/* Footer info bar */}
-        <div className="flex flex-col gap-3 border-t border-outline-variant px-5 py-4 text-[13px] text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Aggregating {filteredSessions.length} of {sessions.length} chat threads
-          </span>
-          <span className="text-[12px] text-on-surface-variant italic">
-            Usage totals update dynamically as LLM answers stream.
-          </span>
+        {/* Pagination Bar matching Figma */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-outline-variant/60 px-6 py-4 text-xs text-on-surface-variant">
+          <div>
+            Showing{" "}
+            <span className="font-semibold text-on-surface">
+              {startItem}–{endItem}
+            </span>{" "}
+            of <span className="font-semibold text-on-surface">{totalItems}</span> sessions
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={validPage <= 1}
+                className="flex size-8 items-center justify-center rounded-lg border border-outline-variant/80 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <MaterialSymbol name="chevron_left" className="text-base" />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`flex size-8 items-center justify-center rounded-lg text-xs font-bold transition-all ${
+                    pageNum === validPage
+                      ? "bg-primary text-on-primary shadow-xs"
+                      : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={validPage >= totalPages}
+                className="flex size-8 items-center justify-center rounded-lg border border-outline-variant/80 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <MaterialSymbol name="chevron_right" className="text-base" />
+              </button>
+            </div>
+
+            <div className="relative inline-flex items-center">
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="h-8 appearance-none rounded-lg border border-outline-variant/80 bg-surface pl-2.5 pr-7 text-xs font-medium text-on-surface outline-none cursor-pointer hover:border-outline"
+              >
+                <option value={5}>5 per page</option>
+                <option value={10}>10 per page</option>
+                <option value={20}>20 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+              <MaterialSymbol
+                name="expand_more"
+                className="pointer-events-none absolute right-1.5 text-base text-on-surface-variant"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

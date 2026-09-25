@@ -384,6 +384,7 @@ export function DashboardHeaderProfile({ user }: { user: AuthUser }) {
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-container text-[13px] font-bold text-primary ring-2 ring-transparent transition-[box-shadow] hover:ring-primary/30">
           {initials}
         </span>
+        <MaterialSymbol name="expand_more" className="text-base text-on-surface-variant/70 -ml-1.5" />
       </button>
 
       {menuOpen ? (

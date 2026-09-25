@@ -239,13 +239,14 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             {user.organization_name && (
               <>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span className="flex h-5 w-5 items-center justify-center rounded bg-primary-container text-[11px] font-black uppercase text-primary">
                     {user.organization_name.slice(0, 2).toUpperCase()}
                   </span>
                   <span className="text-sm font-semibold text-on-surface">
                     {user.organization_name}
                   </span>
+                  <MaterialSymbol name="expand_more" className="text-base text-on-surface-variant/70" />
                 </div>
                 <span
                   className="mx-1 h-5 w-px bg-outline-variant"
@@ -256,13 +257,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
             <DashboardHeaderProfile user={user} />
           </div>
         </header>
-        <main
-          className={
-            cloudSecurityRoute
-              ? "min-h-full flex-1 p-0"
-              : "min-h-full flex-1 p-6"
-          }
-        >
+        <main className="min-h-full flex-1 p-0">
           {children}
         </main>
       </div>
