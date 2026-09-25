@@ -130,7 +130,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-0 pb-2"
           aria-label="Main"
         >
-          <div className="flex flex-col">
+          <div className="flex flex-col space-y-1">
             {visibleMain.map((item) => {
               if (item.webSecurity) {
                 return (

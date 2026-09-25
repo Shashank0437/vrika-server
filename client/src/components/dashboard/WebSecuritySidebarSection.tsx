@@ -50,14 +50,14 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
         Web Security
       </Link>
 
-      <div className="border-r-4 border-primary bg-primary-container/40 pb-2">
+      <div className="border-r-4 border-primary bg-primary-container/40 py-1 space-y-0.5">
         {/* Sessions */}
         <Link
           href="/dashboard"
           className={
             isSessionsActive
-              ? "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors bg-primary-container/60"
-              : "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors bg-primary-container/60"
+              : "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
           }
         >
           <MaterialSymbol
@@ -75,8 +75,8 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
           href="/dashboard/scan?new=1"
           className={
             isScanActive
-              ? "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs font-bold text-primary transition-colors bg-primary-container/80"
-              : "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs font-bold text-primary transition-colors hover:bg-surface-container hover:text-primary"
+              ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-bold text-primary transition-colors bg-primary-container/80"
+              : "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-bold text-primary transition-colors hover:bg-surface-container hover:text-primary"
           }
         >
           <MaterialSymbol
@@ -93,8 +93,8 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
             href="/dashboard/tools"
             className={
               isToolsActive
-                ? "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors bg-primary-container/60"
-                : "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors bg-primary-container/60"
+                : "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
             }
           >
             <MaterialSymbol
@@ -114,8 +114,8 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
             href="/dashboard/usage"
             className={
               isUsageActive
-                ? "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors bg-primary-container/60"
-                : "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors bg-primary-container/60"
+                : "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
             }
           >
             <MaterialSymbol

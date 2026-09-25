@@ -38,8 +38,8 @@ function SubNavButton({
       }}
       className={
         active
-          ? `flex w-full items-center gap-2 py-2 text-xs font-semibold text-on-primary-container transition-colors ${depth > 0 ? "pl-12 pr-6" : "pl-10 pr-6"}`
-          : `flex w-full items-center gap-2 py-2 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50 ${depth > 0 ? "pl-12 pr-6" : "pl-10 pr-6"}`
+          ? `flex w-full items-center gap-2.5 py-2 text-xs font-semibold text-on-primary-container transition-colors ${depth > 0 ? "pl-12 pr-6" : "pl-10 pr-6"}`
+          : `flex w-full items-center gap-2.5 py-2 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50 ${depth > 0 ? "pl-12 pr-6" : "pl-10 pr-6"}`
       }
     >
       <MaterialSymbol
@@ -73,8 +73,8 @@ function NavGroup({
         onClick={() => setOpen((value) => !value)}
         className={
           groupActive
-            ? "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors"
-            : "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+            ? "flex w-full items-center gap-2.5 py-2 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors"
+            : "flex w-full items-center gap-2.5 py-2 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
         }
       >
         <MaterialSymbol
@@ -150,7 +150,7 @@ export function CloudSecuritySidebarSection() {
         />
         Cloud Security
       </Link>
-      <div className="border-r-4 border-primary bg-primary-container/40 pb-2">
+      <div className="border-r-4 border-primary bg-primary-container/40 py-1 space-y-0.5">
         {CLOUD_SECURITY_NAV.map((item) =>
           item.type === "leaf" ? (
             <SubNavButton key={item.id} leaf={item} currentView={currentView} />

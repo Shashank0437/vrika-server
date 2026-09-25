@@ -76,7 +76,7 @@ export function SettingsSidebarSection() {
         />
         Settings
       </Link>
-      <div className="border-r-4 border-primary bg-primary-container/40 pb-2">
+      <div className="border-r-4 border-primary bg-primary-container/40 py-1 space-y-0.5">
         {SETTINGS_SUBNAV.map((sub) => {
           const isSubActive = currentTab === sub.id;
           return (
@@ -85,8 +85,8 @@ export function SettingsSidebarSection() {
               href={sub.href}
               className={
                 isSubActive
-                  ? "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors"
-                  : "flex w-full items-center gap-2 py-2 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                  ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors"
+                  : "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
               }
             >
               <MaterialSymbol
