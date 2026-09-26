@@ -234,7 +234,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-background">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col" style={{ backgroundImage: 'url(/bg.png)', backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat', backgroundColor: 'var(--md-sys-color-background)' }}>
         <header className="sticky top-0 z-40 flex items-center justify-end border-b border-outline-variant bg-background/90 px-6 py-3 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             {user.organization_name && (
@@ -257,7 +257,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
             <DashboardHeaderProfile user={user} />
           </div>
         </header>
-        <main className="min-h-full flex-1 p-0" style={{ backgroundImage: 'url(/bg.png)', backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}>
+        <main className="min-h-full flex-1 p-0">
           {children}
         </main>
       </div>

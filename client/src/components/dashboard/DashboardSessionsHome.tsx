@@ -429,7 +429,7 @@ export function DashboardSessionsHome() {
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5">
+                <th className="px-6 py-3.5 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none">
                     <span>Executed By</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
