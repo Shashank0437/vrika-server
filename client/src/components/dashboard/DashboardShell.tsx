@@ -234,7 +234,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col" style={{ backgroundImage: 'url(/bg.png)', backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat', backgroundColor: 'var(--md-sys-color-background)' }}>
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col" style={{ backgroundImage: "url('/bg.png')", backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}>
         <header className="sticky top-0 z-40 flex items-center justify-end border-b border-outline-variant bg-background/90 px-6 py-3 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             {user.organization_name && (

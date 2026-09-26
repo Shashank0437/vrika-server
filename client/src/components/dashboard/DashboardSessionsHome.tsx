@@ -410,38 +410,38 @@ export function DashboardSessionsHome() {
         <div className="overflow-x-auto">
           <table className="min-w-[760px] w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-outline-variant/70 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
-                <th className="px-6 py-3.5">
+              <tr className="border-b border-outline-variant/70 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant whitespace-nowrap">
+                <th className="px-6 py-3.5 whitespace-nowrap min-w-[180px]">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setSortMode((v) => (v === "newest" ? "oldest" : "newest"))}>
-                    <span>Target</span>
+                    <span className="whitespace-nowrap">Target</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5">
+                <th className="px-6 py-3.5 whitespace-nowrap min-w-[120px]">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <span>Status</span>
+                    <span className="whitespace-nowrap">Status</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5">
+                <th className="px-6 py-3.5 whitespace-nowrap min-w-[140px]">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setSortMode((v) => (v === "newest" ? "oldest" : "newest"))}>
-                    <span>Date started</span>
+                    <span className="whitespace-nowrap">Date started</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5 whitespace-nowrap">
+                <th className="px-6 py-3.5 whitespace-nowrap min-w-[150px]">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <span>Executed By</span>
+                    <span className="whitespace-nowrap">Executed By</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5">
+                <th className="px-6 py-3.5 whitespace-nowrap min-w-[140px]">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <span>Findings</span>
+                    <span className="whitespace-nowrap">Findings</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th className="px-6 py-3.5 whitespace-nowrap text-right min-w-[120px]">Actions</th>
               </tr>
             </thead>
             <tbody>
