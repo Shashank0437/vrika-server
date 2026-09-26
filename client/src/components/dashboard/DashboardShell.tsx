@@ -257,7 +257,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
             <DashboardHeaderProfile user={user} />
           </div>
         </header>
-        <main className="min-h-full flex-1 p-0">
+        <main className="min-h-full flex-1 p-0" style={{ backgroundImage: 'url(/bg.png)', backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}>
           {children}
         </main>
       </div>

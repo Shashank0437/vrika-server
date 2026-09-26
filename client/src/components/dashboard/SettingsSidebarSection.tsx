@@ -51,14 +51,20 @@ export function SettingsSidebarSection() {
     return (
       <Link
         href={SETTINGS_HREF}
-        className="flex items-center gap-3 px-6 py-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+        className="flex items-center justify-between px-6 py-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
       >
+        <div className="flex items-center gap-3">
+          <MaterialSymbol
+            name="settings"
+            className="text-xl shrink-0 text-on-surface-variant"
+            filled
+          />
+          <span>Settings</span>
+        </div>
         <MaterialSymbol
-          name="settings"
-          className="text-xl shrink-0 text-on-surface-variant"
-          filled
+          name="expand_more"
+          className="text-base shrink-0 text-on-surface-variant/70"
         />
-        Settings
       </Link>
     );
   }
@@ -67,14 +73,20 @@ export function SettingsSidebarSection() {
     <div>
       <Link
         href={SETTINGS_HREF}
-        className="flex items-center gap-3 border-r-4 border-primary bg-primary-container px-6 py-3 text-sm font-semibold text-on-primary-container transition-colors"
+        className="flex items-center justify-between border-r-4 border-primary bg-primary-container px-6 py-3 text-sm font-semibold text-on-primary-container transition-colors"
       >
+        <div className="flex items-center gap-3">
+          <MaterialSymbol
+            name="settings"
+            className="text-xl shrink-0 text-on-primary-container"
+            filled
+          />
+          <span>Settings</span>
+        </div>
         <MaterialSymbol
-          name="settings"
-          className="text-xl shrink-0 text-on-primary-container"
-          filled
+          name="expand_less"
+          className="text-base shrink-0 text-on-primary-container"
         />
-        Settings
       </Link>
       <div className="border-r-4 border-primary bg-primary-container/40 py-1 space-y-0.5">
         {SETTINGS_SUBNAV.map((sub) => {
@@ -85,7 +97,7 @@ export function SettingsSidebarSection() {
               href={sub.href}
               className={
                 isSubActive
-                  ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors"
+                  ? "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs font-semibold text-on-primary-container transition-colors bg-primary-container/60"
                   : "flex w-full items-center gap-2.5 py-2.5 pl-10 pr-6 text-xs text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
               }
             >
@@ -96,7 +108,7 @@ export function SettingsSidebarSection() {
                 }`}
                 filled
               />
-              {sub.label}
+              <span>{sub.label}</span>
             </Link>
           );
         })}

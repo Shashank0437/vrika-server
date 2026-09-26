@@ -510,7 +510,7 @@ export function DashboardSessionsHome() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-xs text-on-surface-variant">{formatDate(r.started_at)}</td>
-                      <td className="px-6 py-4 text-xs text-on-surface-variant font-medium">{r.executed_by || "—"}</td>
+                      <td className="px-6 py-4 text-xs text-on-surface-variant font-medium whitespace-nowrap">{r.executed_by || "—"}</td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1.5">
                           {chips.length === 0 ? (
