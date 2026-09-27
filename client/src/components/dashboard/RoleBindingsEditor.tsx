@@ -37,6 +37,7 @@ export function RoleBindingsEditor({
   onChange: (bindings: RoleBinding[]) => void;
   projects: Project[];
 }) {
+  const isAdmin = value.some((binding) => binding.role === "admin");
   function replace(index: number, binding: RoleBinding) {
     onChange(value.map((item, i) => (i === index ? binding : item)));
   }
@@ -58,19 +59,26 @@ export function RoleBindingsEditor({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Roles & access</h3>
         <span className="text-xs text-on-surface-variant">
-          {value.length} {value.length === 1 ? "binding" : "bindings"}
+          {isAdmin
+            ? "Full organization access"
+            : `${value.length} ${value.length === 1 ? "binding" : "bindings"}`}
         </span>
       </div>
       <label className="flex items-start gap-3 rounded-xl border border-outline-variant/70 p-4">
         <input
           type="checkbox"
           className="mt-1 accent-primary"
-          checked={value.some((binding) => binding.role === "admin")}
+          checked={isAdmin}
           onChange={(event) =>
             onChange(
               event.target.checked
                 ? [
-                    ...value,
+                    ...value.filter(
+                      (binding) =>
+                        !(
+                          binding.scope_type === "project" && !binding.scope_id
+                        ),
+                    ),
                     { role: "admin", scope_type: "global", scope_id: null },
                   ]
                 : value.filter((binding) => binding.role !== "admin"),
@@ -85,86 +93,96 @@ export function RoleBindingsEditor({
           </span>
         </span>
       </label>
-      {!value.length && (
+      {isAdmin && (
+        <p className="text-xs leading-5 text-on-surface-variant">
+          No project scope is needed for administrators. Existing scoped
+          bindings are preserved and apply again if administrator access is
+          removed.
+        </p>
+      )}
+      {!isAdmin && !value.length && (
         <p className="rounded-xl border border-dashed border-outline-variant p-5 text-sm text-on-surface-variant">
           No bindings: this account will have no workspace access.
         </p>
       )}
-      {value.map((binding, index) =>
-        binding.role === "admin" ? null : (
-          <div
-            key={index}
-            className="rounded-xl border border-outline-variant/70 bg-surface-container-low/40 p-4"
-          >
-            <div className="flex items-end gap-3">
-              <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="mb-2 text-xs font-semibold text-on-surface-variant">
-                    Role {index + 1}
-                  </p>
-                  <WorkspaceSelect
-                    label={`Role ${index + 1}`}
-                    value={binding.role}
-                    options={roles}
-                    onChange={(role) => changeRole(index, role)}
-                  />
+      {!isAdmin &&
+        value.map((binding, index) =>
+          binding.role === "admin" ? null : (
+            <div
+              key={index}
+              className="rounded-xl border border-outline-variant/70 bg-surface-container-low/40 p-4"
+            >
+              <div className="flex items-end gap-3">
+                <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-2 text-xs font-semibold text-on-surface-variant">
+                      Role {index + 1}
+                    </p>
+                    <WorkspaceSelect
+                      label={`Role ${index + 1}`}
+                      value={binding.role}
+                      options={roles}
+                      onChange={(role) => changeRole(index, role)}
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold text-on-surface-variant">
+                      Scope {index + 1}
+                    </p>
+                    <WorkspaceSelect
+                      label={`Scope ${index + 1}`}
+                      value={
+                        binding.scope_type === "project"
+                          ? (binding.scope_id ?? "")
+                          : ""
+                      }
+                      placeholder={
+                        binding.scope_type === "module"
+                          ? `${binding.scope_id === "web_security" ? "Web Security" : "Cloud Security"} (existing binding)`
+                          : binding.scope_id
+                            ? "Project unavailable"
+                            : "Choose a project"
+                      }
+                      onChange={(scope_id) =>
+                        replace(index, {
+                          ...binding,
+                          scope_type: "project",
+                          scope_id,
+                        })
+                      }
+                      options={projects.map((project) => ({
+                        value: project.id,
+                        label: project.name,
+                      }))}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <p className="mb-2 text-xs font-semibold text-on-surface-variant">
-                    Scope {index + 1}
-                  </p>
-                  <WorkspaceSelect
-                    label={`Scope ${index + 1}`}
-                    value={
-                      binding.scope_type === "project"
-                        ? (binding.scope_id ?? "")
-                        : ""
-                    }
-                    placeholder={
-                      binding.scope_type === "module"
-                        ? `${binding.scope_id === "web_security" ? "Web Security" : "Cloud Security"} (existing binding)`
-                        : binding.scope_id
-                          ? "Project unavailable"
-                          : "Choose a project"
-                    }
-                    onChange={(scope_id) =>
-                      replace(index, {
-                        ...binding,
-                        scope_type: "project",
-                        scope_id,
-                      })
-                    }
-                    options={projects.map((project) => ({
-                      value: project.id,
-                      label: project.name,
-                    }))}
-                  />
-                </div>
+                <button
+                  type="button"
+                  aria-label={`Remove binding ${index + 1}`}
+                  onClick={() => onChange(value.filter((_, i) => i !== index))}
+                  className="flex size-10 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-error/8 hover:text-error"
+                >
+                  <Trash2 className="size-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                aria-label={`Remove binding ${index + 1}`}
-                onClick={() => onChange(value.filter((_, i) => i !== index))}
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-error/8 hover:text-error"
-              >
-                <Trash2 className="size-4" />
-              </button>
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-on-surface-variant">
+                <ShieldCheck className="size-3.5 shrink-0" />
+                {roles.find((role) => role.value === binding.role)?.description}
+              </p>
             </div>
-            <p className="mt-3 flex items-center gap-1.5 text-xs text-on-surface-variant">
-              <ShieldCheck className="size-3.5 shrink-0" />
-              {roles.find((role) => role.value === binding.role)?.description}
-            </p>
-          </div>
-        ),
+          ),
+        )}
+      {!isAdmin && (
+        <button
+          type="button"
+          onClick={() => onChange([...value, { ...viewerBinding }])}
+          className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-primary transition hover:bg-primary/8"
+        >
+          <Plus className="size-4" />
+          Add binding
+        </button>
       )}
-      <button
-        type="button"
-        onClick={() => onChange([...value, { ...viewerBinding }])}
-        className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-primary transition hover:bg-primary/8"
-      >
-        <Plus className="size-4" />
-        Add binding
-      </button>
     </section>
   );
 }

@@ -45,6 +45,8 @@ Membership by itself grants no permissions; API invitations without bindings hav
 no access. The UI invitation default is Viewer with a required project selection.
 The Scope menu lists only actual projects, not modules or a selectable placeholder.
 Existing module bindings remain unchanged unless explicitly edited or removed.
+Selecting organization administrator hides the scope editor; no additional
+project binding is required. Existing valid bindings are preserved for later demotion.
 After deploying both services, migrate legacy global Viewers with
 `python server/scripts/migrate_explicit_viewers.py --organization-id <id> --apply`.
 Omit `--apply` for a dry run. Web/Cloud visibility is preserved; administration

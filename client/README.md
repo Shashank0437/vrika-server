@@ -35,6 +35,9 @@ actual projects only, with no module options or selectable placeholder. Invitati
 and new bindings default to Viewer with no project selected; a project is required
 before saving. Existing module bindings are identified in the closed control and
 preserved unless explicitly changed or removed.
+Administrator selection hides the role/scope editor and drops only incomplete
+project drafts, so admin-only invitations do not require a project. Existing valid
+bindings are retained and become visible again when administrator access is removed.
 Updates send `expected_version` to `/tenant/members/{id}/bindings`; a conflict
 keeps the editor open and asks the operator to reopen refreshed bindings. Changing
 your own bindings refreshes authentication immediately.

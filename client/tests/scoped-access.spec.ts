@@ -429,6 +429,47 @@ test("own role changes refresh authentication and remove write controls", async 
   expect(state.authReads()).toBeGreaterThanOrEqual(2);
 });
 
+test("admin-only invitations need no scope and removing Admin restores existing bindings", async ({
+  page,
+}) => {
+  const state = await mockWorkspace(page, [admin, viewer]);
+  await page.goto("/dashboard/users", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Invite user" }).click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("Email", { exact: true })
+    .fill("admin@example.test");
+  await page
+    .getByRole("dialog")
+    .getByLabel("Display name / username")
+    .fill("Admin");
+  await page
+    .getByRole("checkbox", { name: /Organization administrator/ })
+    .check();
+  await expect(page.getByRole("combobox", { name: /^Scope / })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: /^Role / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add binding" })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "Send invite" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.writes[0].body.role_bindings).toEqual([admin]);
+
+  await page
+    .getByRole("button", { name: "Edit bindings for owner@example.test" })
+    .click();
+  await expect(page.getByRole("combobox", { name: /^Scope / })).toHaveCount(0);
+  await page
+    .getByRole("checkbox", { name: /Organization administrator/ })
+    .uncheck();
+  await expect(page.getByRole("combobox", { name: "Scope 1" })).toContainText(
+    "Web Security (existing binding)",
+  );
+  await page.getByRole("button", { name: "Save bindings" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.writes[1].body.role_bindings).toEqual([viewer]);
+});
+
 test("scope dropdown lists only real projects and preserves existing module access until changed", async ({
   page,
 }) => {
