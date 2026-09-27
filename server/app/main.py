@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.dependencies.access import require_web_access
+from fastapi import Depends
 from app.db import close_db, init_db
 from app.redis_client import close_redis
 from app.routers import (
@@ -18,6 +20,7 @@ from app.routers import (
     sso,
     tenant,
     workspace_tools,
+    projects,
 )
 
 
@@ -49,11 +52,12 @@ app.include_router(tenant.router)
 app.include_router(invitations.router)
 app.include_router(admin.router)
 app.include_router(contact.router)
-app.include_router(agent_chat.router)
+app.include_router(agent_chat.router, dependencies=[Depends(require_web_access)])
 app.include_router(workspace_tools.router)
 app.include_router(workspace_tools.api_tools_router)
 app.include_router(org_settings.router)
 app.include_router(internal_config.router)
+app.include_router(projects.router)
 
 
 @app.get("/health")

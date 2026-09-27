@@ -37,6 +37,7 @@ from app.services.agent_client import (
     tool_installed_from_agent_health,
 )
 from app.services.org_settings import resolve_llm_config_for_org
+from app.services.access import session_filter
 from app.services.session_intelligence import recalculate_session_intelligence
 from app.services.tool_run_stream import drain_tool_run_stream
 from app.services.agent_skills import (
@@ -882,12 +883,14 @@ async def create_session(
     user_id: ObjectId,
     title: str,
     executed_by: str | None = None,
+    project_id: str | None = None,
 ) -> dict[str, Any]:
     now = _utc_now()
     doc = {
         "organization_id": organization_id,
         "user_id": user_id,
         "title": title.strip() or "New chat",
+        "project_id": project_id,
         "created_at": now,
         "updated_at": now,
     }
@@ -905,9 +908,11 @@ async def list_sessions(
     user_id: ObjectId,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
+    actor = await db.users.find_one({"_id": user_id, "organization_id": organization_id})
+    query = session_filter(actor or {"organization_id": organization_id})
     cur = (
         db[AGENT_CHAT_SESSIONS_COLLECTION]
-        .find({"organization_id": organization_id})
+        .find(query)
         .sort("updated_at", -1)
         .limit(limit)
     )

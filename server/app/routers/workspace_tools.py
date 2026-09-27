@@ -10,7 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.config import get_settings
 from app.constants import ALWAYS_DISABLE_CATEGORIES, ALWAYS_DISABLE_TOOLS
 from app.db import get_database
-from app.dependencies.tenant import require_tenant_admin
+from app.dependencies.access import require_web_module_access as require_tenant_admin
 from app.schemas.workspace_tools import (
     KaliToolsSummary,
     ServerToolsSummary,

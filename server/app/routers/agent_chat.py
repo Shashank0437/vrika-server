@@ -18,6 +18,9 @@ from app.config import get_settings
 from app.constants import AGENT_CHAT_MESSAGES_COLLECTION, AGENT_CHAT_SESSIONS_COLLECTION
 from app.db import get_database
 from app.dependencies.auth import require_auth_user
+from app.dependencies.access import require_web_access
+from app.dependencies.access import require_manage_roles
+from app.schemas.access import SessionProjectIn
 from app.schemas.agent_chat import (
     AgentChatAttachmentOut,
     AgentChatMessageOut,
@@ -200,6 +203,7 @@ def _session_out(doc: dict) -> AgentChatSessionOut:
     specialist_agent = sa if isinstance(sa, dict) else None
     return AgentChatSessionOut(
         id=str(doc["_id"]),
+        project_id=doc.get("project_id"),
         title=str(doc.get("title") or "Chat"),
         created_at=doc["created_at"],
         updated_at=doc["updated_at"],
@@ -471,8 +475,38 @@ async def create_chat_session(
         user_id=user["_id"],
         title=title,
         executed_by=user.get("username"),
+        project_id=body.project_id,
     )
     return _session_out(doc)
+
+
+@router.get("/capabilities")
+async def chat_capabilities(
+    user: dict = Depends(require_auth_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> dict[str, bool]:
+    config = await resolve_llm_config_for_org(db, get_settings(), user["organization_id"])
+    return {"llm_configured": bool(config)}
+
+
+@router.patch("/sessions/{session_id}/project", response_model=AgentChatSessionOut)
+async def assign_session_project(
+    session_id: str, body: SessionProjectIn,
+    user: dict = Depends(require_manage_roles),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> AgentChatSessionOut:
+    from app.services.access_management import object_id
+    if body.project_id is not None:
+        project = await db.projects.find_one({
+            "_id": object_id(body.project_id), "organization_id": user["organization_id"],
+        })
+        if not project:
+            raise HTTPException(404, "Project not found")
+    query = {"_id": _oid(session_id), "organization_id": user["organization_id"]}
+    result = await db[AGENT_CHAT_SESSIONS_COLLECTION].update_one(query, {"$set": {"project_id": body.project_id}})
+    if not result.matched_count:
+        raise HTTPException(404, "Session not found")
+    return _session_out(await db[AGENT_CHAT_SESSIONS_COLLECTION].find_one(query))
 
 
 @router.get("/sessions", response_model=list[AgentChatSessionOut])

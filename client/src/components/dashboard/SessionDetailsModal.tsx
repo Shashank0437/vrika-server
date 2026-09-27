@@ -47,6 +47,7 @@ export function SessionDetailsModal({
   session,
   reportBusy,
   reportAvailable,
+  canGenerate = false,
   reportError,
   onReport,
 }: {
@@ -55,6 +56,7 @@ export function SessionDetailsModal({
   session: AgentChatSessionIntelligence;
   reportBusy: boolean;
   reportAvailable: boolean;
+  canGenerate?: boolean;
   reportError: string | null;
   onReport: () => void;
 }) {
@@ -175,7 +177,7 @@ export function SessionDetailsModal({
               </p>
               <button
                 type="button"
-                disabled={reportBusy}
+                disabled={reportBusy || (!reportAvailable && !canGenerate)}
                 onClick={onReport}
                 className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary disabled:cursor-wait disabled:opacity-60"
               >

@@ -8,6 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.constants import ORG_INVITE_REDIS_PREFIX, REG_COMPLETE_REDIS_PREFIX
 from app.db import get_database
 from app.dependencies.auth import require_auth_user
+from app.services.access import effective_bindings
 from app.redis_client import get_redis
 from app.schemas.auth import (
     ChangePasswordIn,
@@ -240,7 +241,9 @@ async def complete_invitation(
         status_code=status.HTTP_400_BAD_REQUEST,
     )
 
-    roles = list(inv.get("roles") or ["tenant_member"])
+    from app.services.access import compatibility_roles
+    bindings = effective_bindings(inv)
+    roles = compatibility_roles(bindings)
     pwd_hash = hash_password(body.password)
     now = datetime.now(UTC)
 
@@ -251,6 +254,7 @@ async def complete_invitation(
         "password_hash": pwd_hash,
         "organization_id": inv["organization_id"],
         "roles": roles,
+        "role_bindings": bindings,
         "created_at": now,
         "updated_at": now,
     }
@@ -329,6 +333,8 @@ async def me(
         username=user.get("username") or "",
         tenant_id=str(user["organization_id"]),
         roles=list(user.get("roles") or []),
+        role_bindings=effective_bindings(user),
+        access_version=user.get("access_version", 0),
         organization_name=org_name,
     )
 
@@ -352,6 +358,8 @@ async def patch_me(
         username=body.username,
         tenant_id=str(user["organization_id"]),
         roles=list(user.get("roles") or []),
+        role_bindings=effective_bindings(user),
+        access_version=user.get("access_version", 0),
         organization_name=org_name,
     )
 

@@ -6,6 +6,8 @@ import { ToolHistoryModal } from "@/components/tools/ToolHistoryModal";
 import { ToolInfoModal } from "@/components/tools/ToolInfoModal";
 import { ToolRunModal } from "@/components/tools/ToolRunModal";
 import { ApiError, api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { hasPermission } from "@/lib/access";
 import type { WorkspaceToolCard, WorkspaceToolsResponse, ToolAvailabilityFilter } from "@/components/tools/types";
 import { getToolCardTeaser } from "@/components/tools/toolCardTeaser";
 import { formatToolCategoryLabel } from "@/components/tools/toolRunFormUtils";
@@ -48,6 +50,9 @@ function HealthBars({ value }: { value: number }) {
 export type ToolsWorkspaceIntro = "full" | "dashboard";
 
 export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro }) {
+  const { user } = useAuth();
+  const canExecute = hasPermission(user, "execute", { module: "web_security" });
+  const canConfigure = hasPermission(user, "edit");
   const [data, setData] = useState<WorkspaceToolsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +85,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
   }, [load]);
 
   const refreshAvailability = useCallback(async () => {
+    if (!canExecute) return;
     setRefreshing(true);
     setError(null);
     try {
@@ -94,12 +100,13 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
     } finally {
       setRefreshing(false);
     }
-  }, [load]);
+  }, [load, canExecute]);
 
   const disabledTools = useMemo(() => data?.disabled_tools ?? [], [data]);
 
   const patchToolPolicy = useCallback(
     async (toolName: string, enabled: boolean) => {
+      if (!canConfigure) return;
       setError(null);
       try {
         await api("/tenant/tools/policy", {
@@ -112,7 +119,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
         else setError(e instanceof Error ? e.message : "Could not update policy");
       }
     },
-    [load],
+    [load, canConfigure],
   );
 
   const restrictedCategories = useMemo(
@@ -257,7 +264,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
   return (
     <div className={shell}>
       <ToolRunModal
-        tool={selectedTool}
+        tool={canExecute ? selectedTool : null}
         onClose={() => setSelectedTool(null)}
         onOpenToolInfo={() => {
           if (selectedTool) setInfoTool(selectedTool);
@@ -487,7 +494,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
                 />
                 <button
                   type="button"
-                  disabled={loading || refreshing}
+                  disabled={loading || refreshing || !canExecute}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 text-[13px] font-semibold text-on-surface transition hover:border-primary hover:text-primary disabled:opacity-50"
                   onClick={() => void refreshAvailability()}
                   title="Ask the agent to re-probe binaries on the host"
@@ -546,6 +553,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
                   <button
                     type="button"
                     aria-label={`Run ${t.name}`}
+                    disabled={!canExecute}
                     title={teaser || t.name}
                     onClick={() => setSelectedTool(t)}
                     className="flex min-h-[8rem] flex-1 flex-col rounded-t-2xl px-5 py-4 text-left outline-none transition hover:bg-surface-container/40 focus-visible:bg-surface-container/40"
@@ -607,6 +615,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
                       type="button"
                       className={iconActionClass}
                       aria-label={`Restore access for ${t.name}`}
+                      disabled={!canConfigure}
                       title="Restore organization access"
                       onClick={() => void patchToolPolicy(t.name, true)}
                     >
@@ -617,6 +626,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
                       type="button"
                       className={iconActionDangerClass}
                       aria-label={`Restrict ${t.name} for organization`}
+                      disabled={!canConfigure}
                       title="Restrict for organization"
                       onClick={() => void patchToolPolicy(t.name, false)}
                     >
@@ -654,6 +664,7 @@ export function ToolsWorkspace({ intro = "full" }: { intro?: ToolsWorkspaceIntro
                   type="button"
                   className="mt-3 inline-flex items-center justify-center gap-2 self-start rounded-xl bg-primary px-4 py-2 text-[13px] font-semibold text-on-primary transition hover:bg-primary-dim"
                   onClick={() => void patchToolPolicy(t.name, true)}
+                  disabled={!canConfigure}
                 >
                   <MaterialSymbol name="verified_user" className="text-[20px]" />
                   Restore access

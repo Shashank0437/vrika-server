@@ -10,6 +10,10 @@ from app.config import get_settings
 from app.constants import ORG_INVITE_REDIS_PREFIX
 from app.db import get_database
 from app.dependencies.tenant import require_tenant_admin
+from app.dependencies.access import require_admin_view, require_manage_roles
+from app.schemas.access import UpdateBindingsIn
+from app.services.access import effective_bindings
+from app.services.access_management import update_bindings, validate_bindings
 from app.redis_client import get_redis
 from app.schemas.tenant import CreateInvitationIn, TenantMemberOut, UpdateMemberRoleIn
 from app.schemas.tenant_tools import OrgToolPolicyOut, PatchToolEnabledIn
@@ -77,7 +81,7 @@ CANCELLED = "cancelled"
 
 @router.get("/members", response_model=list[TenantMemberOut])
 async def list_tenant_members(
-    user: dict = Depends(require_tenant_admin),
+    user: dict = Depends(require_admin_view),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[TenantMemberOut]:
     org_id = user["organization_id"]
@@ -90,9 +94,29 @@ async def list_tenant_members(
                 email=doc["email"],
                 username=doc.get("username") or "",
                 roles=list(doc.get("roles") or []),
+                role_bindings=effective_bindings(doc),
+                access_version=doc.get("access_version", 0),
             ),
         )
     return out
+
+
+@router.put("/members/{member_id}/bindings", response_model=TenantMemberOut)
+async def replace_member_bindings(
+    member_id: str,
+    body: UpdateBindingsIn,
+    user: dict = Depends(require_manage_roles),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> TenantMemberOut:
+    updated = await update_bindings(
+        db, user, member_id,
+        [binding.model_dump() for binding in body.role_bindings], body.expected_version,
+    )
+    return TenantMemberOut(
+        id=str(updated["_id"]), email=updated["email"], username=updated.get("username", ""),
+        roles=updated["roles"], role_bindings=updated["role_bindings"],
+        access_version=updated["access_version"],
+    )
 
 
 @router.patch("/members/{member_id}/role", response_model=TenantMemberOut)
@@ -119,38 +143,17 @@ async def update_member_role(
             detail="Member not found in your organization.",
         )
 
-    # Prevent demoting the only administrator in the organization
-    if body.role == "tenant_member" and "tenant_admin" in (target_user.get("roles") or []):
-        admin_count = await db.users.count_documents({
-            "organization_id": org_id,
-            "roles": "tenant_admin",
-        })
-        if admin_count <= 1:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail="Cannot demote the only administrator in the organization. Appoint another administrator first.",
-            )
-
-    new_roles = [body.role]
-    now = datetime.now(UTC)
-    await db.users.update_one(
-        {"_id": member_oid},
-        {"$set": {"roles": new_roles, "updated_at": now}},
-    )
-
-    updated = await db.users.find_one({"_id": member_oid})
-    logger.info(
-        "Updated member role: user_id=%s new_role=%s updated_by=%s org_id=%s",
-        member_id,
-        body.role,
-        str(user["_id"]),
-        str(org_id),
+    updated = await update_bindings(
+        db, user, member_id, effective_bindings({"roles": [body.role]}),
+        target_user.get("access_version", 0),
     )
     return TenantMemberOut(
         id=str(updated["_id"]),
         email=updated["email"],
         username=updated.get("username") or "",
         roles=list(updated.get("roles") or []),
+        role_bindings=effective_bindings(updated),
+        access_version=updated["access_version"],
     )
 
 
@@ -162,6 +165,12 @@ async def create_invitation(
 ) -> dict[str, str]:
     s = get_settings()
     org_id = user["organization_id"]
+    bindings = (
+        [binding.model_dump() for binding in body.role_bindings]
+        if body.role_bindings is not None
+        else effective_bindings({"roles": [body.role]})
+    )
+    await validate_bindings(db, org_id, bindings)
     from app.services.smtp_service import get_org_smtp_config
 
     smtp_cfg = await get_org_smtp_config(db, s, org_id)
@@ -193,6 +202,7 @@ async def create_invitation(
         "email": email_norm,
         "username": body.username.strip(),
         "roles": [body.role],
+        "role_bindings": bindings,
         "invited_by": user["_id"],
         "status": PENDING,
         "created_at": now,

@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
+from app.schemas.access import RoleBinding
 
 
 class TenantMemberOut(BaseModel):
@@ -8,12 +9,15 @@ class TenantMemberOut(BaseModel):
     email: str
     username: str
     roles: list[str]
+    role_bindings: list[RoleBinding] = Field(default_factory=list)
+    access_version: int = 0
 
 
 class CreateInvitationIn(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=1, max_length=120)
-    role: Literal["tenant_member", "tenant_admin"]
+    role: Literal["tenant_member", "tenant_admin"] = "tenant_member"
+    role_bindings: list[RoleBinding] | None = Field(default=None, max_length=100)
 
 
 class UpdateMemberRoleIn(BaseModel):

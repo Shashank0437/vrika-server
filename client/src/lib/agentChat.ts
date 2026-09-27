@@ -5,6 +5,7 @@ const PREFIX = "/workspace/agent-chat";
 
 export type AgentChatSession = {
   id: string;
+  project_id?: string | null;
   title: string;
   created_at: string;
   updated_at: string;
@@ -40,6 +41,7 @@ export type AgentChatSessionTimelineEvent = {
 
 export type AgentChatSessionIntelligence = {
   session_id: string;
+  project_id?: string | null;
   title: string;
   status: AgentChatSessionStatus;
   summary: string;
@@ -302,11 +304,11 @@ export async function analyzeAgentChatSession(sessionId: string): Promise<{ succ
   return JSON.parse(text) as { success: boolean; result?: string };
 }
 
-export async function createAgentChatSession(title = ""): Promise<AgentChatSession> {
+export async function createAgentChatSession(title = "", projectId?: string | null): Promise<AgentChatSession> {
   const res = await fetch(`${getApiBase()}${PREFIX}/sessions`, {
     method: "POST",
     headers: bearerHeaders(true),
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, ...(projectId ? { project_id: projectId } : {}) }),
   });
   const text = await res.text();
   if (!res.ok) throw new ApiError(detailFromResponseBody(text, res.statusText), res.status, text);

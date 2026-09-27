@@ -11,6 +11,7 @@ import { WebSecuritySidebarSection } from "@/components/dashboard/WebSecuritySid
 import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { useAuth } from "@/lib/auth-context";
+import { canEnterModule, canVisitDashboard, hasPermission } from "@/lib/access";
 import { COMING_SOON_FROM_DASHBOARD_QUERY } from "@/lib/coming-soon-routes";
 import dashboardBackground from "./dashboard-background.webp";
 
@@ -39,6 +40,12 @@ const MAIN_NAV: NavMain[] = [
     icon: "cloud",
     match: "prefix",
     cloudSecurity: true,
+  },
+  {
+    href: "/dashboard/projects",
+    label: "Projects",
+    icon: "folder",
+    match: "prefix",
   },
   {
     href: "/dashboard/users",
@@ -78,7 +85,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const isAdmin = !!(user?.roles?.includes("tenant_admin"));
+  const isAdmin = hasPermission(user, "view");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -87,8 +94,11 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
   }, [loading, user, router]);
 
   const visibleMain = useMemo(
-    () => MAIN_NAV.filter((n) => !n.adminOnly || isAdmin),
-    [isAdmin],
+    () => MAIN_NAV.filter((n) =>
+      n.webSecurity ? canEnterModule(user, "web_security") :
+      n.cloudSecurity ? canEnterModule(user, "cloud_security") :
+      canVisitDashboard(user, n.href)),
+    [user],
   );
 
   if (loading || !user) {

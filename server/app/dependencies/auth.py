@@ -32,4 +32,8 @@ async def require_auth_user(
     user = await db.users.find_one({"_id": oid})
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if user.get("pending_access_change"):
+        from app.services.access_management import resume_pending_access
+
+        user = await resume_pending_access(db, user)
     return user

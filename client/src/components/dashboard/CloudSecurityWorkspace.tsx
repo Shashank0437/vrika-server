@@ -3,6 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { getRoleBindings, hasPermission } from "@/lib/access";
+import { listProjects, type Project } from "@/lib/projects";
 import {
   CLOUD_SECURITY_VIEW_PARAM,
   isBridgePathForView,
@@ -37,6 +40,11 @@ function resolveProwlerOrigin(embedPath: string): string {
 }
 
 export function CloudSecurityWorkspace() {
+  const { user } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const showProjects = hasPermission(user, "manage_roles") || getRoleBindings(user).some((b) => b.scope_type === "project");
   const router = useRouter();
   const searchParams = useSearchParams();
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -53,6 +61,13 @@ export function CloudSecurityWorkspace() {
   const currentView = sanitizeCloudSecurityView(
     searchParams.get(CLOUD_SECURITY_VIEW_PARAM),
   );
+  useEffect(() => {
+    if (!showProjects) return;
+    let cancelled = false;
+    listProjects().then((rows) => { if (!cancelled) setProjects(rows); })
+      .catch((err) => { if (!cancelled) setProjectError(err instanceof Error ? err.message : "Could not load projects"); });
+    return () => { cancelled = true; };
+  }, [showProjects]);
 
   const clearPendingAck = useCallback(() => {
     pendingAckRef.current = null;
@@ -89,8 +104,10 @@ export function CloudSecurityWorkspace() {
     let cancelled = false;
 
     async function loadEmbed() {
+      setEmbedPath(null);
+      setIframeReady(false);
       try {
-        const res = await api<EmbedResponse>("/auth/cloud-security/embed", {
+        const res = await api<EmbedResponse>(`/auth/cloud-security/embed${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`, {
           skipPendingOverlay: true,
         });
         if (!cancelled) {
@@ -111,7 +128,7 @@ export function CloudSecurityWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     pendingViewRef.current = currentView;
@@ -211,6 +228,17 @@ export function CloudSecurityWorkspace() {
 
   return (
     <div className="relative flex min-h-[calc(100dvh-4rem)] flex-1 flex-col overflow-hidden bg-background">
+      {showProjects && <div className="relative z-20 border-b bg-surface p-3">
+        <label>Cloud project
+          <select aria-label="Cloud project" className="ml-3 rounded border p-2" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+            <option value="">All accessible resources</option>
+            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+          </select>
+        </label>
+        {!hasPermission(user, "execute", { module: "cloud_security" }) && !projectId &&
+          <p className="text-sm">Select a project before adding a cloud account. Existing accounts remain scoped to your access.</p>}
+        {projectError && <p role="alert" className="text-error">{projectError}</p>}
+      </div>}
       {/* Cloud Security Loading Screen */}
       <div
         className={`absolute inset-0 z-10 flex items-center justify-center bg-[#f4f3fb] p-6 transition-opacity duration-300 ${

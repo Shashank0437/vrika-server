@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { canEnterModule, landingRoute } from "@/lib/access";
 import { ToolsWorkspace } from "@/components/tools/ToolsWorkspace";
 
 export function ToolsPageGate() {
@@ -15,8 +16,8 @@ export function ToolsPageGate() {
       router.replace("/login?next=/tools");
       return;
     }
-    if (!user.roles?.includes("tenant_admin")) {
-      router.replace("/dashboard");
+    if (!canEnterModule(user, "web_security")) {
+      router.replace(landingRoute(user));
     }
   }, [user, loading, router]);
 
@@ -28,7 +29,7 @@ export function ToolsPageGate() {
     );
   }
 
-  if (!user?.roles?.includes("tenant_admin")) {
+  if (!user || !canEnterModule(user, "web_security")) {
     return null;
   }
 

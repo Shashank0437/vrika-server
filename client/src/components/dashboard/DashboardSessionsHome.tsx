@@ -1,4 +1,6 @@
 "use client";
+import { useAuth } from "@/lib/auth-context";
+import { canStartScan, hasPermission } from "@/lib/access";
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -113,6 +115,8 @@ function sortRows(
 }
 
 export function DashboardSessionsHome() {
+  const { user } = useAuth();
+  const canExecute = (row: AgentChatSessionIntelligence) => hasPermission(user, "execute", { module: "web_security", projectId: row.project_id });
   const [rows, setRows] = useState<AgentChatSessionIntelligence[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,6 +173,7 @@ export function DashboardSessionsHome() {
   }
 
   async function handleReportAction(row: AgentChatSessionIntelligence) {
+    if (!latestReportAttachment(row) && !canExecute(row)) return;
     if (reportBusyId) return;
     setReportBusyId(row.session_id);
     setReportError(null);
@@ -189,6 +194,7 @@ export function DashboardSessionsHome() {
   }
 
   async function handleAnalyze(row: AgentChatSessionIntelligence) {
+    if (!canExecute(row)) return;
     if (analyzeBusyId) return;
     setAnalyzeBusyId(row.session_id);
     setAnalysisModalOpen(true);
@@ -464,13 +470,13 @@ export function DashboardSessionsHome() {
                       <p className="mt-1 text-xs text-on-surface-variant">
                         Sessions appear here after a chat thread successfully executes at least one tool.
                       </p>
-                      <Link
+                      {canStartScan(user) && <Link
                         href="/dashboard/scan?new=1"
                         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-on-primary hover:opacity-90 transition-opacity"
                       >
                         <MaterialSymbol name="add" className="text-base text-on-primary" filled />
                         Start scan
-                      </Link>
+                      </Link>}
                     </div>
                   </td>
                 </tr>
@@ -551,7 +557,7 @@ export function DashboardSessionsHome() {
                               type="button"
                               aria-label={analyzeBusyId === r.session_id ? "Analyzing session" : "Run AI Analysis"}
                               aria-haspopup="dialog"
-                              disabled={!!analyzeBusyId}
+                              disabled={!!analyzeBusyId || !canExecute(r)}
                               onClick={() => handleAnalyze(r)}
                               className="rounded-lg p-2.5 hover:bg-surface-container hover:text-primary transition-colors focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40"
                             >
@@ -586,7 +592,7 @@ export function DashboardSessionsHome() {
                             <button
                               type="button"
                               aria-label={reportBusy ? "Preparing PDF report" : reportAttachment ? "Download PDF report" : "Generate PDF report"}
-                              disabled={!!reportBusyId}
+                              disabled={!!reportBusyId || (!latestReportAttachment(r) && !canExecute(r))}
                               onClick={() => handleReportAction(r)}
                               className={`rounded-lg p-2.5 hover:bg-surface-container transition-colors focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40 ${
                                 reportAttachment
@@ -684,6 +690,7 @@ export function DashboardSessionsHome() {
         session={selected}
         reportBusy={!!reportBusyId}
         reportAvailable={!!latestReportAttachment(selected)}
+        canGenerate={canExecute(selected)}
         reportError={reportError}
         onReport={() => void handleReportAction(selected)}
       />}

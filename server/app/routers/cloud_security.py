@@ -6,6 +6,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.config import Settings, get_settings
 from app.db import get_database
 from app.dependencies.auth import require_auth_user
+from app.dependencies.access import require_cloud_access
+from app.services.access import has_permission
 from app.schemas.cloud_security import CloudSecurityEmbedOut, NotifyScanCompletedIn
 from app.services.cloud_scan_notifications import send_cloud_scan_completed_notification
 from app.services.prowler_bridge import ProwlerBridgeError, get_cloud_security_embed_path
@@ -16,12 +18,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.get("/cloud-security/embed", response_model=CloudSecurityEmbedOut)
 async def cloud_security_embed(
-    user: dict = Depends(require_auth_user),
+    project_id: str | None = None,
+    user: dict = Depends(require_cloud_access),
     db: AsyncIOMotorDatabase = Depends(get_database),
     settings: Settings = Depends(get_settings),
 ) -> CloudSecurityEmbedOut:
+    if project_id and not has_permission(user, "view", module="cloud_security", project_id=project_id):
+        raise HTTPException(403, "Cloud Security access to this project is required")
     try:
-        embed_path = await get_cloud_security_embed_path(db, settings, user)
+        embed_path = await get_cloud_security_embed_path(db, settings, user, project_id=project_id)
     except ProwlerBridgeError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.message)
     except ProwlerApiError as exc:
@@ -43,6 +48,8 @@ async def notify_scan_completed(
     
     Dispatches to the user who ran the scan (To:) and CCs all other teammates in the organization.
     """
+    if not has_permission(user, "execute", module="cloud_security"):
+        raise HTTPException(403, "Cloud Security execute permission required")
     try:
         res = await send_cloud_scan_completed_notification(
             db,

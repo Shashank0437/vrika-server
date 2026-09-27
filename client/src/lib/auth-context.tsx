@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { api, apiPublic, clearToken, getToken, setToken } from "./api";
 import { buildSamlLoginUrl, type SsoDiscoverResult } from "./sso";
+import type { RoleBinding } from "./access";
 
 export type AuthUser = {
   id: string;
@@ -19,6 +20,8 @@ export type AuthUser = {
   username: string;
   tenant_id: string;
   roles: string[];
+  role_bindings?: RoleBinding[];
+  access_version?: number;
   organization_name?: string;
 };
 

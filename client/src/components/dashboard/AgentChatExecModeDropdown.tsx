@@ -13,7 +13,7 @@ const OPTIONS: { value: AgentChatToolExecutionMode; label: string; description: 
   {
     value: "auto_accept",
     label: "Auto accept",
-    description: "Runs tools immediately (tenant admins only).",
+    description: "Runs tools immediately within your authorized scope.",
   },
 ];
 
@@ -30,7 +30,7 @@ export function AgentChatExecModeDropdown({
   compact?: boolean;
   /** Popover horizontal alignment relative to the trigger (`end` aligns trailing edges — use in composer footers). */
   menuAlign?: "start" | "end";
-  /** When false, “Auto accept” is disabled (tenant admins only on the server). */
+  /** When false, execution is unavailable in the current scope. */
   allowAutoAccept?: boolean;
 }) {
   const [open, setOpen] = useState(false);

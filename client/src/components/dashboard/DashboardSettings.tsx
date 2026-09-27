@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { hasPermission } from "@/lib/access";
 import { BrandingSettingsCard } from "./settings/BrandingSettingsCard";
 import { LlmSettingsCard } from "./settings/LlmSettingsCard";
 import { SmtpSettingsCard } from "./settings/SmtpSettingsCard";
@@ -19,7 +20,8 @@ import type {
 
 export function DashboardSettings() {
   const { user, loading } = useAuth();
-  const isAdmin = !!user?.roles?.includes("tenant_admin");
+  const isAdmin = hasPermission(user, "view");
+  const canEdit = hasPermission(user, "edit");
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab =
@@ -83,7 +85,8 @@ export function DashboardSettings() {
         </div>
       )}
 
-      <div className="min-w-0">
+      {!canEdit && <p className="mb-4 text-sm">Read-only organization settings. An administrator can make changes.</p>}
+      <fieldset disabled={!canEdit} className="min-w-0">
         {loaded ? (
           activeTab === "llm" ? (
             <LlmSettingsCard settings={llm} onChange={setLlm} />
@@ -97,7 +100,7 @@ export function DashboardSettings() {
         ) : (
           <div className="h-64 animate-pulse rounded-xl border border-outline-variant bg-surface-container-low" />
         )}
-      </div>
+      </fieldset>
     </div>
   );
 }

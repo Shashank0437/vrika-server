@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from app.schemas.access import RoleBinding
 
 
 class RegisterRequestIn(BaseModel):
@@ -39,6 +40,8 @@ class MeOut(BaseModel):
     username: str
     tenant_id: str
     roles: list[str]
+    role_bindings: list[RoleBinding] = Field(default_factory=list)
+    access_version: int = 0
     organization_name: str = ""
 
 

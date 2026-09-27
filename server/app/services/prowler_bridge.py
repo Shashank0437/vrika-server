@@ -298,59 +298,26 @@ async def _provision_additional_org_user(
     user: dict[str, Any],
     org_link: dict[str, Any],
 ) -> dict[str, Any]:
-    owner_link = await db.prowler_user_links.find_one(
-        {"vrika_user_id": org_link["vrika_owner_user_id"]},
-    )
-    if not owner_link:
-        raise ProwlerBridgeError(
-            "Prowler org owner credentials are missing; contact your administrator"
-        )
+    from app.services.cloud_access import sync_cloud_access
 
-    owner_email = str(owner_link["prowler_email"])
-    owner_password = decrypt_password(settings, owner_link["prowler_password_enc"])
     tenant_id = str(org_link["prowler_tenant_id"])
-
-    owner_access, _, _ = await prowler_client.obtain_tokens(
-        settings,
-        email=owner_email,
-        password=owner_password,
-        tenant_id=tenant_id,
-    )
-
     email = str(user["email"]).strip().lower()
     name = str(user.get("username") or email.split("@")[0]).strip() or email
-    password = _random_password()
-
-    invitation = await prowler_client.create_invitation(
-        settings,
-        access_token=owner_access,
-        email=email,
-        role_ids=await _resolve_prowler_role_ids(
-            settings,
-            access_token=owner_access,
-            vrika_roles=user.get("roles"),
-        ),
+    await db.prowler_provisioning.update_one(
+        {"_id": user["_id"]},
+        {"$setOnInsert": {"password_enc": encrypt_password(settings, _random_password())}},
+        upsert=True,
     )
-    inv_attrs = prowler_client.parse_json_api_attrs(invitation)
-    invitation_token = inv_attrs.get("token")
-    if not isinstance(invitation_token, str) or not invitation_token:
-        raise ProwlerBridgeError("Prowler invitation did not return a token")
-
-    await prowler_client.create_user(
-        settings,
-        email=email,
-        password=password,
-        name=name,
-        invitation_token=invitation_token,
+    pending = await db.prowler_provisioning.find_one({"_id": user["_id"]})
+    password = decrypt_password(settings, pending["password_enc"])
+    result = await sync_cloud_access(
+        db, settings, user, issue_tokens=True,
+        provision={"name": name, "password": password},
+        provision_link={"prowler_email": email, "prowler_tenant_id": tenant_id},
     )
-
-    access, refresh, _ = await prowler_client.obtain_tokens(
-        settings,
-        email=email,
-        password=password,
-        tenant_id=tenant_id,
-    )
-
+    if not result:
+        raise ProwlerBridgeError("Cloud account provisioning failed")
+    access, refresh = result["access"], result["refresh"]
     await _save_user_link(
         db,
         vrika_user_id=user["_id"],
@@ -360,6 +327,7 @@ async def _provision_additional_org_user(
         prowler_tenant_id=tenant_id,
         settings=settings,
     )
+    await db.prowler_provisioning.delete_one({"_id": user["_id"]})
     return {
         "prowler_email": email,
         "prowler_password": password,
@@ -392,23 +360,18 @@ async def get_cloud_security_embed_path(
     db: AsyncIOMotorDatabase,
     settings: Settings,
     user: dict[str, Any],
+    project_id: str | None = None,
 ) -> str:
     link = await db.prowler_user_links.find_one({"vrika_user_id": user["_id"]})
     if not link:
-        provisioned = await provision_prowler_user(db, settings, user)
-        access = provisioned["access"]
-        refresh = provisioned["refresh"]
-    else:
-        email = str(link["prowler_email"])
-        password = decrypt_password(settings, link["prowler_password_enc"])
-        tenant_id = str(link.get("prowler_tenant_id") or "")
-        access, refresh, _ = await prowler_client.obtain_tokens(
-            settings,
-            email=email,
-            password=password,
-            tenant_id=tenant_id or None,
-        )
+        await provision_prowler_user(db, settings, user)
 
+    from app.services.cloud_access import sync_cloud_access
+
+    synchronized = await sync_cloud_access(db, settings, user, issue_tokens=True, project_id=project_id)
+    if not synchronized or not synchronized.get("access") or not synchronized.get("refresh"):
+        raise ProwlerBridgeError("Cloud Security permissions could not be synchronized")
+    access, refresh = synchronized["access"], synchronized["refresh"]
     token = mint_embed_token(settings, access=access, refresh=refresh)
     payload = token.split(".", 1)[0]
     try:

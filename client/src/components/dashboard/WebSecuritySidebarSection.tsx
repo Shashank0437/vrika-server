@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
+import { useAuth } from "@/lib/auth-context";
+import { canStartScan } from "@/lib/access";
 
 export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
+  const { user } = useAuth();
   const pathname = usePathname();
   const webSecurityActive =
     pathname === "/dashboard" ||
@@ -64,7 +67,7 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
 
       <div className="border-r-4 border-primary bg-primary-container/40 py-1 space-y-0.5">
         {/* 1. New Scan - Order 1 of 4, bold purple colored */}
-        <Link
+        {canStartScan(user) && <Link
           href="/dashboard/scan?new=1"
           className={
             isScanActive
@@ -78,7 +81,7 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
             filled
           />
           <span>New Scan</span>
-        </Link>
+        </Link>}
 
         {/* 2. Sessions - Order 2 of 4 */}
         <Link
@@ -100,7 +103,7 @@ export function WebSecuritySidebarSection({ isAdmin }: { isAdmin: boolean }) {
         </Link>
 
         {/* 3. Tools - Order 3 of 4 */}
-        {isAdmin && (
+        {(
           <Link
             href="/dashboard/tools"
             className={

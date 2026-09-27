@@ -11,6 +11,8 @@ import { ChatAttachmentCard } from "@/components/dashboard/ChatAttachmentCard";
 import { ChatArtifactPreviewPanel } from "@/components/dashboard/ChatArtifactPreviewPanel";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import type { AuthUser } from "@/lib/auth-context";
+import { canStartScan, hasPermission } from "@/lib/access";
+import { listProjects, type Project } from "@/lib/projects";
 import {
   createAgentChatSession,
   deleteAgentChatSession,
@@ -54,7 +56,6 @@ import {
   type SpecialistAgentPlan,
 } from "@/lib/agentSpecialists";
 import { ApiError, api } from "@/lib/api";
-import type { OrgSettingsOut } from "@/components/dashboard/settings/types";
 
 function attackChainUiFromSessionDoc(
   ac: Record<string, unknown> | null | undefined,
@@ -578,12 +579,13 @@ type ClaudePromptBoxProps = {
   explicitToolNamesCount: number;
   toolExecutionMode: AgentChatToolExecutionMode;
   onToolExecutionModeChange: (v: AgentChatToolExecutionMode) => void;
-  /** When false, “Auto accept” is disabled (must match tenant admin on the server). */
+  /** Auto accept requires execution permission in the current scope. */
   allowAutoAcceptTools?: boolean;
   /** Plan Attack Chain pill — only on empty workspace, not inside an active chat. */
   showPlanAttackChain?: boolean;
   placeholder?: string;
   llmConfigured?: boolean | null;
+  readOnly?: boolean;
 };
 
 function VrikaClaudePromptBox({
@@ -602,9 +604,10 @@ function VrikaClaudePromptBox({
   showPlanAttackChain = false,
   placeholder,
   llmConfigured,
+  readOnly = false,
 }: ClaudePromptBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const cannotSubmit = !prompt.trim() || isSending || llmConfigured === false;
+  const cannotSubmit = readOnly || !prompt.trim() || isSending || llmConfigured === false;
   const sendButtonDisabled = cannotSubmit;
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -616,6 +619,8 @@ function VrikaClaudePromptBox({
 
   const pillBase =
     "inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border px-2.5 py-1.5 text-left text-[11px] font-semibold shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-primary/30 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-[12px]";
+
+  if (readOnly) return <p className="text-sm text-on-surface-variant">Execution is unavailable in this scope. Select an authorized project for a new scan, or view existing sessions.</p>;
 
   return (
     <div>
@@ -848,21 +853,16 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
 
   useEffect(() => {
     let cancelled = false;
-    api<OrgSettingsOut>("/org/settings")
+    api<{ llm_configured: boolean }>("/workspace/agent-chat/capabilities")
       .then((res) => {
         if (cancelled) return;
-        const llm = res.llm;
-        if (!llm) {
-          setLlmConfigured(false);
-          return;
-        }
-        const act = llm.active_provider;
-        const prov = llm.providers?.[act];
-        const isConfigured = act === "custom" ? Boolean(prov?.base_url) : Boolean(prov?.has_api_key);
-        setLlmConfigured(isConfigured);
+        setLlmConfigured(res.llm_configured === true);
       })
-      .catch(() => {
-        if (!cancelled) setLlmConfigured(true);
+      .catch((error) => {
+        if (!cancelled) {
+          setLlmConfigured(false);
+          setActionErr(formatChatError(error));
+        }
       });
     return () => {
       cancelled = true;
@@ -909,7 +909,27 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const pinnedToBottomRef = useRef(true);
   pinnedToBottomRef.current = pinnedToBottom;
 
-  const isTenantAdmin = user.roles.includes("tenant_admin");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const selectedProjectId = selectedSessionId
+    ? sessions.find((session) => session.id === selectedSessionId)?.project_id
+    : projectId;
+  const canExecute = hasPermission(user, "execute", { module: "web_security", projectId: selectedProjectId });
+  const canCreate = canStartScan(user);
+  const requiresProject = !hasPermission(user, "execute", { module: "web_security" });
+  const isTenantAdmin = canExecute;
+
+  useEffect(() => {
+    let cancelled = false;
+    listProjects().then((rows) => {
+      if (!cancelled) setProjects(rows);
+    }).catch((e) => {
+      if (!cancelled) setProjectsError(formatChatError(e));
+    }).finally(() => { if (!cancelled) setProjectsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const computePinnedFromElement = useCallback((el: HTMLDivElement) => {
     const { scrollTop, scrollHeight, clientHeight } = el;
@@ -1075,7 +1095,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
 
   const handleGenerateReport = useCallback(
     async (downloadAfter = false) => {
-      if (!selectedSessionId) return;
+      if (!canExecute || !selectedSessionId) return;
       setReportBusyId(selectedSessionId);
       setReportError(null);
       try {
@@ -1102,7 +1122,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         setReportBusyId(null);
       }
     },
-    [selectedSessionId, refreshMessages, downloadChatPdf],
+    [selectedSessionId, refreshMessages, downloadChatPdf, canExecute],
   );
 
   const captureThoughtDuration = useCallback((sessionId: string) => {
@@ -1402,6 +1422,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
     async (sessionId: string, e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      if (!hasPermission(user, "edit", { module: "web_security", projectId: sessions.find((s) => s.id === sessionId)?.project_id })) return;
       if (!window.confirm("Delete this chat permanently?")) return;
       try {
         setActionErr(null);
@@ -1437,10 +1458,11 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         setActionErr(formatChatError(err));
       }
     },
-    [clearLiveStreamState, router, selectedSessionId, refreshSessions],
+    [clearLiveStreamState, router, selectedSessionId, refreshSessions, user, sessions],
   );
 
   const handleNewChat = useCallback(() => {
+    if (!canCreate) return;
     abortRef.current?.abort();
     setActionErr(null);
     setSelectedSessionId(null);
@@ -1448,7 +1470,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
     setOptimisticMessages({});
     clearLiveStreamState(selectedSessionId);
     router.replace("/dashboard/scan?new=1", { scroll: false });
-  }, [clearLiveStreamState, router, selectedSessionId]);
+  }, [clearLiveStreamState, router, selectedSessionId, canCreate]);
 
   const attachStreamHandlers = useCallback(
     (sessionId: string) => (ev: AgentChatSseEvent) => {
@@ -1639,7 +1661,10 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       },
     ) => {
       const trimmed = text.trim();
-      if (!trimmed || isSending) return;
+      if (!trimmed || isSending || !canExecute) return;
+      const creationProjectId = specialistMeta?.forceNewSession ? selectedProjectId : projectId;
+      if ((!selectedSessionId || specialistMeta?.forceNewSession) &&
+          !hasPermission(user, "execute", { module: "web_security", projectId: creationProjectId })) return;
 
       abortRef.current?.abort();
       const ac = new AbortController();
@@ -1649,7 +1674,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       try {
         setActionErr(null);
         if (specialistMeta?.forceNewSession || !sessionId) {
-          const s = await createAgentChatSession("");
+          const s = await createAgentChatSession("", creationProjectId);
           sessionId = s.id;
           locallyCreatedSessionIdsRef.current.add(s.id);
           sessionsRef.current = [s, ...sessionsRef.current.filter((row) => row.id !== s.id)];
@@ -1744,6 +1769,10 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       clearLiveStreamState,
       flushAllStreamPreview,
       isSending,
+      canExecute,
+      projectId,
+      selectedProjectId,
+      user,
       refreshMessages,
       refreshSessions,
       selectedSessionId,
@@ -1861,7 +1890,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   }, [selectedSessionId, sessionAttackChains]);
 
   const handleFollowupContinue = useCallback(async () => {
-    if (!selectedSessionId || !followupPreview?.steps.length) return;
+    if (!canExecute || !selectedSessionId || !followupPreview?.steps.length) return;
     setFollowupLoading(true);
     try {
       const result = await acceptAttackChainFollowup(selectedSessionId, {
@@ -1900,11 +1929,11 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
     } finally {
       setFollowupLoading(false);
     }
-  }, [selectedSessionId, followupPreview, executeMessage, refreshMessages, sessionAttackChains]);
+  }, [selectedSessionId, followupPreview, executeMessage, refreshMessages, sessionAttackChains, canExecute]);
 
   const handleToolConfirm = useCallback(
     async (assistantMessageId: string, approved: boolean) => {
-      if (!selectedSessionId || confirmingId) return;
+      if (!canExecute || !selectedSessionId || confirmingId) return;
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
@@ -1939,12 +1968,12 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         updateSessionStreamState(selectedSessionId, { confirmingId: null });
       }
     },
-    [selectedSessionId, confirmingId, attachStreamHandlers, refreshMessages, resetThoughtClock, updateSessionStreamState],
+    [selectedSessionId, confirmingId, attachStreamHandlers, refreshMessages, resetThoughtClock, updateSessionStreamState, canExecute],
   );
 
   const patchBatchDecisions = useCallback(
     async (messageId: string, decisions: Record<string, string>) => {
-      if (!selectedSessionId) return;
+      if (!canExecute || !selectedSessionId) return;
       try {
         setBatchDecisionsBusyId(messageId);
         setActionErr(null);
@@ -1956,12 +1985,12 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         setBatchDecisionsBusyId(null);
       }
     },
-    [selectedSessionId, refreshMessages],
+    [selectedSessionId, refreshMessages, canExecute],
   );
 
   const handleBatchExecute = useCallback(
     async (assistantMessageId: string) => {
-      if (!selectedSessionId || confirmingId) return;
+      if (!canExecute || !selectedSessionId || confirmingId) return;
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
@@ -2007,7 +2036,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         updateSessionStreamState(selectedSessionId, { confirmingId: null });
       }
     },
-    [selectedSessionId, confirmingId, attachStreamHandlers, refreshMessages, resetThoughtClock, updateSessionStreamState],
+    [selectedSessionId, confirmingId, attachStreamHandlers, refreshMessages, resetThoughtClock, updateSessionStreamState, canExecute],
   );
 
   const visibleMessages = currentOptimisticMessages.length > 0 ? [...currentMessages, ...currentOptimisticMessages] : currentMessages;
@@ -2055,7 +2084,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   }, [visibleMessages, liveBatchSlotOverlay]);
 
   useEffect(() => {
-    if (!selectedSessionId) {
+    if (!canExecute || !selectedSessionId) {
       setFollowupPreview(null);
       return;
     }
@@ -2102,6 +2131,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
     followupDismissedKeys,
     agentActivelyWorking,
     followupPreview,
+    canExecute,
   ]);
 
   const hasThread =
@@ -2198,7 +2228,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                     <button
                       type="button"
                       onClick={(e) => void handleDeleteSession(s.id, e)}
-                      disabled={sessionsLoading}
+                      disabled={sessionsLoading || !hasPermission(user, "edit", { module: "web_security", projectId: s.project_id })}
                       title="Delete chat"
                       aria-label={`Delete chat ${s.title || "Chat"}`}
                       className={`flex shrink-0 items-center justify-center rounded-md px-2 py-2 transition-colors disabled:opacity-40 ${
@@ -2217,14 +2247,14 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         </div>
 
         <div className="shrink-0 border-t border-outline-variant/80 p-5">
-          <button
+          {canCreate && <button
             type="button"
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-on-primary shadow-sm transition hover:opacity-92 active:scale-[0.99]"
             onClick={() => void handleNewChat()}
           >
             <MaterialSymbol name="edit_square" className="text-lg text-on-primary" filled />
             New chat
-          </button>
+          </button>}
         </div>
       </aside>
 
@@ -2252,7 +2282,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                   <span>Generating Report…</span>
                 </button>
-              ) : latestReportAttachment && !isReportStaleOrNewToolsRan ? (
+              ) : latestReportAttachment && (!isReportStaleOrNewToolsRan || !canExecute) ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -2272,7 +2302,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
               ) : (
                 <button
                   type="button"
-                  disabled={currentMessages.length === 0 || reportBusyId !== null}
+                  disabled={!canExecute || currentMessages.length === 0 || reportBusyId !== null}
                   onClick={() => void handleGenerateReport()}
                   className="inline-flex items-center gap-2 rounded-lg border border-outline-variant/80 bg-surface-container-lowest px-3.5 py-1.5 text-xs font-semibold text-on-surface shadow-xs transition hover:border-primary/50 hover:bg-primary/8 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                   title={
@@ -2294,6 +2324,21 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
             <DashboardHeaderProfile user={user} />
           </div>
         </header>
+
+        {!selectedSessionId && canCreate && <div className="border-b border-outline-variant px-6 py-3">
+          <label className="flex items-center gap-3 text-sm">Scan project
+            <select aria-label="Scan project" className="rounded border border-outline-variant bg-surface p-2" value={projectId} disabled={projectsLoading}
+              onChange={(event) => setProjectId(event.target.value)}>
+              <option value="">{requiresProject ? "Select an accessible project (required)" : "No project (module scope)"}</option>
+              {projects.filter((project) => hasPermission(user, "execute", { module: "web_security", projectId: project.id })).map((project) =>
+                <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+          </label>
+          {projectsLoading && <p role="status" className="text-sm">Loading projects…</p>}
+          {projectsError && <p role="alert" className="text-sm text-error">Could not load projects: {projectsError}</p>}
+          {requiresProject && !projectId && <p className="text-sm">Choose a project you lead before starting a scan.</p>}
+        </div>}
+        {!canCreate && <p className="border-b border-outline-variant px-6 py-3 text-sm">Read-only workspace. You can view sessions and download existing reports.</p>}
 
         <div className="flex min-h-0 flex-1 flex-row overflow-hidden relative">
           <div className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-all duration-200 ${activePreviewAttachment && !previewFullscreen ? "hidden lg:flex" : "flex"}`}>
@@ -2324,7 +2369,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                 </div>
               ) : null}
 
-              {!hasThread ? (
+              {!hasThread ? (canExecute &&
                 <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-1 sm:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
                   <div className="flex w-full flex-col items-center text-center">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-container shadow-sm ring-1 ring-primary/15">
@@ -2656,7 +2701,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                       <div className="flex shrink-0 flex-wrap gap-1.5">
                                         <button
                                           type="button"
-                                          disabled={confirmingId !== null || batchDecisionsBusyId === m.id}
+                                          disabled={!canExecute || confirmingId !== null || batchDecisionsBusyId === m.id}
                                           onClick={() => {
                                             const decisions = Object.fromEntries(
                                               slotsList.map((_s, i) => [String(i), "approve"]),
@@ -2669,7 +2714,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                         </button>
                                         <button
                                           type="button"
-                                          disabled={confirmingId !== null || batchDecisionsBusyId === m.id}
+                                          disabled={!canExecute || confirmingId !== null || batchDecisionsBusyId === m.id}
                                           onClick={() => {
                                             const decisions = Object.fromEntries(
                                               slotsList.map((_s, i) => [String(i), "reject"]),
@@ -2740,7 +2785,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                           <div className="flex shrink-0 gap-1 sm:pt-0.5">
                                             <button
                                               type="button"
-                                              disabled={confirmingId !== null || batchDecisionsBusyId === m.id}
+                                              disabled={!canExecute || confirmingId !== null || batchDecisionsBusyId === m.id}
                                               onClick={() => void patchBatchDecisions(m.id, { [String(i)]: "approve" })}
                                               className={`rounded-lg px-2 py-1 text-[11px] font-bold disabled:opacity-45 ${
                                                 isAp
@@ -2752,7 +2797,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                             </button>
                                             <button
                                               type="button"
-                                              disabled={confirmingId !== null || batchDecisionsBusyId === m.id}
+                                              disabled={!canExecute || confirmingId !== null || batchDecisionsBusyId === m.id}
                                               onClick={() => void patchBatchDecisions(m.id, { [String(i)]: "reject" })}
                                               className={`rounded-lg px-2 py-1 text-[11px] font-semibold disabled:opacity-45 ${
                                                 isRej
@@ -2774,6 +2819,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                     <button
                                       type="button"
                                       disabled={
+                                        !canExecute ||
                                         confirmingId !== null ||
                                         batchDecisionsBusyId === m.id ||
                                         !batchQuorumMet(m) ||
@@ -2783,7 +2829,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                         !batchQuorumMet(m)
                                           ? "Choose approve or reject for every tool first"
                                           : !isTenantAdmin && batchHasApprovedSlot(m)
-                                            ? "Tenant administrator role required when any tool is approved"
+                                            ? "Execution permission required in this scope"
                                             : "Run approved tools"
                                       }
                                       onClick={() => void handleBatchExecute(m.id)}
@@ -2793,8 +2839,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                     </button>
                                     {!isTenantAdmin && batchHasApprovedSlot(m) && batchQuorumMet(m) ? (
                                       <p className="mt-2 text-[11px] text-on-surface-variant">
-                                        Running approved tools requires the tenant administrator role. Reject-all
-                                        avoids this.
+                                        Running tools requires execution permission in this scope.
                                       </p>
                                     ) : null}
                                   </div>
@@ -2859,7 +2904,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                     </button>
                                     <button
                                       type="button"
-                                      disabled={confirmingId !== null}
+                                      disabled={!canExecute || confirmingId !== null}
                                       onClick={() => void handleToolConfirm(m.id, false)}
                                       className="rounded-full border border-outline-variant bg-surface-container-high px-4 py-2 text-[13px] font-semibold text-on-surface disabled:opacity-45"
                                     >
@@ -3045,6 +3090,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                     toolExecutionMode={toolExecutionMode}
                     onToolExecutionModeChange={setToolExecutionMode}
                     allowAutoAcceptTools={isTenantAdmin}
+                    readOnly={!canExecute}
                     showPlanAttackChain={false}
                     llmConfigured={llmConfigured}
                   />
@@ -3073,6 +3119,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
               toolExecutionMode={toolExecutionMode}
               onToolExecutionModeChange={setToolExecutionMode}
               allowAutoAcceptTools={isTenantAdmin}
+              readOnly={!canExecute}
               showPlanAttackChain={true}
               placeholder={ROTATING_PROMPTS[rotatingPromptIndex]}
               llmConfigured={llmConfigured}

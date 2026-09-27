@@ -261,7 +261,9 @@ async def complete_saml_invitation(
             detail="An account with this email already exists. Sign in instead.",
         )
 
-    roles = list(inv.get("roles") or ["tenant_member"])
+    from app.services.access import compatibility_roles, effective_bindings
+    bindings = effective_bindings(inv)
+    roles = compatibility_roles(bindings)
     now = datetime.now(UTC)
     user_doc = {
         "email": email_norm,
@@ -271,6 +273,7 @@ async def complete_saml_invitation(
         "sso_subject_id": name_id,
         "organization_id": inv["organization_id"],
         "roles": roles,
+        "role_bindings": bindings,
         "created_at": now,
         "updated_at": now,
     }

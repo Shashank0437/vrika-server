@@ -605,11 +605,15 @@ async def list_session_intelligence(
     user_id: ObjectId,
     limit: int = 100,
 ) -> list[dict[str, Any]]:
+    from app.services.access import session_filter
+
+    actor = await db.users.find_one({"_id": user_id, "organization_id": organization_id})
+    query = session_filter(actor or {"organization_id": organization_id})
     rows = await (
         db[AGENT_CHAT_SESSIONS_COLLECTION]
         .find(
             {
-                "organization_id": organization_id,
+                **query,
                 "session_intelligence": {"$exists": True},
             },
         )
@@ -631,6 +635,7 @@ async def list_session_intelligence(
     for r in rows:
         intel = r.get("session_intelligence")
         if isinstance(intel, dict):
+            intel["project_id"] = r.get("project_id")
             uid = r.get("user_id")
             intel["executed_by"] = user_map.get(uid, "Unknown")
             out.append(intel)

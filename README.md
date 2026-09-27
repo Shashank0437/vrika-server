@@ -26,12 +26,48 @@ To run the same mocked checks against a deployed frontend, set
 
 ## Run everything with Docker Compose
 
-The Cloud Security bridge provisions `admin` with ordinary and exception triage
-permissions, and `vrika_member` with ordinary status/note editing only. Existing
-managed roles are upgraded by the Cloud Security `0100_triage_managed_roles`
-migration; embed login does not reset customized role permissions. Deploy the
-matching Cloud Security API schema before the bridge update. Triage is separately
-feature-gated in Cloud Security and does not create additional email notifications.
+### Scoped access
+
+User management assigns multiple **role bindings**, not a flat user/admin flag.
+Global means the current organization, never other organizations.
+
+| Role | Scope | Permissions |
+| --- | --- | --- |
+| Viewer | Global | View web, cloud and administration panels |
+| Analyst | Web Security or Cloud Security | View, execute and edit within that module |
+| Lead | Project | View, execute, edit and manage project members |
+| Admin | Global | All permissions, including `manage_roles` |
+
+Explicit empty bindings remove all access. Existing `tenant_admin` users retain
+global Admin access; existing `tenant_member` users retain both module Analyst
+bindings. JWT role claims are not authorization: current database bindings are
+checked for every authenticated request. Role changes use optimistic versions
+and an organization lock, preserve the last Admin and record an audit entry.
+Interrupted cross-service changes remain durably pending and are resumed before
+the affected user's next authenticated request or the next role update. Until
+synchronization succeeds, those requests return an explicit unavailable error.
+
+Projects group web sessions and cloud accounts/providers. Admins assign existing
+resources from Projects; new web sessions can select a project. Cloud project
+leads select their project before adding accounts. Unassigned resources are not
+visible to project-only leads. Membership is a roster, not an implicit permission
+grant; only `manage_roles` can change bindings. Organization-wide configuration
+is not project configuration and remains outside a project lead's scope.
+
+The Cloud API synchronizes a per-user managed role through a short-lived
+HMAC-signed internal request. Existing cloud access tokens use current bindings,
+so removing a role does not wait for token expiry. Native standalone Cloud users
+remain on native permissions. Vrika-managed cloud permissions must be changed in
+Vrika, not by editing the generated role.
+
+**Deployment order:** deploy Cloud Security API migration
+`0103_role_vrika_policy` and API code first, then Vrika API and web. Both bridge
+services must share the configured bridge secret (no default secret is accepted).
+From `server/`, run `python scripts/migrate_scoped_access.py` to preview, then
+`python scripts/migrate_scoped_access.py --apply` to persist compatible bindings
+and synchronize already linked cloud accounts. A synchronization error aborts
+the operation; do not report a partial deployment as complete. Retain migration
+0103 when rolling back binaries, since it is additive.
 
 From the repository root:
 

@@ -3,31 +3,19 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth-context";
-
-const ADMIN_ONLY_PATH_PREFIXES = [
-  "/dashboard/analytics",
-  "/dashboard/tools",
-  "/dashboard/usage",
-  "/dashboard/users",
-] as const;
-
-function pathRequiresTenantAdmin(pathname: string): boolean {
-  return ADMIN_ONLY_PATH_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-}
+import { canVisitDashboard, landingRoute } from "@/lib/access";
 
 export function DashboardRoleGuard({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
-  const { user } = useAuth();
-  const isAdmin = !!user?.roles?.includes("tenant_admin");
-  const blocked = !!user && pathRequiresTenantAdmin(pathname) && !isAdmin;
+  const { user, loading } = useAuth();
+  const blocked = !!user && !canVisitDashboard(user, pathname);
 
   useEffect(() => {
+    if (!loading && !user) router.replace("/login");
     if (!user || !blocked) return;
-    router.replace("/dashboard");
-  }, [user, blocked, router]);
+    router.replace(landingRoute(user));
+  }, [user, loading, blocked, router]);
 
   if (blocked) {
     return null;

@@ -15,6 +15,7 @@ class AgentChatContext(BaseModel):
 
 class AgentChatSessionCreate(BaseModel):
     title: str = ""
+    project_id: str | None = None
 
 
 class AgentChatSessionPatch(BaseModel):
@@ -23,6 +24,7 @@ class AgentChatSessionPatch(BaseModel):
 
 class AgentChatSessionOut(BaseModel):
     id: str
+    project_id: str | None = None
     title: str
     created_at: datetime
     updated_at: datetime
@@ -36,6 +38,7 @@ class AgentChatSessionOut(BaseModel):
 
 class AgentChatSessionIntelligenceOut(BaseModel):
     session_id: str
+    project_id: str | None = None
     title: str
     status: Literal["IN_PROGRESS", "COMPLETED", "FAILED"]
     summary: str
