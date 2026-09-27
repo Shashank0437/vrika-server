@@ -237,3 +237,94 @@ body {
   display: none;
 }
 
+/* --- Cloud Security Boundary Loader --- */
+.cloud-security-boundary {
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 28px;
+  position: relative;
+}
+
+.cloud-security-boundary svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.cloud-security-boundary .hex-track {
+  fill: none;
+  stroke: #c9c2f7;
+  stroke-width: 2.5;
+}
+
+.cloud-security-boundary .hex-progress {
+  fill: none;
+  stroke: #5b4ae8;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 420;
+  stroke-dashoffset: 420;
+  animation: cs-hex-trace 2.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.cloud-security-boundary .node {
+  fill: #5b4ae8;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cs-node-pop 2.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.cloud-security-boundary .node.n1 { animation-delay: 0s; }
+.cloud-security-boundary .node.n2 { animation-delay: 0.43s; }
+.cloud-security-boundary .node.n3 { animation-delay: 0.87s; }
+.cloud-security-boundary .node.n4 { animation-delay: 1.3s; }
+.cloud-security-boundary .node.n5 { animation-delay: 1.73s; }
+.cloud-security-boundary .node.n6 { animation-delay: 2.17s; }
+
+.cloud-security-boundary .core {
+  fill: #ece9fd;
+  stroke: #5b4ae8;
+  stroke-width: 1.5;
+}
+
+.cloud-security-boundary .core-check {
+  fill: none;
+  stroke: #5b4ae8;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: cs-check-in 2.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes cs-hex-trace {
+  0% { stroke-dashoffset: 420; }
+  70% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes cs-node-pop {
+  0%, 4% { opacity: 0; transform: scale(0.4); }
+  10%, 96% { opacity: 1; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes cs-check-in {
+  0%, 68% { stroke-dashoffset: 20; opacity: 0; }
+  82% { opacity: 1; }
+  92%, 100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-security-boundary .hex-progress,
+  .cloud-security-boundary .node,
+  .cloud-security-boundary .core-check {
+    animation: none;
+  }
+  .cloud-security-boundary .hex-progress { stroke-dashoffset: 0; }
+  .cloud-security-boundary .node { opacity: 1; transform: none; }
+  .cloud-security-boundary .core-check { stroke-dashoffset: 0; opacity: 1; }
+}
+

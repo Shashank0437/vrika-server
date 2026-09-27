@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { api, ApiError } from "@/lib/api";
 import {
   CLOUD_SECURITY_VIEW_PARAM,
@@ -212,69 +211,44 @@ export function CloudSecurityWorkspace() {
 
   return (
     <div className="relative flex min-h-[calc(100dvh-4rem)] flex-1 flex-col overflow-hidden bg-background">
-      {/* Light Theme Loading Screen with Ambient Skeleton & Clean Floating HUD */}
+      {/* Cloud Security Loading Screen */}
       <div
-        className={`absolute inset-0 z-10 flex flex-col bg-background p-6 transition-opacity duration-300 ${
+        className={`absolute inset-0 z-10 flex items-center justify-center bg-[#f4f3fb] p-6 transition-opacity duration-300 ${
           iframeReady ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
         aria-hidden={iframeReady}
       >
-        {/* Background Skeleton Wireframe */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col gap-6 p-6 opacity-40">
-          {/* Skeleton Header */}
-          <div className="flex items-center justify-between">
-            <div className="h-7 w-48 animate-pulse rounded-lg bg-surface-container" />
-            <div className="flex gap-3">
-              <div className="h-9 w-28 animate-pulse rounded-lg bg-surface-container" />
-              <div className="h-9 w-28 animate-pulse rounded-lg bg-surface-container" />
+        <div className="w-full max-w-[460px]">
+          <div className="rounded-[20px] border border-[#e7e5f5] bg-white p-[44px_40px_36px] text-center shadow-[0_1px_2px_rgba(22,20,43,0.04)]">
+            <div className="cloud-security-boundary relative mx-auto mb-7 size-[140px]">
+              <svg viewBox="0 0 140 140" className="size-full overflow-visible">
+                {/* hex track */}
+                <polygon className="hex-track" points="70,16 116,43 116,97 70,124 24,97 24,43" />
+                <polygon className="hex-progress" points="70,16 116,43 116,97 70,124 24,97 24,43" />
+                {/* vertex nodes */}
+                <circle className="node n1" cx="70" cy="16" r="3.5" />
+                <circle className="node n2" cx="116" cy="43" r="3.5" />
+                <circle className="node n3" cx="116" cy="97" r="3.5" />
+                <circle className="node n4" cx="70" cy="124" r="3.5" />
+                <circle className="node n5" cx="24" cy="97" r="3.5" />
+                <circle className="node n6" cx="24" cy="43" r="3.5" />
+                {/* core */}
+                <circle className="core" cx="70" cy="70" r="22" />
+                <path className="core-check" d="M60 71 L67 78 L81 62" />
+              </svg>
             </div>
-          </div>
 
-          {/* Skeleton KPI Cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="h-28 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4" />
-            <div className="h-28 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4" />
-            <div className="h-28 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4" />
-            <div className="h-28 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4" />
-          </div>
+            <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-[#16142b] mb-1.5">
+              Loading Cloud Security
+            </h1>
 
-          {/* Skeleton Content Area */}
-          <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="col-span-2 animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6" />
-            <div className="animate-pulse rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6" />
-          </div>
-        </div>
+            <p className="min-h-[18px] text-[13.5px] text-[#6e6b8c] mb-0">
+              {LOADING_STEPS[stepIndex]}
+            </p>
 
-        {/* Central Simple Light Card */}
-        <div className="relative m-auto flex w-full max-w-sm flex-col items-center justify-center rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-8 text-center shadow-lg shadow-primary/5">
-          {/* Animated Purple Shield & Spinner Icon */}
-          <div className="relative mb-5 flex size-16 items-center justify-center rounded-2xl bg-primary-container text-primary">
-            <LoaderSvg className="absolute inset-0 size-16" label="Loading security workspace" />
-            <svg
-              className="size-7 text-primary"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              <path d="m9 12 2 2 4-4" />
-            </svg>
-          </div>
-
-          <h3 className="text-base font-semibold text-on-surface">
-            Loading Cloud Security
-          </h3>
-
-          <p className="mt-1.5 min-h-[1.25rem] text-xs font-medium text-on-surface-variant">
-            {LOADING_STEPS[stepIndex]}
-          </p>
-
-          {/* Slim Progress Bar */}
-          <div className="mt-5 h-1 w-full overflow-hidden rounded-full bg-surface-container">
-            <div className="h-full w-full origin-left animate-[progress_1.5s_ease-in-out_infinite] rounded-full bg-primary" />
+            <p className="mt-[18px] text-[11.5px] text-[#a5a2c2]">
+              This usually takes a few seconds
+            </p>
           </div>
         </div>
       </div>
