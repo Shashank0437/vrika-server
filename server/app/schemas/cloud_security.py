@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -10,6 +12,7 @@ class CloudSecurityEmbedOut(BaseModel):
 
 class NotifyScanCompletedIn(BaseModel):
     scan_id: str
+    provider_id: UUID
     provider: str = Field(default="aws")
     account_id: str
     account_name: str | None = None

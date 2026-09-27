@@ -2,8 +2,7 @@
 server/app/services/cloud_scan_notifications.py
 
 Renders and sends Cloud Security scan completion and Attack Graph notifications
-via the organization's dynamic SMTP server, with recipient routing to the scan initiator (To)
-and all organization teammates (CC).
+via the organization's dynamic SMTP server, restricted to the provider's project members.
 """
 
 from __future__ import annotations
@@ -18,12 +17,78 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings
 from app.constants import ORGANIZATIONS_COLLECTION, USERS_COLLECTION
+from app.services.access import has_permission
 from app.services.smtp_service import send_mail_for_org
 
 logger = logging.getLogger(__name__)
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates" / "email"
 _jinja_env = Environment(loader=FileSystemLoader(str(_TEMPLATE_DIR)), autoescape=True)
+
+
+class NotificationRoutingError(RuntimeError):
+    """A notification cannot be safely routed to one project's members."""
+
+
+async def resolve_notification_project(db, org_id: ObjectId, provider_id: str) -> dict:
+    projects = await db.projects.find(
+        {"organization_id": org_id, "cloud_provider_ids": provider_id}
+    ).to_list(length=2)
+    if not provider_id or len(projects) != 1:
+        logger.warning(
+            "Blocked Cloud email: provider must belong to exactly one project (org=%s provider=%s)",
+            org_id, provider_id,
+        )
+        raise NotificationRoutingError(
+            "Cloud email requires the provider to be assigned to exactly one project"
+        )
+    return projects[0]
+
+
+async def resolve_project_recipients(
+    db, org_id: ObjectId, provider_id: str, scanner_email: str = ""
+) -> tuple[dict, str, list[str]]:
+    project = await resolve_notification_project(db, org_id, provider_id)
+    project_id = str(project["_id"])
+    candidates = db[USERS_COLLECTION].find({
+        "organization_id": org_id,
+        "$or": [
+            {"_id": {"$in": [ObjectId(mid) for mid in project.get("member_ids", [])]}},
+            {"role_bindings": {"$elemMatch": {
+                "scope_type": "project", "scope_id": project_id,
+            }}},
+        ],
+    })
+    recipients: set[str] = set()
+    async for user in candidates:
+        # Do not send against stale permissions while a grant/revocation is pending.
+        if user.get("pending_access_change"):
+            logger.warning(
+                "Excluded Cloud email recipient with pending access change (project=%s user=%s)",
+                project_id, user["_id"],
+            )
+            continue
+        if not has_permission(user, "view", module="cloud_security", project_id=project_id):
+            continue
+        email = str(user.get("email") or "").strip().lower()
+        if email:
+            recipients.add(email)
+        else:
+            logger.warning(
+                "Excluded Cloud email recipient without an email address (project=%s user=%s)",
+                project_id, user["_id"],
+            )
+    if not recipients:
+        logger.warning(
+            "Blocked Cloud email: no authorized project recipients (org=%s project=%s)",
+            org_id, project_id,
+        )
+        raise NotificationRoutingError(
+            "Cloud email requires at least one project member with Cloud Security read access"
+        )
+    preferred = scanner_email.strip().lower()
+    to = preferred if preferred in recipients else min(recipients)
+    return project, to, sorted(recipients - {to})
 
 
 def render_cloud_scan_email(
@@ -40,6 +105,7 @@ def render_cloud_scan_email(
     top_attack_path: Optional[str] = None,
     dashboard_url: str,
     completed_at: Optional[str] = None,
+    project_name: Optional[str] = None,
 ) -> tuple[str, str, str]:
     """Returns (subject, html_body, text_body) for Cloud Security Scan & Compliance."""
     html_template = _jinja_env.get_template("cloud_scan_completed.html.j2")
@@ -47,6 +113,7 @@ def render_cloud_scan_email(
 
     ctx = {
         "organization_name": organization_name,
+        "project_name": project_name,
         "provider": provider,
         "account_id": account_id,
         "account_name": account_name,
@@ -78,6 +145,7 @@ def render_attack_paths_email(
     top_attack_path: Optional[str] = None,
     dashboard_url: str,
     completed_at: Optional[str] = None,
+    project_name: Optional[str] = None,
 ) -> tuple[str, str, str]:
     """Returns (subject, html_body, text_body) for Dedicated Attack Path Alerts."""
     html_template = _jinja_env.get_template("attack_paths_completed.html.j2")
@@ -85,6 +153,7 @@ def render_attack_paths_email(
 
     ctx = {
         "organization_name": organization_name,
+        "project_name": project_name,
         "provider": provider,
         "account_id": account_id,
         "account_name": account_name,
@@ -106,6 +175,7 @@ async def send_cloud_scan_completed_notification(
     settings: Settings,
     *,
     org_id: ObjectId,
+    provider_id: str,
     scanner_email: str,
     provider: str,
     account_id: str,
@@ -120,26 +190,16 @@ async def send_cloud_scan_completed_notification(
     pdf_report_filename: Optional[str] = None,
     pdf_attachments: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """Resolve initiator (To) and all other teammates in the org (CC), and dispatch notification with dual PDFs."""
+    """Dispatch reports only to authorized members of the provider's project."""
+    project = await resolve_notification_project(db, org_id, provider_id)
     org = await db[ORGANIZATIONS_COLLECTION].find_one({"_id": org_id})
     org_name = org.get("name") if org else "Your Organization"
-
-    scanner_norm = scanner_email.strip().lower()
-
-    # Resolve all other active users in the same organization for CC
-    other_users_cursor = db[USERS_COLLECTION].find(
-        {"organization_id": org_id, "email": {"$ne": scanner_norm}}
-    )
-    cc_emails: List[str] = []
-    async for u in other_users_cursor:
-        e = str(u.get("email") or "").strip().lower()
-        if e and e not in cc_emails and e != scanner_norm:
-            cc_emails.append(e)
 
     dashboard_url = f"{settings.frontend_url.rstrip('/')}/dashboard/cloud-security"
 
     subject, html_body, text_body = render_cloud_scan_email(
         organization_name=org_name,
+        project_name=project["name"],
         provider=provider,
         account_id=account_id,
         account_name=account_name,
@@ -207,41 +267,37 @@ async def send_cloud_scan_completed_notification(
                 size,
             )
 
-    logger.info(
-        "Sending Cloud Security scan email for org_id=%s (To: %s, CC: %d teammates, Attachments: %d, Total Attachment Size: %.2f MB)",
-        org_id,
-        scanner_norm,
-        len(cc_emails),
-        len(safe_attachments),
-        total_size / (1024 * 1024),
-    )
-
-    try:
+    async def dispatch(report_attachments):
+        current_project, to, cc = await resolve_project_recipients(
+            db, org_id, provider_id, scanner_email
+        )
+        if current_project["_id"] != project["_id"]:
+            logger.warning("Blocked Cloud email: provider project changed (scan=%s)", scan_id)
+            raise NotificationRoutingError("Provider project changed; regenerate the email")
+        logger.info(
+            "Sending Cloud scan email (org=%s project=%s scan=%s recipients=%d attachments=%d)",
+            org_id, project["_id"], scan_id, 1 + len(cc), len(report_attachments or []),
+        )
         return await send_mail_for_org(
             db,
             settings,
             org_id,
-            to=scanner_norm,
-            cc=cc_emails if cc_emails else None,
+            to=to,
+            cc=cc or None,
             subject=subject,
             body=text_body,
             html_body=html_body,
-            attachments=safe_attachments if safe_attachments else None,
+            attachments=report_attachments,
         )
+
+    try:
+        return await dispatch(safe_attachments or None)
+    except NotificationRoutingError:
+        raise
     except Exception as exc:
         logger.warning("Primary scan email send encountered error: %s. Retrying with executive attachment only...", exc)
         exec_only = [safe_attachments[0]] if safe_attachments else None
-        return await send_mail_for_org(
-            db,
-            settings,
-            org_id,
-            to=scanner_norm,
-            cc=cc_emails if cc_emails else None,
-            subject=subject,
-            body=text_body,
-            html_body=html_body,
-            attachments=exec_only,
-        )
+        return await dispatch(exec_only)
 
 
 
@@ -250,6 +306,7 @@ async def send_attack_paths_completed_notification(
     settings: Settings,
     *,
     org_id: ObjectId,
+    provider_id: str,
     scanner_email: str,
     provider: str,
     account_id: str,
@@ -259,25 +316,18 @@ async def send_attack_paths_completed_notification(
     blast_radius_count: Optional[str] = None,
     top_attack_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Dispatch dedicated high-priority Attack Path alert email."""
+    """Dispatch a high-priority alert only to authorized project members."""
+    project, to, cc = await resolve_project_recipients(
+        db, org_id, provider_id, scanner_email
+    )
     org = await db[ORGANIZATIONS_COLLECTION].find_one({"_id": org_id})
     org_name = org.get("name") if org else "Your Organization"
-
-    scanner_norm = scanner_email.strip().lower()
-
-    other_users_cursor = db[USERS_COLLECTION].find(
-        {"organization_id": org_id, "email": {"$ne": scanner_norm}}
-    )
-    cc_emails: List[str] = []
-    async for u in other_users_cursor:
-        e = str(u.get("email") or "").strip().lower()
-        if e and e not in cc_emails and e != scanner_norm:
-            cc_emails.append(e)
 
     dashboard_url = f"{settings.frontend_url.rstrip('/')}/dashboard/cloud-security"
 
     subject, html_body, text_body = render_attack_paths_email(
         organization_name=org_name,
+        project_name=project["name"],
         provider=provider,
         account_id=account_id,
         account_name=account_name,
@@ -289,10 +339,10 @@ async def send_attack_paths_completed_notification(
     )
 
     logger.info(
-        "Sending Attack Path Alert email for org_id=%s (To: %s, CC: %d teammates, Paths: %d)",
+        "Sending Attack Path Alert email for org_id=%s project=%s (Recipients: %d, Paths: %d)",
         org_id,
-        scanner_norm,
-        len(cc_emails),
+        project["_id"],
+        1 + len(cc),
         attack_paths_count,
     )
 
@@ -300,8 +350,8 @@ async def send_attack_paths_completed_notification(
         db,
         settings,
         org_id,
-        to=scanner_norm,
-        cc=cc_emails if cc_emails else None,
+        to=to,
+        cc=cc or None,
         subject=subject,
         body=text_body,
         html_body=html_body,

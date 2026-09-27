@@ -107,13 +107,25 @@ def test_notification_dispatch_preserves_readable_email(
     monkeypatch, email_context, transport
 ):
     org_id = ObjectId()
+    project_id = ObjectId()
+    provider_id = "33333333-3333-4333-8333-333333333333"
     organizations = MagicMock()
     organizations.find_one = AsyncMock(return_value={"name": "Example Organization"})
     users = MagicMock()
     users.find.return_value.__aiter__.return_value = [
-        {"email": "teammate@example.test"}
+        {
+            "_id": ObjectId(),
+            "email": email,
+            "role_bindings": [
+                {"role": "viewer", "scope_type": "project", "scope_id": str(project_id)}
+            ],
+        }
+        for email in ("scanner@example.test", "teammate@example.test")
     ]
     db = MagicMock()
+    db.projects.find.return_value.to_list = AsyncMock(return_value=[{
+        "_id": project_id, "name": "SECOPS", "cloud_provider_ids": [provider_id],
+    }])
     db.__getitem__.side_effect = {
         ORGANIZATIONS_COLLECTION: organizations,
         USERS_COLLECTION: users,
@@ -153,6 +165,7 @@ def test_notification_dispatch_preserves_readable_email(
             db,
             settings,
             org_id=org_id,
+            provider_id=provider_id,
             scanner_email="Scanner@example.test",
             pdf_attachments=attachments,
             **context,
@@ -187,6 +200,7 @@ def test_notification_dispatch_preserves_readable_email(
         html = brevo.call_args.kwargs["html"]
         assert "example-subscription" in brevo.call_args.kwargs["text"]
     assert "Microsoft Azure" in html
+    assert "SECOPS" in html
     assert "VRIKA" in html
     assert "<img" not in html
     assert "data:image" not in html

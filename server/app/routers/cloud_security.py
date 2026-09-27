@@ -9,7 +9,11 @@ from app.dependencies.auth import require_auth_user
 from app.dependencies.access import require_cloud_access
 from app.services.access import has_permission
 from app.schemas.cloud_security import CloudSecurityEmbedOut, NotifyScanCompletedIn
-from app.services.cloud_scan_notifications import send_cloud_scan_completed_notification
+from app.services.cloud_scan_notifications import (
+    NotificationRoutingError,
+    resolve_notification_project,
+    send_cloud_scan_completed_notification,
+)
 from app.services.prowler_bridge import ProwlerBridgeError, get_cloud_security_embed_path
 from app.services.prowler_client import ProwlerApiError
 
@@ -44,17 +48,20 @@ async def notify_scan_completed(
     db: AsyncIOMotorDatabase = Depends(get_database),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
-    """Trigger picture-perfect Cloud Security scan & attack graph completion notification email.
-    
-    Dispatches to the user who ran the scan (To:) and CCs all other teammates in the organization.
-    """
-    if not has_permission(user, "execute", module="cloud_security"):
-        raise HTTPException(403, "Cloud Security execute permission required")
+    """Send a Cloud report only to authorized members of its provider's project."""
     try:
+        project = await resolve_notification_project(
+            db, user["organization_id"], str(payload.provider_id)
+        )
+        if not has_permission(
+            user, "execute", module="cloud_security", project_id=str(project["_id"])
+        ):
+            raise HTTPException(403, "Cloud Security execute permission required for this project")
         res = await send_cloud_scan_completed_notification(
             db,
             settings,
             org_id=user["organization_id"],
+            provider_id=str(payload.provider_id),
             scanner_email=user["email"],
             provider=payload.provider,
             account_id=payload.account_id,
@@ -67,6 +74,10 @@ async def notify_scan_completed(
             top_attack_path=payload.top_attack_path,
         )
         return {"status": "success", "detail": res}
+    except NotificationRoutingError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,

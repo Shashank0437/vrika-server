@@ -1,6 +1,7 @@
 VRIKA CLOUD SECURITY - SCAN & ATTACK GRAPH COMPLETED
 =====================================================
 Organization: {{ organization_name }}
+{% if project_name %}Project: {{ project_name }}{% endif %}
 Cloud Provider: {{ provider | upper }}
 Account / Target: {{ account_id }} {% if account_name %}({{ account_name }}){% endif %}
 Scan ID: {{ scan_id }}

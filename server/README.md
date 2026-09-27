@@ -39,6 +39,8 @@ The backend calls **POST `https://api.brevo.com/v3/smtp/email`** (`htmlContent` 
 
 Cloud scan notifications use a text-based Vrika wordmark and provider badge, with inline styles and table-based layout. Keep this header image-independent: Gmail does not reliably display base64/data-URI or SVG images, and the Brevo API fallback does not support inline CID images. This template is shared by automated and manually shared Cloud scan notifications.
 
+Cloud report and attack-path emails are **project-only**, including manual shares and scheduled reports. Notification requests must include the Cloud `provider_id` UUID; the server resolves its current project from `cloud_provider_ids` within the linked organization, never from the account name or a caller-selected project. Recipients must have a project role or be on its member roster, and have Cloud Security read access. Global administrators and module-wide users are not recipients unless explicitly part of that project. Pending access changes are excluded. Unassigned/ambiguously assigned providers and projects without eligible recipients block delivery with a logged error (HTTP 409 during preflight); there is no organization-wide fallback. Membership is checked again by the sender, including PDF retry attempts.
+
 ## Contact form (marketing site)
 
 - Set **`CONTACT_ADMIN_EMAILS`** to a comma-separated list (e.g. `ops@yourco.com,founder@yourco.com`). Each receives **one multi-recipient send** when someone submits **POST `/contact`**.

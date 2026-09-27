@@ -2,6 +2,7 @@ import base64
 import hmac
 import logging
 from typing import Any, Callable, Coroutine, Dict, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -10,6 +11,8 @@ from pydantic import BaseModel, Field
 from app.config import Settings, get_settings
 from app.db import get_database
 from app.services.cloud_scan_notifications import (
+    NotificationRoutingError,
+    resolve_project_recipients,
     send_attack_paths_completed_notification,
     send_cloud_scan_completed_notification,
 )
@@ -42,6 +45,7 @@ async def _send_in_background(
 class InternalNotifyScanCompletedIn(BaseModel):
     prowler_tenant_id: str
     scan_id: str
+    provider_id: UUID
     provider: str = "aws"
     account_id: str = ""
     account_name: Optional[str] = None
@@ -59,6 +63,7 @@ class InternalNotifyScanCompletedIn(BaseModel):
 class InternalNotifyAttackPathsCompletedIn(BaseModel):
     prowler_tenant_id: str
     scan_id: str
+    provider_id: UUID
     provider: str = "aws"
     account_id: str = ""
     account_name: Optional[str] = None
@@ -102,6 +107,30 @@ async def internal_org_config(
     )
 
 
+async def _notification_context(db, tenant_id: str, provider_id: str):
+    link = await db.prowler_tenant_links.find_one({"prowler_tenant_id": tenant_id})
+    org_id = None
+    scanner_email = ""
+    if link:
+        org_id = link.get("vrika_organization_id")
+        scanner_email = str(link.get("prowler_owner_email") or "")
+
+    if not org_id:
+        u_link = await db.prowler_user_links.find_one({"prowler_tenant_id": tenant_id})
+        if u_link:
+            org_id = u_link.get("vrika_organization_id")
+            scanner_email = str(u_link.get("prowler_email") or "")
+
+    if not org_id:
+        logger.warning("Blocked Cloud email: no linked organization (tenant=%s)", tenant_id)
+        raise HTTPException(409, "No linked organization found for tenant")
+    try:
+        await resolve_project_recipients(db, org_id, provider_id, scanner_email)
+    except NotificationRoutingError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return org_id, scanner_email
+
+
 @router.post(
     "/notify-scan-completed",
     dependencies=[Depends(_require_internal_secret)],
@@ -113,27 +142,10 @@ async def internal_notify_scan_completed(
     db: AsyncIOMotorDatabase = Depends(get_database),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    """Trigger automated scan completion & dual PDF email dispatch from Cloud Security worker."""
-    link = await db.prowler_tenant_links.find_one({"prowler_tenant_id": payload.prowler_tenant_id})
-    org_id = None
-    scanner_email = ""
-    if link:
-        org_id = link.get("vrika_organization_id")
-        scanner_email = str(link.get("prowler_owner_email") or "")
-
-    if not org_id:
-        u_link = await db.prowler_user_links.find_one({"prowler_tenant_id": payload.prowler_tenant_id})
-        if u_link:
-            org_id = u_link.get("vrika_organization_id")
-            scanner_email = str(u_link.get("prowler_email") or "")
-
-    if org_id and not scanner_email:
-        user = await db.users.find_one({"organization_id": org_id})
-        if user:
-            scanner_email = str(user.get("email") or "")
-
-    if not org_id or not scanner_email:
-        return {"status": "skipped", "reason": "No linked organization or email found for tenant"}
+    """Queue a report only after validating its project and eligible recipients."""
+    org_id, scanner_email = await _notification_context(
+        db, payload.prowler_tenant_id, str(payload.provider_id)
+    )
 
     pdf_attachments: list[dict[str, Any]] = []
 
@@ -173,6 +185,7 @@ async def internal_notify_scan_completed(
             db,
             settings,
             org_id=org_id,
+            provider_id=str(payload.provider_id),
             scanner_email=scanner_email,
             provider=payload.provider,
             account_id=payload.account_id,
@@ -198,31 +211,15 @@ async def internal_notify_attack_paths_completed(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     """Trigger automated attack path alert email from Cloud Security Neo4j worker."""
-    link = await db.prowler_tenant_links.find_one({"prowler_tenant_id": payload.prowler_tenant_id})
-    org_id = None
-    scanner_email = ""
-    if link:
-        org_id = link.get("vrika_organization_id")
-        scanner_email = str(link.get("prowler_owner_email") or "")
-
-    if not org_id:
-        u_link = await db.prowler_user_links.find_one({"prowler_tenant_id": payload.prowler_tenant_id})
-        if u_link:
-            org_id = u_link.get("vrika_organization_id")
-            scanner_email = str(u_link.get("prowler_email") or "")
-
-    if org_id and not scanner_email:
-        user = await db.users.find_one({"organization_id": org_id})
-        if user:
-            scanner_email = str(user.get("email") or "")
-
-    if not org_id or not scanner_email:
-        return {"status": "skipped", "reason": "No linked organization or email found for tenant"}
+    org_id, scanner_email = await _notification_context(
+        db, payload.prowler_tenant_id, str(payload.provider_id)
+    )
 
     res = await send_attack_paths_completed_notification(
         db,
         settings,
         org_id=org_id,
+        provider_id=str(payload.provider_id),
         scanner_email=scanner_email,
         provider=payload.provider,
         account_id=payload.account_id,

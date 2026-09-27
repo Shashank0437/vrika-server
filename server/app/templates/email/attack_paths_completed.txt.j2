@@ -2,6 +2,7 @@
 ==============================================
 Exploitable Attack Paths Discovered
 Organization: {{ organization_name }}
+{% if project_name %}Project: {{ project_name }}{% endif %}
 Provider: {{ provider | upper }}
 Target Account: {{ account_id }}
 Analysis ID: {{ scan_id }}
