@@ -75,3 +75,32 @@ def session_filter(user: dict) -> dict:
     if not has_permission(user, "view", module="web_security"):
         query["project_id"] = {"$in": accessible_project_ids(user)}
     return query
+
+
+async def session_project_filter(db, user: dict, project_id: str | None = None) -> dict:
+    from fastapi import HTTPException
+
+    from app.services.access_management import object_id
+
+    query = session_filter(user)
+    if not project_id:
+        return query
+    if project_id == "unassigned":
+        if not has_permission(user, "view", module="web_security"):
+            raise HTTPException(
+                403, "Unassigned sessions require module-wide read access"
+            )
+        query["project_id"] = None
+        return query
+    project = await db.projects.find_one(
+        {
+            "_id": object_id(project_id),
+            "organization_id": user["organization_id"],
+        }
+    )
+    if not project:
+        raise HTTPException(404, "Project not found in your organization")
+    if not has_permission(user, "view", module="web_security", project_id=project_id):
+        raise HTTPException(403, "Web Security access to this project is required")
+    query["project_id"] = project_id
+    return query

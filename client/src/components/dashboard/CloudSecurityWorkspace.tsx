@@ -2,12 +2,10 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
+import { useProjectScope } from "@/lib/use-project-scope";
+import { ProjectScopePicker } from "./ProjectScopePicker";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { getRoleBindings, hasPermission } from "@/lib/access";
-import { listProjects, type Project } from "@/lib/projects";
 import {
   CLOUD_SECURITY_VIEW_PARAM,
   isBridgePathForView,
@@ -43,12 +41,9 @@ function resolveProwlerOrigin(embedPath: string): string {
 
 export function CloudSecurityWorkspace() {
   const { user } = useAuth();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState("");
-  const [projectError, setProjectError] = useState<string | null>(null);
-  const [toolbar, setToolbar] = useState<HTMLElement | null>(null);
-  useEffect(() => { setToolbar(document.getElementById("dashboard-header-actions")); }, []);
-  const showProjects = hasPermission(user, "manage_roles") || getRoleBindings(user).some((b) => b.scope_type === "project");
+  const project = useProjectScope(user, "cloud_security");
+  const projectId = project.scope;
+  const [retry, setRetry] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -65,13 +60,6 @@ export function CloudSecurityWorkspace() {
   const currentView = sanitizeCloudSecurityView(
     searchParams.get(CLOUD_SECURITY_VIEW_PARAM),
   );
-  useEffect(() => {
-    if (!showProjects) return;
-    let cancelled = false;
-    listProjects().then((rows) => { if (!cancelled) setProjects(rows); })
-      .catch((err) => { if (!cancelled) setProjectError(err instanceof Error ? err.message : "Could not load projects"); });
-    return () => { cancelled = true; };
-  }, [showProjects]);
 
   const clearPendingAck = useCallback(() => {
     pendingAckRef.current = null;
@@ -105,11 +93,13 @@ export function CloudSecurityWorkspace() {
   );
 
   useEffect(() => {
+    if (!project.ready) return;
     let cancelled = false;
 
     async function loadEmbed() {
       setEmbedPath(null);
       setIframeReady(false);
+      setError(null);
       try {
         const res = await api<EmbedResponse>(`/auth/cloud-security/embed${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`, {
           skipPendingOverlay: true,
@@ -132,7 +122,7 @@ export function CloudSecurityWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, project.ready, retry]);
 
   useEffect(() => {
     pendingViewRef.current = currentView;
@@ -223,22 +213,20 @@ export function CloudSecurityWorkspace() {
 
   if (error) {
     return (
+      <>
+      <ProjectScopePicker context={project} label="Cloud project" portal />
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 rounded-xl border border-outline-variant bg-surface-container-low p-8 text-center">
         <p className="text-sm font-semibold text-on-surface">Cloud Security unavailable</p>
         <p className="max-w-md text-sm text-on-surface-variant">{error}</p>
+        <button type="button" onClick={() => setRetry((value) => value + 1)} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary">Retry workspace</button>
       </div>
+      </>
     );
   }
 
   return (
     <div className="relative flex min-h-[calc(100dvh-4rem)] flex-1 flex-col overflow-hidden bg-background">
-      {showProjects && toolbar && createPortal(
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="hidden shrink-0 text-xs font-semibold text-on-surface-variant lg:block">Cloud project</span>
-          <WorkspaceSelect label="Cloud project" value={projectId} onChange={setProjectId} className="w-full max-w-64"
-            options={[{ value: "", label: "All accessible resources", description: "Choose a project to add accounts within it." }, ...projects.map((project) => ({ value: project.id, label: project.name }))]} />
-          {projectError && <span role="alert" className="max-w-48 text-xs text-error">{projectError}</span>}
-        </div>, toolbar)}
+      <ProjectScopePicker context={project} label="Cloud project" portal />
       {/* Cloud Security Loading Screen */}
       <div
         className={`absolute inset-0 z-10 flex items-center justify-center bg-[#f4f3fb] p-6 transition-opacity duration-300 ${

@@ -381,7 +381,7 @@ test("project lead must select a project before creating a scan", async ({
   await page.goto("/dashboard/scan?new=1", { waitUntil: "domcontentloaded" });
   await expect(
     page.getByRole("combobox", { name: "Scan project" }),
-  ).toContainText("Select a project");
+  ).toContainText("All projects");
   await expect(page.locator("textarea")).toHaveCount(0);
   await choose(page, "Scan project", "App review");
   await page.locator("textarea").fill("Review https://example.test");

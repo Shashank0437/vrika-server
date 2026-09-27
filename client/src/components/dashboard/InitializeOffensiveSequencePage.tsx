@@ -12,8 +12,9 @@ import { ChatArtifactPreviewPanel } from "@/components/dashboard/ChatArtifactPre
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import type { AuthUser } from "@/lib/auth-context";
 import { canStartScan, hasPermission } from "@/lib/access";
-import { listProjects, type Project } from "@/lib/projects";
-import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
+import { creationProject, matchesProject, projectHref, UNASSIGNED_PROJECT } from "@/lib/projects";
+import { useProjectScope } from "@/lib/use-project-scope";
+import { ProjectScopePicker } from "./ProjectScopePicker";
 import {
   createAgentChatSession,
   deleteAgentChatSession,
@@ -22,6 +23,7 @@ import {
   generateAgentChatSessionReport,
   listAgentChatMessages,
   listAgentChatSessions,
+  getAgentChatSession,
   patchAgentChatToolBatchDecisions,
   agentChatMessageFromBatchPendingPayload,
   type AgentChatAttachment,
@@ -793,6 +795,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const sessionsRef = useRef<AgentChatSession[]>([]);
   const sessionsRequestIdRef = useRef(0);
   const locallyCreatedSessionIdsRef = useRef(new Set<string>());
+  const deepLinkedSessionRef = useRef<AgentChatSession | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, AgentChatMessage[]>>({});
   const [optimisticMessages, setOptimisticMessages] = useState<Record<string, AgentChatMessage[]>>({});
@@ -910,27 +913,28 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const pinnedToBottomRef = useRef(true);
   pinnedToBottomRef.current = pinnedToBottom;
 
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState("");
-  const [projectsLoading, setProjectsLoading] = useState(true);
-  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const project = useProjectScope(user, "web_security");
+  const projectScope = project.scope;
+  const projectId = creationProject(projectScope);
+  const scopeRef = useRef(projectScope);
+  scopeRef.current = projectScope;
+  const visibleSessions = useMemo(() => sessions.filter((session) => matchesProject(session.project_id, projectScope)), [sessions, projectScope]);
   const selectedProjectId = selectedSessionId
-    ? sessions.find((session) => session.id === selectedSessionId)?.project_id
+    ? (sessions.find((session) => session.id === selectedSessionId) ?? (deepLinkedSessionRef.current?.id === selectedSessionId ? deepLinkedSessionRef.current : undefined))?.project_id
     : projectId;
-  const canExecute = hasPermission(user, "execute", { module: "web_security", projectId: selectedProjectId });
+  const canExecute = project.ready && hasPermission(user, "execute", { module: "web_security", projectId: selectedProjectId });
   const canCreate = canStartScan(user);
-  const requiresProject = !hasPermission(user, "execute", { module: "web_security" });
   const isTenantAdmin = canExecute;
 
   useEffect(() => {
-    let cancelled = false;
-    listProjects().then((rows) => {
-      if (!cancelled) setProjects(rows);
-    }).catch((e) => {
-      if (!cancelled) setProjectsError(formatChatError(e));
-    }).finally(() => { if (!cancelled) setProjectsLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
+    sessionsRequestIdRef.current++;
+    setSessionsLoading(true);
+    setListErr(null);
+    setSelectedSessionId((current) => {
+      const selected = sessionsRef.current.find((session) => session.id === current) ?? deepLinkedSessionRef.current;
+      return selected && matchesProject(selected.project_id, projectScope) ? current : null;
+    });
+  }, [projectScope]);
 
   const computePinnedFromElement = useCallback((el: HTMLDivElement) => {
     const { scrollTop, scrollHeight, clientHeight } = el;
@@ -961,23 +965,33 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const refreshSessions = useCallback(async () => {
     const requestId = ++sessionsRequestIdRef.current;
     try {
-      const rows = await listAgentChatSessions();
-      if (requestId !== sessionsRequestIdRef.current) return sessionsRef.current;
+      const rows = await listAgentChatSessions(projectScope);
+      if (requestId !== sessionsRequestIdRef.current || scopeRef.current !== projectScope) return sessionsRef.current;
       const returned = new Set(rows.map((r) => r.id));
       returned.forEach((id) => locallyCreatedSessionIdsRef.current.delete(id));
       const pending = sessionsRef.current.filter(
-        (s) => locallyCreatedSessionIdsRef.current.has(s.id) && !returned.has(s.id),
+        (s) => locallyCreatedSessionIdsRef.current.has(s.id) && !returned.has(s.id) && matchesProject(s.project_id, projectScope),
       );
+      const pinned = deepLinkedSessionRef.current;
+      if (pinned && !returned.has(pinned.id) && !pending.some((row) => row.id === pinned.id) && matchesProject(pinned.project_id, projectScope)) pending.push(pinned);
       const next = pending.length ? [...pending, ...rows] : rows;
       sessionsRef.current = next;
       setSessions(next);
       setListErr(null);
       return next;
     } catch (e) {
-      if (requestId === sessionsRequestIdRef.current) setListErr(formatChatError(e));
+      if (requestId === sessionsRequestIdRef.current && scopeRef.current === projectScope) {
+        setListErr(formatChatError(e));
+        if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
+          sessionsRef.current = [];
+          deepLinkedSessionRef.current = null;
+          setSessions([]);
+          setSelectedSessionId(null);
+        }
+      }
       return sessionsRef.current;
     }
-  }, []);
+  }, [projectScope]);
 
   const refreshMessages = useCallback(async (sessionId: string, opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
@@ -1203,14 +1217,15 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   }, [stopStreamPreviewFlush, updateSessionStreamState]);
 
   useEffect(() => {
+    if (!project.ready) return;
     let cancelled = false;
     const wantsFresh =
       openFreshChatFlag === "1" || openFreshChatFlag === "true" || openFreshChatFlag === "";
 
     (async () => {
       const rows = await refreshSessions();
-      setSessionsLoading(false);
       if (cancelled) return;
+      setSessionsLoading(false);
 
       if (wantsFresh) {
         abortRef.current?.abort();
@@ -1223,7 +1238,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
           clearLiveStreamState(selectedSessionId);
         }
         setExplicitToolNames(null);
-        router.replace("/dashboard/scan", { scroll: false });
+        router.replace(projectHref("/dashboard/scan", projectScope), { scroll: false });
         return;
       }
 
@@ -1233,19 +1248,36 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       }
 
       const requestedChat = chatIdParam?.trim();
+      if (requestedChat && !rows.some((row) => row.id === requestedChat)) {
+        try {
+          const requested = await getAgentChatSession(requestedChat);
+          if (cancelled) return;
+          deepLinkedSessionRef.current = requested;
+          if (!matchesProject(requested.project_id, projectScope)) {
+            project.setScope(requested.project_id ?? UNASSIGNED_PROJECT);
+            return;
+          }
+          sessionsRef.current = [requested, ...sessionsRef.current.filter((row) => row.id !== requested.id)];
+          setSessions(sessionsRef.current);
+          setSelectedSessionId(requested.id);
+        } catch (error) {
+          if (!cancelled) { setActionErr(formatChatError(error)); setSelectedSessionId(null); }
+        }
+        return;
+      }
       const requested = requestedChat && rows.some((r) => r.id === requestedChat) ? requestedChat : null;
-      setSelectedSessionId((prev) => prev ?? requested ?? (rows[0]?.id ?? null));
+      setSelectedSessionId((prev) => prev && rows.some((row) => row.id === prev) ? prev : requested ?? rows[0]?.id ?? null);
     })();
     return () => {
       cancelled = true;
     };
-  }, [refreshSessions, openFreshChatFlag, chatIdParam, router, clearLiveStreamState, selectedSessionId]);
+  }, [refreshSessions, openFreshChatFlag, chatIdParam, router, clearLiveStreamState, selectedSessionId, project.ready, project.setScope, projectScope]);
 
   useEffect(() => {
     if (!selectedSessionId) return;
     if (chatIdParam === selectedSessionId) return;
-    router.replace(`/dashboard/scan?chat_id=${encodeURIComponent(selectedSessionId)}`, { scroll: false });
-  }, [selectedSessionId, chatIdParam, router]);
+    router.replace(projectHref(`/dashboard/scan?chat_id=${encodeURIComponent(selectedSessionId)}`, projectScope), { scroll: false });
+  }, [selectedSessionId, chatIdParam, router, projectScope]);
 
   useEffect(() => {
     if (!selectedSessionId) {
@@ -1453,13 +1485,13 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
 
         if (selectedSessionId === sessionId) {
           setSelectedSessionId(null);
-          router.replace("/dashboard/scan?new=1", { scroll: false });
+          router.replace(projectHref("/dashboard/scan?new=1", projectScope), { scroll: false });
         }
       } catch (err) {
         setActionErr(formatChatError(err));
       }
     },
-    [clearLiveStreamState, router, selectedSessionId, refreshSessions, user, sessions],
+    [clearLiveStreamState, router, selectedSessionId, refreshSessions, user, sessions, projectScope],
   );
 
   const handleNewChat = useCallback(() => {
@@ -1470,8 +1502,8 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
     setMessages({});
     setOptimisticMessages({});
     clearLiveStreamState(selectedSessionId);
-    router.replace("/dashboard/scan?new=1", { scroll: false });
-  }, [clearLiveStreamState, router, selectedSessionId, canCreate]);
+    router.replace(projectHref("/dashboard/scan?new=1", projectScope), { scroll: false });
+  }, [clearLiveStreamState, router, selectedSessionId, canCreate, projectScope]);
 
   const attachStreamHandlers = useCallback(
     (sessionId: string) => (ev: AgentChatSseEvent) => {
@@ -2168,7 +2200,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       {/* Mobile top bar */}
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant bg-surface-container-low px-4 py-3 md:hidden">
         <Link
-          href="/dashboard"
+          href={projectHref("/dashboard", projectScope)}
           className="inline-flex items-center gap-2 text-sm font-semibold text-on-surface-variant"
         >
           <MaterialSymbol name="arrow_back" className="text-xl text-primary" filled />
@@ -2181,7 +2213,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       <aside className="hidden min-h-0 w-[272px] min-w-[272px] shrink-0 flex-col overflow-hidden border-r border-outline-variant bg-surface-container-low md:flex">
         <div className="shrink-0 px-5 pb-2 pt-6">
           <Link
-            href="/dashboard"
+            href={projectHref("/dashboard", projectScope)}
             className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
           >
             <MaterialSymbol name="arrow_back" className="text-xl text-primary" filled />
@@ -2192,23 +2224,23 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         <div className="min-h-0 flex-1 px-5 pt-4 flex flex-col">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Recent chats</p>
           <div className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto pr-1 min-h-0">
-            {listErr && sessions.length > 0 ? (
+            {listErr && visibleSessions.length > 0 ? (
               <p role="status" className="px-3 pb-1 text-[11px] text-error">
                 Couldn&apos;t refresh chats. Showing the last loaded list.
               </p>
             ) : null}
-            {sessionsLoading && sessions.length === 0 ? (
+            {(!project.ready || sessionsLoading) && visibleSessions.length === 0 ? (
               <p className="text-[13px] text-on-surface-variant">Loading…</p>
-            ) : listErr && sessions.length === 0 ? (
+            ) : listErr && visibleSessions.length === 0 ? (
               <p className="text-[13px] text-error">{listErr}</p>
-            ) : sessions.length === 0 ? (
+            ) : visibleSessions.length === 0 ? (
               <div className="rounded-xl border border-dashed border-outline-variant/80 bg-surface-container-lowest/80 px-4 py-8 text-center">
                 <p className="text-[13px] leading-relaxed text-on-surface-variant">
-                  No chats yet. Start with New chat below.
+                  {projectScope === UNASSIGNED_PROJECT ? "No unassigned chats yet. Start with New chat below." : projectScope ? "No chats in this project yet. Start with New chat below." : "No chats yet. Start with New chat below."}
                 </p>
               </div>
             ) : (
-              sessions.map((s) => {
+              visibleSessions.map((s) => {
                 const sel = selectedSessionId === s.id;
                 return (
                   <div
@@ -2272,11 +2304,8 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            {!selectedSessionId && canCreate && <div className="w-40 sm:w-56">
-              <WorkspaceSelect label="Scan project" value={projectId} disabled={projectsLoading} onChange={setProjectId}
-                options={[{ value: "", label: projectsLoading ? "Loading projects…" : requiresProject ? "Select a project" : "No project", description: requiresProject ? "Choose a project you lead before starting a scan." : "Module-wide access" },
-                  ...projects.filter((project) => hasPermission(user, "execute", { module: "web_security", projectId: project.id })).map((project) => ({ value: project.id, label: project.name }))]} />
-            </div>}
+            <div className="w-40 sm:w-56"><ProjectScopePicker context={project} label="Scan project" disabled={isSending || confirmingId !== null || !!batchDecisionsBusyId}
+              onChange={(scope) => { if (scope === projectScope) return; skipAutosSelectRef.current = true; setSelectedSessionId(null); project.setScope(scope, true); }} /></div>
             {/* Top-right Report Generation / Download Multi-State Action Button */}
             {selectedSessionId ? (
               reportBusyId === selectedSessionId ? (
@@ -2331,7 +2360,6 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
           </div>
         </header>
 
-        {!selectedSessionId && canCreate && projectsError && <p role="alert" className="px-6 py-2 text-sm text-error">Could not load projects: {projectsError}</p>}
         {!canCreate && <p className="border-b border-outline-variant px-6 py-3 text-sm">Read-only workspace. You can view sessions and download existing reports.</p>}
 
         <div className="flex min-h-0 flex-1 flex-row overflow-hidden relative">

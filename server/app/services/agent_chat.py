@@ -37,7 +37,6 @@ from app.services.agent_client import (
     tool_installed_from_agent_health,
 )
 from app.services.org_settings import resolve_llm_config_for_org
-from app.services.access import session_filter
 from app.services.session_intelligence import recalculate_session_intelligence
 from app.services.tool_run_stream import drain_tool_run_stream
 from app.services.agent_skills import (
@@ -907,9 +906,12 @@ async def list_sessions(
     organization_id: ObjectId,
     user_id: ObjectId,
     limit: int = 50,
+    project_id: str | None = None,
 ) -> list[dict[str, Any]]:
+    from app.services.access import session_project_filter
+
     actor = await db.users.find_one({"_id": user_id, "organization_id": organization_id})
-    query = session_filter(actor or {"organization_id": organization_id})
+    query = await session_project_filter(db, actor or {"organization_id": organization_id}, project_id)
     cur = (
         db[AGENT_CHAT_SESSIONS_COLLECTION]
         .find(query)

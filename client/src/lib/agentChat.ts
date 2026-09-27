@@ -257,18 +257,25 @@ function detailFromResponseBody(text: string, fallback: string): string {
   return text.trim() || fallback;
 }
 
-export async function listAgentChatSessions(): Promise<AgentChatSession[]> {
-  const res = await fetch(`${getApiBase()}${PREFIX}/sessions`, { headers: bearerHeaders() });
+export async function listAgentChatSessions(projectId = ""): Promise<AgentChatSession[]> {
+  const res = await fetch(`${getApiBase()}${PREFIX}/sessions${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`, { headers: bearerHeaders() });
   const text = await res.text();
   if (!res.ok) throw new ApiError(detailFromResponseBody(text, res.statusText), res.status, text);
   return JSON.parse(text) as AgentChatSession[];
 }
 
-export async function listAgentChatSessionIntelligence(): Promise<AgentChatSessionIntelligence[]> {
-  const res = await fetch(`${getApiBase()}${PREFIX}/session-intelligence`, { headers: bearerHeaders() });
+export async function listAgentChatSessionIntelligence(projectId = ""): Promise<AgentChatSessionIntelligence[]> {
+  const res = await fetch(`${getApiBase()}${PREFIX}/session-intelligence${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`, { headers: bearerHeaders() });
   const text = await res.text();
   if (!res.ok) throw new ApiError(detailFromResponseBody(text, res.statusText), res.status, text);
   return JSON.parse(text) as AgentChatSessionIntelligence[];
+}
+
+export async function getAgentChatSession(sessionId: string): Promise<AgentChatSession> {
+  const res = await fetch(`${getApiBase()}${PREFIX}/sessions/${encodeURIComponent(sessionId)}`, { headers: bearerHeaders() });
+  const text = await res.text();
+  if (!res.ok) throw new ApiError(detailFromResponseBody(text, res.statusText), res.status, text);
+  return JSON.parse(text) as AgentChatSession;
 }
 
 export async function getAgentChatSessionIntelligence(sessionId: string): Promise<AgentChatSessionIntelligence> {

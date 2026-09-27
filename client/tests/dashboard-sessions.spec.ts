@@ -184,7 +184,7 @@ test("each session has exactly four distinct actions and a working terminal link
   ).toBeVisible();
   await expect(actions.getByRole("link")).toHaveAttribute(
     "href",
-    "/dashboard/scan?chat_id=session-abc123",
+    "/dashboard/scan?chat_id=session-abc123&project=unassigned",
   );
   for (const action of await actions.locator("button, a").all()) {
     await expect(action).toBeInViewport({ ratio: 1 });

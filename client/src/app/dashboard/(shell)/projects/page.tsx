@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import {
   ArrowUpRight,
   FolderKanban,
@@ -13,7 +14,7 @@ import {
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/access";
-import { listProjects, type Project } from "@/lib/projects";
+import { listProjects, projectHref, type Project } from "@/lib/projects";
 import { SessionDialog } from "@/components/dashboard/SessionDialog";
 import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
 
@@ -191,7 +192,7 @@ export default function ProjectsPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate text-sm font-semibold text-on-surface">
-                      {project.name}
+                      <Link href={projectHref("/dashboard", project.id)} className="hover:text-primary hover:underline">{project.name}</Link>
                     </h3>
                     <div className="mt-1.5 flex items-center gap-3 text-xs text-on-surface-variant">
                       <span className="inline-flex items-center gap-1.5">

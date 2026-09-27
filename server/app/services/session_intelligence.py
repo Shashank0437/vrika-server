@@ -604,11 +604,12 @@ async def list_session_intelligence(
     organization_id: ObjectId,
     user_id: ObjectId,
     limit: int = 100,
+    project_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    from app.services.access import session_filter
+    from app.services.access import session_project_filter
 
     actor = await db.users.find_one({"_id": user_id, "organization_id": organization_id})
-    query = session_filter(actor or {"organization_id": organization_id})
+    query = await session_project_filter(db, actor or {"organization_id": organization_id}, project_id)
     rows = await (
         db[AGENT_CHAT_SESSIONS_COLLECTION]
         .find(

@@ -511,11 +511,12 @@ async def assign_session_project(
 
 @router.get("/sessions", response_model=list[AgentChatSessionOut])
 async def list_chat_sessions(
+    project_id: str | None = None,
     user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[AgentChatSessionOut]:
     rows = await list_sessions(
-        db, organization_id=user["organization_id"], user_id=user["_id"]
+        db, organization_id=user["organization_id"], user_id=user["_id"], project_id=project_id
     )
     return [_session_out(d) for d in rows]
 
@@ -524,13 +525,28 @@ async def list_chat_sessions(
     "/session-intelligence", response_model=list[AgentChatSessionIntelligenceOut]
 )
 async def list_chat_session_intelligence(
+    project_id: str | None = None,
     user: dict = Depends(require_auth_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> list[AgentChatSessionIntelligenceOut]:
     rows = await list_session_intelligence(
-        db, organization_id=user["organization_id"], user_id=user["_id"]
+        db, organization_id=user["organization_id"], user_id=user["_id"], project_id=project_id
     )
     return [AgentChatSessionIntelligenceOut(**r) for r in rows]
+
+
+@router.get("/sessions/{session_id}", response_model=AgentChatSessionOut)
+async def get_chat_session(
+    session_id: str,
+    user: dict = Depends(require_auth_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> AgentChatSessionOut:
+    doc = await get_session_owned(
+        db, organization_id=user["organization_id"], user_id=user["_id"], session_id=_oid(session_id),
+    )
+    if not doc:
+        raise HTTPException(404, "Session not found")
+    return _session_out(doc)
 
 
 @router.get(

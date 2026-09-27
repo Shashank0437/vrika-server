@@ -83,7 +83,7 @@ test("New scan preserves the mounted chat list after clearing the new-chat URL",
       characterData: true,
     });
   });
-  await expect(page).toHaveURL(/\/dashboard\/scan$/);
+  await expect(page).toHaveURL(/\/dashboard\/scan\?project=all$/);
   await page.waitForTimeout(3000);
   expect(await originalList.evaluate((el) => el.isConnected)).toBe(true);
   expect(await originalList.getAttribute("data-loading-regression")).toBeNull();

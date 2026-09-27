@@ -56,6 +56,23 @@ visible to project-only leads. Membership is a roster, not an implicit permissio
 grant; only `manage_roles` can change bindings. Organization-wide configuration
 is not project configuration and remains outside a project lead's scope.
 
+**Project views:** the Web project picker filters Session History, its metrics,
+and Recent Chats. It stays available inside an open chat. Selection is saved per
+user, organization and module, and is carried in the `project` URL parameter.
+Project names on the Projects page open that project's Web history.
+**All projects** shows all authorized projects; **Unassigned** includes older
+sessions without a project and is available only with module-wide read access.
+New scans use the selected project; starting from All projects or Unassigned
+leaves a new scan unassigned. Existing sessions are never silently reassigned.
+Cloud selection also persists and is forwarded to the existing scoped embed.
+
+The session-list and session-intelligence APIs accept optional
+`project_id=<id>` or `project_id=unassigned`. Filtering happens before list limits
+and cannot broaden the caller's role scope or organization access. Direct
+`GET /workspace/agent-chat/sessions/{id}` supports links to older sessions outside
+the recent-list window. Background refresh errors retain the last valid list;
+permission-denied responses clear cached results.
+
 The Cloud API synchronizes a per-user managed role through a short-lived
 HMAC-signed internal request. Existing cloud access tokens use current bindings,
 so removing a role does not wait for token expiry. Native standalone Cloud users

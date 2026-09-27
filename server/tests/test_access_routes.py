@@ -292,3 +292,155 @@ def test_cloud_provisioning_retries_with_same_encrypted_credential(
         )
 
     asyncio.run(retry())
+
+
+def test_project_filters_apply_to_history_and_chats_without_broadening_access(
+    workspace,
+):
+    client, db, use, viewer, lead, _, project1, project2 = workspace
+
+    async def seed_intelligence():
+        docs = await db.agent_chat_sessions.find({}).to_list(None)
+        for doc in docs:
+            await db.agent_chat_sessions.update_one(
+                {"_id": doc["_id"]},
+                {
+                    "$set": {
+                        "session_intelligence": {
+                            "session_id": str(doc["_id"]),
+                            "title": doc["title"],
+                            "status": "COMPLETED",
+                            "summary": "",
+                            "average_time_to_breach": "0m",
+                            "findings_count": {"total": 0},
+                            "findings": [],
+                            "tools_used": [],
+                            "timeline": [],
+                            "targets": [],
+                            "started_at": doc["created_at"].isoformat(),
+                            "updated_at": doc["updated_at"].isoformat(),
+                        },
+                    }
+                },
+            )
+
+    asyncio.run(seed_intelligence())
+    for path in (
+        "/workspace/agent-chat/sessions",
+        "/workspace/agent-chat/session-intelligence",
+    ):
+        assert len(client.get(path).json()) == 3
+        for pid in (project1, project2):
+            response = client.get(path, params={"project_id": str(pid)})
+            assert response.status_code == 200, response.text
+            assert len(response.json()) == 1
+            assert response.json()[0]["project_id"] == str(pid)
+        response = client.get(path, params={"project_id": "unassigned"})
+        assert response.status_code == 200 and len(response.json()) == 1
+        assert response.json()[0]["project_id"] is None
+        assert (
+            client.get(path, params={"project_id": str(ObjectId())}).status_code == 404
+        )
+        assert client.get(path, params={"project_id": "invalid"}).status_code == 400
+        use(lead)
+        assert len(client.get(path, params={"project_id": str(project1)}).json()) == 1
+        assert client.get(path, params={"project_id": str(project2)}).status_code == 403
+        assert client.get(path, params={"project_id": "unassigned"}).status_code == 403
+        use(viewer)
+
+
+def test_project_query_filters_before_limit_and_supports_legacy_unassigned(workspace):
+    from datetime import UTC, datetime, timedelta
+
+    from app.services.agent_chat import list_sessions
+    from app.services.session_intelligence import list_session_intelligence
+
+    _, db, _, viewer, _, admin, project1, project2 = workspace
+
+    async def check():
+        future = datetime.now(UTC) + timedelta(days=1)
+        await db.agent_chat_sessions.insert_one(
+            {
+                "organization_id": viewer["organization_id"],
+                "user_id": admin["_id"],
+                "title": "Legacy no project",
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        await db.agent_chat_sessions.insert_many(
+            [
+                {
+                    "organization_id": viewer["organization_id"],
+                    "user_id": admin["_id"],
+                    "project_id": str(project2),
+                    "title": "Other project",
+                    "updated_at": future,
+                }
+                for _ in range(60)
+            ]
+        )
+        recent = await list_sessions(
+            db,
+            organization_id=viewer["organization_id"],
+            user_id=viewer["_id"],
+            limit=1,
+        )
+        assert recent[0]["project_id"] == str(project2)
+        rows = await list_sessions(
+            db,
+            organization_id=viewer["organization_id"],
+            user_id=viewer["_id"],
+            limit=1,
+            project_id=str(project1),
+        )
+        assert len(rows) == 1 and rows[0]["project_id"] == str(project1)
+        rows = await list_sessions(
+            db,
+            organization_id=viewer["organization_id"],
+            user_id=viewer["_id"],
+            project_id="unassigned",
+        )
+        assert len(rows) == 2
+        for doc in await db.agent_chat_sessions.find({}).to_list(None):
+            await db.agent_chat_sessions.update_one(
+                {"_id": doc["_id"]},
+                {
+                    "$set": {
+                        "session_intelligence": {
+                            "session_id": str(doc["_id"]),
+                            "updated_at": doc["updated_at"].isoformat(),
+                        },
+                    }
+                },
+            )
+        recent = await list_session_intelligence(
+            db,
+            organization_id=viewer["organization_id"],
+            user_id=viewer["_id"],
+            limit=1,
+        )
+        assert recent[0]["project_id"] == str(project2)
+        rows = await list_session_intelligence(
+            db,
+            organization_id=viewer["organization_id"],
+            user_id=viewer["_id"],
+            limit=1,
+            project_id=str(project1),
+        )
+        assert len(rows) == 1 and rows[0]["project_id"] == str(project1)
+
+    asyncio.run(check())
+
+
+def test_direct_chat_lookup_preserves_project_and_organization_access(workspace):
+    client, _, use, _, lead, _, project1, project2 = workspace
+    rows = client.get("/workspace/agent-chat/sessions").json()
+    own = next(row for row in rows if row["project_id"] == str(project1))
+    other = next(row for row in rows if row["project_id"] == str(project2))
+    use(lead)
+    assert client.get(f"/workspace/agent-chat/sessions/{own['id']}").json()[
+        "project_id"
+    ] == str(project1)
+    assert (
+        client.get(f"/workspace/agent-chat/sessions/{other['id']}").status_code == 403
+    )

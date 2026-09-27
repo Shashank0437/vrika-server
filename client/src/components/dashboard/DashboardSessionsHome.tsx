@@ -4,7 +4,11 @@ import { canStartScan, hasPermission } from "@/lib/access";
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useProjectScope } from "@/lib/use-project-scope";
+import { matchesProject, projectHref, UNASSIGNED_PROJECT } from "@/lib/projects";
+import { ProjectScopePicker } from "./ProjectScopePicker";
+import { ApiError } from "@/lib/api";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Tooltip } from "@/components/ui/Tooltip";
 import {
@@ -116,8 +120,13 @@ function sortRows(
 
 export function DashboardSessionsHome() {
   const { user } = useAuth();
+  const project = useProjectScope(user, "web_security");
+  const [rowsByProject, setRowsByProject] = useState<Record<string, AgentChatSessionIntelligence[]>>({});
+  const requestId = useRef(0);
+  const pendingRequest = useRef<{ scope: string; id: number } | null>(null);
+  const invalidateRequests = useCallback(() => { requestId.current++; pendingRequest.current = null; }, []);
   const canExecute = (row: AgentChatSessionIntelligence) => hasPermission(user, "execute", { module: "web_security", projectId: row.project_id });
-  const [rows, setRows] = useState<AgentChatSessionIntelligence[]>([]);
+  const rows = useMemo(() => (rowsByProject[project.scope] ?? []).filter((row) => matchesProject(row.project_id, project.scope)), [rowsByProject, project.scope]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -138,27 +147,41 @@ export function DashboardSessionsHome() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [query, statusFilter, severityFilter, sortMode]);
+    setSelectedId(null);
+  }, [query, statusFilter, severityFilter, sortMode, project.scope]);
 
-  async function load(silent = false) {
+  const load = useCallback(async (silent = false) => {
+    if (!project.ready) return;
+    if (pendingRequest.current?.scope === project.scope) return;
+    const id = ++requestId.current;
+    pendingRequest.current = { scope: project.scope, id };
     if (!silent) setLoading(true);
     try {
-      const data = await listAgentChatSessionIntelligence();
-      setRows(data);
+      const data = await listAgentChatSessionIntelligence(project.scope);
+      if (id !== requestId.current) return;
+      setRowsByProject((previous) => ({ ...previous, [project.scope]: data }));
       setError(null);
       setSelectedId((current) => (current && data.some((row) => row.session_id === current) ? current : null));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (id === requestId.current) {
+        setError(e instanceof Error ? e.message : String(e));
+        if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
+          setRowsByProject((previous) => ({ ...previous, [project.scope]: [] }));
+          setSelectedId(null);
+        }
+      }
     } finally {
-      if (!silent) setLoading(false);
+      if (id === requestId.current) setLoading(false);
+      if (pendingRequest.current?.id === id) pendingRequest.current = null;
     }
-  }
+  }, [project.ready, project.scope]);
 
   useEffect(() => {
-    load();
+    setError(null);
+    void load();
     const timer = window.setInterval(() => load(true), 5000);
-    return () => window.clearInterval(timer);
-  }, []);
+    return () => { window.clearInterval(timer); invalidateRequests(); };
+  }, [load, invalidateRequests]);
 
   async function downloadReport(sessionId: string, attachment: AgentChatAttachment) {
     const { blob, filename } = await downloadAgentChatAttachment(sessionId, attachment.id);
@@ -299,6 +322,7 @@ export function DashboardSessionsHome() {
 
   return (
     <div className="mx-auto max-w-[1360px] px-8 py-6">
+      <ProjectScopePicker context={project} label="Web project" portal />
       <header className="mb-6">
         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Web Security</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-on-surface">Session History</h1>
@@ -319,7 +343,7 @@ export function DashboardSessionsHome() {
             </div>
             <div>
               <p className="text-xs font-medium text-on-surface-variant">{m.label}</p>
-              <p className="mt-1 text-2xl font-bold tracking-tight text-on-surface">{m.value}</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-on-surface">{loading && !rows.length ? "—" : m.value}</p>
               <p className="mt-1 flex items-center gap-1 text-xs text-on-surface-variant font-medium">
                 {m.trend === "up" ? (
                   <span className="text-emerald-600 font-semibold flex items-center gap-0.5">
@@ -399,8 +423,8 @@ export function DashboardSessionsHome() {
         ) : null}
 
         {error ? (
-          <div className="border-b border-outline-variant px-6 py-3 text-xs font-semibold text-red-700">
-            {error}
+          <div role="alert" className="border-b border-outline-variant px-6 py-3 text-xs font-semibold text-red-700">
+            {error} <button type="button" className="ml-2 underline" onClick={() => void load(true)}>Retry</button>
           </div>
         ) : null}
         {reportError ? (
@@ -455,23 +479,24 @@ export function DashboardSessionsHome() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {!project.ready || loading && rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-on-surface-variant">
                     Loading session intelligence…
                   </td>
                 </tr>
-              ) : paginatedRows.length === 0 ? (
+              ) : error && rows.length === 0 ? <tr><td colSpan={6} className="px-6 py-12 text-center text-on-surface-variant">Session history is unavailable. Retry the request above.</td></tr>
+              : paginatedRows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="mx-auto max-w-md">
                       <MaterialSymbol name="travel_explore" className="text-4xl text-primary" />
-                      <p className="mt-3 text-sm font-bold text-on-surface">No completed tool sessions yet</p>
+                      <p className="mt-3 text-sm font-bold text-on-surface">{query || statusFilter !== "ALL" || severityFilter !== "ALL" ? "No sessions match these filters" : project.scope === UNASSIGNED_PROJECT ? "No unassigned tool sessions" : project.scope ? "No completed tool sessions in this project" : "No completed tool sessions yet"}</p>
                       <p className="mt-1 text-xs text-on-surface-variant">
                         Sessions appear here after a chat thread successfully executes at least one tool.
                       </p>
                       {canStartScan(user) && <Link
-                        href="/dashboard/scan?new=1"
+                        href={projectHref("/dashboard/scan?new=1", project.scope)}
                         className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-on-primary hover:opacity-90 transition-opacity"
                       >
                         <MaterialSymbol name="add" className="text-base text-on-primary" filled />
@@ -498,6 +523,7 @@ export function DashboardSessionsHome() {
                             <p title={r.targets[0]} className="max-w-xs truncate text-xs text-on-surface-variant font-mono mt-0.5">
                               {sxId(r.session_id)}{r.targets[0] ? ` · ${r.targets[0]}` : ""}
                             </p>
+                            <p className="mt-1 text-[11px] font-medium text-primary">{r.project_id ? project.projects.find((item) => item.id === r.project_id)?.name ?? "Project" : "Unassigned"}</p>
                           </div>
                         </div>
                       </td>
@@ -571,7 +597,7 @@ export function DashboardSessionsHome() {
 
                           <Tooltip content="Terminal" align="right">
                             <Link
-                              href={`/dashboard/scan?chat_id=${encodeURIComponent(r.session_id)}`}
+                              href={projectHref(`/dashboard/scan?chat_id=${encodeURIComponent(r.session_id)}`, r.project_id ?? UNASSIGNED_PROJECT)}
                               aria-label="Open session terminal"
                               className="rounded-lg p-2.5 hover:bg-surface-container hover:text-primary transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                             >

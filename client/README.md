@@ -49,12 +49,27 @@ Its popover stays inside the viewport and above modal content. Directory search,
 human-readable role labels and explicit empty states keep raw IDs out of the UI.
 These presentation changes do not change API authorization.
 
+## Project workflow
+
+`useProjectScope` shares Web project selection between history and chat. The
+custom picker remains in the header, including when a chat is open. Selection is
+stored per user, organization and module; the `project` URL parameter overrides
+the saved value. `all` and `unassigned` are view choices, never project IDs sent
+when creating a session. Cloud uses its own persisted selection.
+
+History, its metrics and Recent Chats use project-filtered API queries.
+Out-of-order responses cannot replace the current project's results, and routine
+refreshes do not blank a loaded list. Permission errors clear cached results.
+New scans inherit the selected project. Terminal links carry the session's
+actual project and can load an older chat outside the recent-list limit.
+Selecting a project never moves an existing session or changes role bindings.
+
 ## Targeted validation
 
 ```sh
 npx tsc --noEmit --incremental false
 npx eslint src/lib/access.ts src/components/dashboard/RoleBindingsEditor.tsx tests/scoped-access.spec.ts
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:3108 npx playwright test tests/scoped-access.spec.ts tests/dashboard-sessions.spec.ts tests/chat-recent-list.spec.ts
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3108 npx playwright test tests/scoped-access.spec.ts tests/project-workflow.spec.ts tests/dashboard-sessions.spec.ts tests/chat-recent-list.spec.ts
 ```
 
 Run the UI at the specified URL before the Playwright command. The mocked suite
