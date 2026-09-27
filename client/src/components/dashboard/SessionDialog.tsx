@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { SUPPRESS_TOOLTIP_ATTR } from "@/components/ui/Tooltip";
 
 export function SessionDialog({
   open,
@@ -26,6 +27,7 @@ export function SessionDialog({
       dialog.close();
       document.body.style.overflow = previousOverflow;
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+        previousFocus.setAttribute(SUPPRESS_TOOLTIP_ATTR, "");
         previousFocus.focus({ preventScroll: true });
       }
     };

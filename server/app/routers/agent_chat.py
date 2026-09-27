@@ -105,8 +105,11 @@ from app.services.agent_chat import (
 from app.services.agent_client import (
     AgentUnreachableError,
     agent_path_not_allowed,
+    forward_agent_post_tool,
     normalize_agent_tool_path,
 )
+from app.services.anonymization_vault import mask_tool_output, restore_llm_json
+from app.services.org_settings import resolve_llm_config_for_org
 from app.services.agent_attack_chains import (
     INTELLIGENT_ATTACK_CHAIN_ID,
     advance_attack_chain_step,
@@ -817,23 +820,64 @@ async def analyze_agent_chat_session_route(
     objective = str(intel.get("objective") or sess.get("title") or "").strip()
 
     try:
-        # ai_analyze_session tool call with provided logs
-        result_text, _meta, http_status = await _run_one_tool_detailed(
+        llm_cfg = await resolve_llm_config_for_org(db, settings, user["organization_id"])
+    except Exception:
+        logger.exception("AI analysis: failed to resolve org LLM config session_id=%s", session_id)
+        llm_cfg = None
+    if not llm_cfg:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI analysis is unavailable because no LLM is configured for this organization.",
+        )
+
+    vault_id = str(sid)
+    try:
+        # Mask infrastructure/credentials before they reach the external LLM.
+        for entry in logs:
+            entry["stdout"] = await mask_tool_output(vault_id, entry["stdout"])
+        target = await mask_tool_output(vault_id, target)
+        objective = await mask_tool_output(vault_id, objective)
+    except Exception:
+        logger.exception("AI analysis: masking failed session_id=%s", session_id)
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI analysis is temporarily unavailable because sensitive data could not be protected.",
+        ) from None
+
+    try:
+        http_status, content, _ctype = await forward_agent_post_tool(
             settings,
             "/api/intelligence/analyze-session",
             {
-                "session_id": str(sid),
+                "session_id": vault_id,
                 "logs": logs,
                 "target": target,
                 "objective": objective,
+                "llm_config": llm_cfg,
             },
         )
-        if http_status != 200:
-            raise HTTPException(http_status, detail=result_text)
-        return {"success": True, "result": result_text}
-    except Exception as exc:
-        logger.exception("AI analysis failed for session_id=%s", session_id)
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    except Exception:
+        logger.exception("AI analysis: agent request failed session_id=%s", session_id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="AI analysis service is unreachable. Please try again.",
+        ) from None
+
+    try:
+        payload: Any = json.loads(content.decode("utf-8"))
+    except Exception:
+        payload = None
+    if http_status != 200 or not isinstance(payload, dict) or not payload.get("success"):
+        agent_error = payload.get("error") if isinstance(payload, dict) else None
+        logger.error(
+            "AI analysis failed session_id=%s status=%s error=%s", session_id, http_status, agent_error
+        )
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI analysis failed: {agent_error or 'the analysis service returned an invalid response'}",
+        )
+    restored = await restore_llm_json(vault_id, payload)
+    return {"success": True, "result": json.dumps(restored)}
 
 
 @router.post("/sessions/{session_id}/messages")

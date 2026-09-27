@@ -189,7 +189,12 @@ test("each session has exactly four distinct actions and a working terminal link
   for (const action of await actions.locator("button, a").all()) {
     await expect(action).toBeInViewport({ ratio: 1 });
   }
-  expect(await page.locator("table").locator("..").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  expect(
+    await page
+      .locator("table")
+      .locator("..")
+      .evaluate((el) => el.scrollWidth <= el.clientWidth),
+  ).toBe(true);
   await page.screenshot({
     path: test.info().outputPath("session-history.png"),
     fullPage: true,
@@ -260,6 +265,40 @@ test("Command CTL renders readable content, all activity and full evidence with 
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe(
     "hidden",
   );
+});
+
+test("Command CTL tooltip does not linger after the dialog is opened and closed", async ({
+  page,
+}) => {
+  await mockWorkspace(page);
+  await page.goto("/dashboard");
+  const trigger = page.getByRole("button", {
+    name: "Command CTL",
+    exact: true,
+  });
+  const tooltip = page.getByText(
+    "Command CTL: overview, targets, findings and activity",
+  );
+  await trigger.hover();
+  await expect(tooltip).toBeVisible();
+  await trigger.click();
+  await expect(tooltip).toBeHidden();
+  const dialog = page.getByRole("dialog", { name: "Command CTL" });
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
+  await expect(tooltip).toBeHidden();
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(tooltip).toBeHidden();
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(trigger).toBeFocused();
+  await expect(tooltip).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toBeHidden();
 });
 
 test("new reports generate and download in one action; existing reports are not regenerated", async ({

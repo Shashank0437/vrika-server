@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+
+/** Set on an element before focusing it programmatically (e.g. when a dialog closes). */
+export const SUPPRESS_TOOLTIP_ATTR = "data-suppress-tooltip";
 
 interface TooltipProps {
   content: string;
@@ -27,20 +30,41 @@ export function Tooltip({ content, children, align = "center" }: TooltipProps) {
         ? "right-2.5"
         : "left-2.5";
 
+  useEffect(() => {
+    if (!visible) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setVisible(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [visible]);
+
   return (
     <div
       className="relative flex items-center justify-center"
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
-      onFocus={() => setVisible(true)}
+      onPointerDown={() => setVisible(false)}
+      onFocus={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.hasAttribute(SUPPRESS_TOOLTIP_ATTR)) {
+          target.removeAttribute(SUPPRESS_TOOLTIP_ATTR);
+          return;
+        }
+        if (target.matches(":focus-visible")) setVisible(true);
+      }}
       onBlur={() => setVisible(false)}
     >
       {children}
       {visible && (
-        <div className={`absolute bottom-full mb-2 z-[9999] pointer-events-none ${positionClass}`}>
+        <div
+          className={`absolute bottom-full mb-2 z-[9999] pointer-events-none ${positionClass}`}
+        >
           <div className="relative rounded-lg bg-[#1A1A1A] px-2.5 py-1.5 text-[11px] font-bold text-white shadow-2xl ring-1 ring-white/10 whitespace-nowrap animate-in fade-in zoom-in duration-150 origin-bottom">
             {content}
-            <div className={`absolute top-full border-[5px] border-transparent border-t-[#1A1A1A] ${arrowClass}`} />
+            <div
+              className={`absolute top-full border-[5px] border-transparent border-t-[#1A1A1A] ${arrowClass}`}
+            />
           </div>
         </div>
       )}
