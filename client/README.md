@@ -58,6 +58,10 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:3108 npx playwright test tests/scoped-acces
 ```
 
 Run the UI at the specified URL before the Playwright command. The mocked suite
+uses DOM-ready navigation and rendered-state assertions rather than waiting for
+all iframe assets. External base URLs allow 15 seconds for assertions and 60
+seconds per test; local defaults remain 5 and 30 seconds.
+The suite
 covers scope matching, canonical/legacy roles, no-access and cloud-only navigation,
 read-only viewer controls, binding edits/conflicts, invitation defaults, self-role
 refresh, project membership and project-scoped session creation. It does not

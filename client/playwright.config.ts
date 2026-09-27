@@ -6,6 +6,8 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: false,
   workers: 1,
+  timeout: baseURL ? 60_000 : 30_000,
+  expect: { timeout: baseURL ? 15_000 : 5_000 },
   use: {
     baseURL: baseURL || "http://127.0.0.1:3107",
     ignoreHTTPSErrors: process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS === "1",

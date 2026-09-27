@@ -225,7 +225,7 @@ test("cloud-only analyst lands in cloud without redirect loops or admin links", 
   page,
 }) => {
   await mockWorkspace(page, [cloud]);
-  await page.goto("/dashboard");
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/dashboard\/cloud-security/);
   await expect(
     page
@@ -235,7 +235,7 @@ test("cloud-only analyst lands in cloud without redirect loops or admin links", 
   await expect(page.getByRole("link", { name: "User management" })).toHaveCount(
     0,
   );
-  await page.goto("/dashboard/users");
+  await page.goto("/dashboard/users", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/dashboard\/cloud-security/);
 });
 
@@ -243,7 +243,7 @@ test("explicit empty bindings overrides legacy admin and offers sign out", async
   page,
 }) => {
   const state = await mockWorkspace(page, []);
-  await page.goto("/dashboard");
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   await expect(
     page.getByRole("heading", { name: "No workspace access" }),
   ).toBeVisible();
@@ -260,7 +260,7 @@ test("viewer sees directory and settings read-only, and cannot create or send ch
   page,
 }) => {
   const state = await mockWorkspace(page, [viewer]);
-  await page.goto("/dashboard");
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("link", { name: /New scan/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Start scan" })).toHaveCount(0);
   await page.getByRole("link", { name: "User management" }).click();
@@ -271,13 +271,13 @@ test("viewer sees directory and settings read-only, and cannot create or send ch
   await expect(page.getByRole("button", { name: /Edit bindings/ })).toHaveCount(
     0,
   );
-  await page.goto("/dashboard/settings");
+  await page.goto("/dashboard/settings", { waitUntil: "domcontentloaded" });
   await expect(page.getByText(/Read-only organization settings/)).toBeVisible();
   await expect(page.locator("fieldset").first()).toHaveAttribute(
     "disabled",
     "",
   );
-  await page.goto("/dashboard/scan?chat_id=chat-1");
+  await page.goto("/dashboard/scan?chat_id=chat-1", { waitUntil: "domcontentloaded" });
   await expect(page.getByText(/Read-only workspace/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "New chat", exact: true }),
@@ -301,7 +301,7 @@ test("admin edits multiple constrained bindings with optimistic version", async 
   page,
 }) => {
   const state = await mockWorkspace(page, [admin]);
-  await page.goto("/dashboard/users");
+  await page.goto("/dashboard/users", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("Team directory")).toBeVisible();
   await page.screenshot({ path: "/tmp/vrika-users-redesign.png" });
   await page
@@ -328,7 +328,7 @@ test("invitations default to viewer and conflict errors preserve edits", async (
   page,
 }) => {
   const state = await mockWorkspace(page, [admin], true);
-  await page.goto("/dashboard/users");
+  await page.goto("/dashboard/users", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Invite user" }).click();
   await page
     .getByRole("dialog")
@@ -362,7 +362,7 @@ test("own role changes refresh authentication and remove write controls", async 
   page,
 }) => {
   const state = await mockWorkspace(page, [admin]);
-  await page.goto("/dashboard/users");
+  await page.goto("/dashboard/users", { waitUntil: "domcontentloaded" });
   await page
     .getByRole("button", { name: "Edit bindings for owner@example.test" })
     .click();
@@ -378,7 +378,7 @@ test("project lead must select a project before creating a scan", async ({
   page,
 }) => {
   const state = await mockWorkspace(page, [lead]);
-  await page.goto("/dashboard/scan?new=1");
+  await page.goto("/dashboard/scan?new=1", { waitUntil: "domcontentloaded" });
   await expect(
     page.getByRole("combobox", { name: "Scan project" }),
   ).toContainText("Select a project");
@@ -399,7 +399,7 @@ test("project lead manages membership without granting role bindings", async ({
   page,
 }) => {
   const state = await mockWorkspace(page, [lead]);
-  await page.goto("/dashboard/projects");
+  await page.goto("/dashboard/projects", { waitUntil: "domcontentloaded" });
   await expect(
     page.getByRole("button", { name: "Create project" }),
   ).toHaveCount(0);
@@ -422,7 +422,7 @@ test("project controls are custom, inline in the top row, and keyboard accessibl
   page,
 }) => {
   await mockWorkspace(page, [admin]);
-  await page.goto("/dashboard/scan?new=1");
+  await page.goto("/dashboard/scan?new=1", { waitUntil: "domcontentloaded" });
   const scan = page.getByRole("combobox", { name: "Scan project" });
   await expect(scan).toBeVisible();
   await expect(page.locator("header").filter({ has: scan })).toHaveCount(1);
@@ -439,7 +439,7 @@ test("project controls are custom, inline in the top row, and keyboard accessibl
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/dashboard/cloud-security");
+  await page.goto("/dashboard/cloud-security", { waitUntil: "domcontentloaded" });
   const cloudProject = page.getByRole("combobox", { name: "Cloud project" });
   await expect(cloudProject).toBeVisible();
   const header = page.locator("header").filter({ has: cloudProject });
@@ -471,7 +471,7 @@ test("Projects contains only project details and membership, with no resource as
     )
       resourceRequests.push(request.url());
   });
-  await page.goto("/dashboard/projects");
+  await page.goto("/dashboard/projects", { waitUntil: "domcontentloaded" });
   await page.getByRole("textbox", { name: "Search projects" }).fill("absent");
   await expect(page.getByText("No matching projects")).toBeVisible();
   await page.getByRole("button", { name: "Clear search" }).click();
