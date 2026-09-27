@@ -784,6 +784,9 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const [prompt, setPrompt] = useState("");
   const [rotatingPromptIndex, setRotatingPromptIndex] = useState(0);
   const [sessions, setSessions] = useState<AgentChatSession[]>([]);
+  const sessionsRef = useRef<AgentChatSession[]>([]);
+  const sessionsRequestIdRef = useRef(0);
+  const locallyCreatedSessionIdsRef = useRef(new Set<string>());
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, AgentChatMessage[]>>({});
   const [optimisticMessages, setOptimisticMessages] = useState<Record<string, AgentChatMessage[]>>({});
@@ -932,15 +935,26 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
     });
   }, [scrollTranscriptToBottom]);
 
+  // Background refreshes keep the current list visible; only the latest response is applied, and
+  // chats created locally stay listed until the server returns them.
   const refreshSessions = useCallback(async () => {
+    const requestId = ++sessionsRequestIdRef.current;
     try {
-      setListErr(null);
       const rows = await listAgentChatSessions();
-      setSessions(rows);
-      return rows;
+      if (requestId !== sessionsRequestIdRef.current) return sessionsRef.current;
+      const returned = new Set(rows.map((r) => r.id));
+      returned.forEach((id) => locallyCreatedSessionIdsRef.current.delete(id));
+      const pending = sessionsRef.current.filter(
+        (s) => locallyCreatedSessionIdsRef.current.has(s.id) && !returned.has(s.id),
+      );
+      const next = pending.length ? [...pending, ...rows] : rows;
+      sessionsRef.current = next;
+      setSessions(next);
+      setListErr(null);
+      return next;
     } catch (e) {
-      setListErr(formatChatError(e));
-      return [];
+      if (requestId === sessionsRequestIdRef.current) setListErr(formatChatError(e));
+      return sessionsRef.current;
     }
   }, []);
 
@@ -1173,10 +1187,9 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       openFreshChatFlag === "1" || openFreshChatFlag === "true" || openFreshChatFlag === "";
 
     (async () => {
-      setSessionsLoading(true);
       const rows = await refreshSessions();
-      if (cancelled) return;
       setSessionsLoading(false);
+      if (cancelled) return;
 
       if (wantsFresh) {
         abortRef.current?.abort();
@@ -1396,6 +1409,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
           abortRef.current?.abort();
         }
         await deleteAgentChatSession(sessionId);
+        locallyCreatedSessionIdsRef.current.delete(sessionId);
         await refreshSessions();
 
         setMessages((prev) => {
@@ -1637,7 +1651,9 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         if (specialistMeta?.forceNewSession || !sessionId) {
           const s = await createAgentChatSession("");
           sessionId = s.id;
-          setSessions((prev) => [s, ...prev]);
+          locallyCreatedSessionIdsRef.current.add(s.id);
+          sessionsRef.current = [s, ...sessionsRef.current.filter((row) => row.id !== s.id)];
+          setSessions(sessionsRef.current);
           setSelectedSessionId(s.id);
         }
 
@@ -2145,9 +2161,14 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         <div className="min-h-0 flex-1 px-5 pt-4 flex flex-col">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Recent chats</p>
           <div className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto pr-1 min-h-0">
-            {sessionsLoading ? (
+            {listErr && sessions.length > 0 ? (
+              <p role="status" className="px-3 pb-1 text-[11px] text-error">
+                Couldn&apos;t refresh chats. Showing the last loaded list.
+              </p>
+            ) : null}
+            {sessionsLoading && sessions.length === 0 ? (
               <p className="text-[13px] text-on-surface-variant">Loading…</p>
-            ) : listErr ? (
+            ) : listErr && sessions.length === 0 ? (
               <p className="text-[13px] text-error">{listErr}</p>
             ) : sessions.length === 0 ? (
               <div className="rounded-xl border border-dashed border-outline-variant/80 bg-surface-container-lowest/80 px-4 py-8 text-center">
