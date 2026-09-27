@@ -56,6 +56,43 @@ function recentChats(page: Page) {
     .locator("xpath=following-sibling::div[1]");
 }
 
+test("New scan preserves the mounted chat list after clearing the new-chat URL", async ({
+  page,
+}) => {
+  await mockChat(page, () => ({ status: 200, json: chats, delayMs: 500 }));
+  await page.goto("/dashboard");
+  await page.getByRole("link", { name: /New scan/i }).click();
+  const list = recentChats(page);
+  await expect(
+    list.getByRole("button", { name: "First review chat", exact: true }),
+  ).toBeVisible();
+  const originalList = await list.elementHandle();
+  if (!originalList) throw new Error("Recent chats list was not mounted");
+  await originalList.evaluate((el) => {
+    new MutationObserver(() => {
+      if (
+        !el.isConnected ||
+        el.textContent?.includes("Loading…") ||
+        el.textContent?.includes("No chats yet")
+      ) {
+        el.setAttribute("data-loading-regression", "true");
+      }
+    }).observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  });
+  await expect(page).toHaveURL(/\/dashboard\/scan$/);
+  await page.waitForTimeout(3000);
+  expect(await originalList.evaluate((el) => el.isConnected)).toBe(true);
+  expect(await originalList.getAttribute("data-loading-regression")).toBeNull();
+  await expect(
+    list.getByRole("button", { name: "First review chat", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Loading…", { exact: true })).toHaveCount(0);
+});
+
 test("recent chats stay visible while the list refreshes in the background", async ({
   page,
 }) => {
