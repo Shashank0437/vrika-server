@@ -107,7 +107,7 @@ async def internal_org_config(
     )
 
 
-async def _notification_context(db, tenant_id: str, provider_id: str):
+async def _notification_context(db, tenant_id: str, provider_id: str, settings: Settings):
     link = await db.prowler_tenant_links.find_one({"prowler_tenant_id": tenant_id})
     org_id = None
     scanner_email = ""
@@ -125,7 +125,7 @@ async def _notification_context(db, tenant_id: str, provider_id: str):
         logger.warning("Blocked Cloud email: no linked organization (tenant=%s)", tenant_id)
         raise HTTPException(409, "No linked organization found for tenant")
     try:
-        await resolve_project_recipients(db, org_id, provider_id, scanner_email)
+        await resolve_project_recipients(db, org_id, provider_id, scanner_email, settings=settings)
     except NotificationRoutingError as exc:
         raise HTTPException(409, str(exc)) from exc
     return org_id, scanner_email
@@ -144,7 +144,7 @@ async def internal_notify_scan_completed(
 ) -> dict:
     """Queue a report only after validating its project and eligible recipients."""
     org_id, scanner_email = await _notification_context(
-        db, payload.prowler_tenant_id, str(payload.provider_id)
+        db, payload.prowler_tenant_id, str(payload.provider_id), settings
     )
 
     pdf_attachments: list[dict[str, Any]] = []
@@ -212,7 +212,7 @@ async def internal_notify_attack_paths_completed(
 ) -> dict:
     """Trigger automated attack path alert email from Cloud Security Neo4j worker."""
     org_id, scanner_email = await _notification_context(
-        db, payload.prowler_tenant_id, str(payload.provider_id)
+        db, payload.prowler_tenant_id, str(payload.provider_id), settings
     )
 
     res = await send_attack_paths_completed_notification(

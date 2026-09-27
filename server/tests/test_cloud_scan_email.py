@@ -123,9 +123,13 @@ def test_notification_dispatch_preserves_readable_email(
         for email in ("scanner@example.test", "teammate@example.test")
     ]
     db = MagicMock()
-    db.projects.find.return_value.to_list = AsyncMock(return_value=[{
+    db.projects.find_one = AsyncMock(return_value={
         "_id": project_id, "name": "SECOPS", "cloud_provider_ids": [provider_id],
-    }])
+    })
+    monkeypatch.setattr(
+        cloud_scan_notifications, "get_provider_project_ids",
+        AsyncMock(return_value=[str(project_id)]),
+    )
     db.__getitem__.side_effect = {
         ORGANIZATIONS_COLLECTION: organizations,
         USERS_COLLECTION: users,
@@ -143,6 +147,7 @@ def test_notification_dispatch_preserves_readable_email(
         AsyncMock(return_value=smtp_config if transport == "smtp" else None),
     )
     smtp = MagicMock()
+    smtp.return_value.__enter__.return_value.sendmail.return_value = {}
     monkeypatch.setattr(smtp_service.smtplib, "SMTP", smtp)
     brevo = AsyncMock()
     monkeypatch.setattr(brevo_email, "send_transactional_email", brevo)
@@ -150,6 +155,7 @@ def test_notification_dispatch_preserves_readable_email(
         frontend_url="https://example.test",
         brevo_api_key="test-only",
         brevo_sender_email="no-reply@example.test",
+        smtp_send_timeout_seconds=300,
     )
     attachments = [
         {"filename": "executive.pdf", "content": b"%PDF-executive"},

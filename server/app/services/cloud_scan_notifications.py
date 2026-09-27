@@ -8,16 +8,19 @@ via the organization's dynamic SMTP server, to project members and organization 
 from __future__ import annotations
 
 import logging
+import smtplib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
+from fastapi import HTTPException
 from jinja2 import Environment, FileSystemLoader
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.config import Settings
+from app.config import Settings, get_settings
 from app.constants import ORGANIZATIONS_COLLECTION, USERS_COLLECTION
 from app.services.access import has_permission
+from app.services.cloud_access import get_provider_project_ids
 from app.services.smtp_service import send_mail_for_org
 
 logger = logging.getLogger(__name__)
@@ -30,11 +33,13 @@ class NotificationRoutingError(RuntimeError):
     """A notification cannot be safely routed to project members and org admins."""
 
 
-async def resolve_notification_project(db, org_id: ObjectId, provider_id: str) -> dict:
-    projects = await db.projects.find(
-        {"organization_id": org_id, "cloud_provider_ids": provider_id}
-    ).to_list(length=2)
-    if not provider_id or len(projects) != 1:
+async def resolve_notification_project(
+    db, org_id: ObjectId, provider_id: str, *, settings: Settings | None = None
+) -> dict:
+    project_ids = await get_provider_project_ids(
+        db, settings or get_settings(), org_id, provider_id
+    )
+    if len(project_ids) != 1 or not ObjectId.is_valid(project_ids[0]):
         logger.warning(
             "Blocked Cloud email: provider must belong to exactly one project (org=%s provider=%s)",
             org_id, provider_id,
@@ -42,13 +47,20 @@ async def resolve_notification_project(db, org_id: ObjectId, provider_id: str) -
         raise NotificationRoutingError(
             "Cloud email requires the provider to be assigned to exactly one project"
         )
-    return projects[0]
+    project = await db.projects.find_one({
+        "_id": ObjectId(project_ids[0]), "organization_id": org_id,
+    })
+    if not project:
+        logger.warning("Blocked Cloud email: project is outside organization or deleted (org=%s provider=%s)", org_id, provider_id)
+        raise NotificationRoutingError("Provider project not found in the linked organization")
+    return project
 
 
 async def resolve_project_recipients(
-    db, org_id: ObjectId, provider_id: str, scanner_email: str = ""
+    db, org_id: ObjectId, provider_id: str, scanner_email: str = "",
+    *, settings: Settings | None = None,
 ) -> tuple[dict, str, list[str]]:
-    project = await resolve_notification_project(db, org_id, provider_id)
+    project = await resolve_notification_project(db, org_id, provider_id, settings=settings)
     project_id = str(project["_id"])
     candidates = db[USERS_COLLECTION].find({
         "organization_id": org_id,
@@ -195,7 +207,7 @@ async def send_cloud_scan_completed_notification(
     pdf_attachments: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Dispatch reports to authorized project members and organization admins."""
-    project = await resolve_notification_project(db, org_id, provider_id)
+    project = await resolve_notification_project(db, org_id, provider_id, settings=settings)
     org = await db[ORGANIZATIONS_COLLECTION].find_one({"_id": org_id})
     org_name = org.get("name") if org else "Your Organization"
 
@@ -273,7 +285,7 @@ async def send_cloud_scan_completed_notification(
 
     async def dispatch(report_attachments):
         current_project, to, cc = await resolve_project_recipients(
-            db, org_id, provider_id, scanner_email
+            db, org_id, provider_id, scanner_email, settings=settings
         )
         if current_project["_id"] != project["_id"]:
             logger.warning("Blocked Cloud email: provider project changed (scan=%s)", scan_id)
@@ -296,7 +308,7 @@ async def send_cloud_scan_completed_notification(
 
     try:
         return await dispatch(safe_attachments or None)
-    except NotificationRoutingError:
+    except (NotificationRoutingError, HTTPException, smtplib.SMTPRecipientsRefused):
         raise
     except Exception as exc:
         logger.warning("Primary scan email send encountered error: %s. Retrying with executive attachment only...", exc)
@@ -322,7 +334,7 @@ async def send_attack_paths_completed_notification(
 ) -> Dict[str, Any]:
     """Dispatch a high-priority alert to authorized project members and org admins."""
     project, to, cc = await resolve_project_recipients(
-        db, org_id, provider_id, scanner_email
+        db, org_id, provider_id, scanner_email, settings=settings
     )
     org = await db[ORGANIZATIONS_COLLECTION].find_one({"_id": org_id})
     org_name = org.get("name") if org else "Your Organization"

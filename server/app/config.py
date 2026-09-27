@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     brevo_api_key: str = ""
     brevo_sender_email: str = ""  # Must be a verified sender in Brevo.
     brevo_sender_name: str = "Vrika"
+    smtp_send_timeout_seconds: float = Field(default=300, gt=0, le=900)
 
     # Comma-separated list — contact form notifications go to every address.
     contact_admin_emails: str = ""

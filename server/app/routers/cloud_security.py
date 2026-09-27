@@ -51,7 +51,7 @@ async def notify_scan_completed(
     """Send a Cloud report to authorized project members and organization admins."""
     try:
         project = await resolve_notification_project(
-            db, user["organization_id"], str(payload.provider_id)
+            db, user["organization_id"], str(payload.provider_id), settings=settings
         )
         if not has_permission(
             user, "execute", module="cloud_security", project_id=str(project["_id"])

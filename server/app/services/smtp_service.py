@@ -15,9 +15,11 @@ import logging
 import os
 import smtplib
 import ssl
+import time
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formatdate, make_msgid
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from bson import ObjectId
@@ -153,6 +155,7 @@ def _send_mail_sync(
     body_plain: str,
     body_html: Optional[str] = None,
     attachments: Optional[List[Dict[str, Any]]] = None,
+    send_timeout_seconds: float = 300.0,
 ) -> Dict[str, Any]:
     """Execute synchronous SMTP handshake and message dispatch."""
     # 1. Build MIME Message
@@ -168,6 +171,8 @@ def _send_mail_sync(
     msg = MIMEMultipart("mixed" if attachments else "alternative")
     msg["Subject"] = subject
     msg["From"] = from_addr
+    msg["Date"] = formatdate(localtime=False)
+    msg["Message-ID"] = make_msgid()
     msg["To"] = ", ".join(to_addrs)
     if cc_addrs:
         msg["Cc"] = ", ".join(cc_addrs)
@@ -207,6 +212,28 @@ def _send_mail_sync(
             part["Content-Disposition"] = f'attachment; filename="{filename}"'
             msg.attach(part)
 
+    message = msg.as_string()
+
+    def transmit(server):
+        if server.sock is None:
+            raise smtplib.SMTPServerDisconnected("SMTP connection closed before transmission")
+        # PDF uploads need a longer timeout than connecting/authenticating.
+        server.sock.settimeout(send_timeout_seconds)
+        started = time.monotonic()
+        refused = server.sendmail(from_addr, all_recipients, message)
+        if refused:
+            logger.error(
+                "SMTP refused %d of %d recipients (message_id=%s)",
+                len(refused), len(all_recipients), msg["Message-ID"],
+            )
+            raise smtplib.SMTPRecipientsRefused(refused)
+        logger.info(
+            "SMTP accepted message_id=%s recipients=%d bytes=%d elapsed=%.2fs",
+            msg["Message-ID"], len(all_recipients), len(message.encode("utf-8")),
+            time.monotonic() - started,
+        )
+        server.sock.settimeout(60.0)
+
     # 4. Connect and Authenticate
     sec_mode = security.strip().lower()
     if sec_mode == "ssl" or port == 465:
@@ -214,7 +241,7 @@ def _send_mail_sync(
         with smtplib.SMTP_SSL(host, port, context=context, timeout=60.0) as server:
             if username and password:
                 server.login(username, password)
-            server.sendmail(from_addr, all_recipients, msg.as_string())
+            transmit(server)
     else:
         with smtplib.SMTP(host, port, timeout=60.0) as server:
             server.ehlo()
@@ -224,7 +251,7 @@ def _send_mail_sync(
                 server.ehlo()
             if username and password:
                 server.login(username, password)
-            server.sendmail(from_addr, all_recipients, msg.as_string())
+            transmit(server)
 
 
     return {
@@ -233,6 +260,7 @@ def _send_mail_sync(
         "cc": cc_addrs or [],
         "via": host,
         "recipients_count": len(all_recipients),
+        "message_id": msg["Message-ID"],
     }
 
 
@@ -289,6 +317,7 @@ async def send_mail_for_org(
             body_plain=body,
             body_html=html_body,
             attachments=attachments,
+            send_timeout_seconds=settings.smtp_send_timeout_seconds,
         )
 
     # 2. Fallback to Platform Brevo API if configured
@@ -367,4 +396,5 @@ async def test_org_smtp_connection(
         body_plain=body_plain,
         body_html=body_html,
         attachments=None,
+        send_timeout_seconds=settings.smtp_send_timeout_seconds,
     )

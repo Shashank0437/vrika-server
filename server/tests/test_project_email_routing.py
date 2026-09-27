@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import smtplib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -86,6 +87,11 @@ def workspace(monkeypatch):
         lambda **kwargs: b"%PDF-unit-test",
     )
     settings = SimpleNamespace(frontend_url="https://example.test")
+    assignments = {provider: [str(project)], other_provider: [str(other_project)]}
+    monkeypatch.setattr(
+        mail, "get_provider_project_ids",
+        AsyncMock(side_effect=lambda db, settings, org_id, pid: assignments.get(pid, [])),
+    )
     allowed = {
         users[key]["email"]
         for key in ("viewer", "analyst", "lead", "roster_cloud", "roster_admin", "owner", "legacy_admin")
@@ -93,7 +99,7 @@ def workspace(monkeypatch):
     return SimpleNamespace(
         db=db, org=org, project=project, provider=provider, other_provider=other_provider,
         foreign_provider=foreign_provider, tenant=tenant, users=users, send=send,
-        settings=settings, allowed=allowed,
+        settings=settings, allowed=allowed, assignments=assignments,
     )
 
 
@@ -169,6 +175,7 @@ def test_unsafe_routing_blocks_without_organization_fallback(workspace, case):
 
     async def prepare():
         if case == "ambiguous":
+            w.assignments[w.provider].append(str(ObjectId()))
             await w.db.projects.insert_one({
                 "organization_id": w.org, "name": "Duplicate",
                 "cloud_provider_ids": [w.provider],
@@ -216,6 +223,7 @@ def test_retry_blocks_if_provider_project_changes(workspace):
     w = workspace
 
     async def fail_and_move(*args, **kwargs):
+        w.assignments[w.provider] = w.assignments[w.other_provider]
         await w.db.projects.update_one(
             {"_id": w.project}, {"$set": {"cloud_provider_ids": []}}
         )
@@ -330,3 +338,66 @@ def test_owner_email_is_not_required_for_project_delivery(workspace, client):
     response = client.post("/internal/notify-scan-completed", json=payload(workspace))
     assert response.status_code == 202, response.text
     assert recipients(workspace.send.call_args) == workspace.allowed
+
+
+@pytest.mark.parametrize("cached_assignment", ["missing", "wrong_project", "duplicate"])
+def test_cloud_assignment_overrides_stale_mongo_metadata(workspace, cached_assignment):
+    w = workspace
+
+    async def change_cache():
+        if cached_assignment != "duplicate":
+            await w.db.projects.update_one(
+                {"_id": w.project}, {"$set": {"cloud_provider_ids": []}}
+            )
+        if cached_assignment != "missing":
+            await w.db.projects.update_one(
+                {"cloud_provider_ids": w.other_provider},
+                {"$push": {"cloud_provider_ids": w.provider}},
+            )
+
+    asyncio.run(change_cache())
+    asyncio.run(mail.send_cloud_scan_completed_notification(
+        w.db, w.settings, org_id=w.org, provider_id=w.provider,
+        scanner_email="owner@example.test", provider="cloudflare",
+        account_id="example", scan_id=str(uuid4()),
+    ))
+    assert recipients(w.send.call_args) == w.allowed
+    assert "Project: SECOPS" in w.send.call_args.kwargs["body"]
+
+
+def test_cloud_lookup_failure_never_falls_back_to_cached_project(workspace, monkeypatch):
+    from fastapi import HTTPException
+
+    w = workspace
+    lookup = AsyncMock(side_effect=HTTPException(503, "Cloud unavailable"))
+    monkeypatch.setattr(mail, "get_provider_project_ids", lookup)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(mail.send_cloud_scan_completed_notification(
+            w.db, w.settings, org_id=w.org, provider_id=w.provider,
+            scanner_email="owner@example.test", provider="azure",
+            account_id="example", scan_id=str(uuid4()),
+        ))
+    assert error.value.status_code == 503
+    w.send.assert_not_awaited()
+
+
+def test_cloud_project_must_exist_in_the_same_organization(workspace):
+    w = workspace
+    foreign = asyncio.run(w.db.projects.find_one({"name": "Foreign"}))
+    w.assignments[w.provider] = [str(foreign["_id"])]
+    with pytest.raises(mail.NotificationRoutingError, match="linked organization"):
+        asyncio.run(mail.resolve_project_recipients(w.db, w.org, w.provider))
+
+
+def test_partial_delivery_is_not_retried_to_already_accepted_recipients(workspace):
+    w = workspace
+    w.send.side_effect = smtplib.SMTPRecipientsRefused({
+        "viewer@example.test": (550, b"Rejected"),
+    })
+    with pytest.raises(smtplib.SMTPRecipientsRefused):
+        asyncio.run(mail.send_cloud_scan_completed_notification(
+            w.db, w.settings, org_id=w.org, provider_id=w.provider,
+            scanner_email="owner@example.test", provider="azure",
+            account_id="example", scan_id=str(uuid4()),
+        ))
+    w.send.assert_awaited_once()
