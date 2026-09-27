@@ -42,7 +42,9 @@ The standard role selector contains only Viewer, Analyst and Project Lead.
 Administrator access is controlled separately. New global Viewer grants are
 rejected: viewing both security modules requires two explicit bindings.
 Membership by itself grants no permissions; API invitations without bindings have
-no access. The UI invitation default is Viewer in Web Security, visibly editable.
+no access. The UI invitation default is Viewer with a required project selection.
+The Scope menu lists only actual projects, not modules or a selectable placeholder.
+Existing module bindings remain unchanged unless explicitly edited or removed.
 After deploying both services, migrate legacy global Viewers with
 `python server/scripts/migrate_explicit_viewers.py --organization-id <id> --apply`.
 Omit `--apply` for a dry run. Web/Cloud visibility is preserved; administration

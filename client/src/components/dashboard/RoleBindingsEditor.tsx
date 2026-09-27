@@ -7,14 +7,14 @@ import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
 
 export const viewerBinding: RoleBinding = {
   role: "viewer",
-  scope_type: "module",
-  scope_id: "web_security",
+  scope_type: "project",
+  scope_id: "",
 };
 const roles: { value: AccessRole; label: string; description: string }[] = [
   {
     value: "viewer",
     label: "Viewer",
-    description: "Read-only access within the selected module or project",
+    description: "Read-only access within the selected scope",
   },
   {
     value: "analyst",
@@ -49,7 +49,7 @@ export function RoleBindingsEditor({
       scope_id: useProject
         ? current.scope_type === "project"
           ? current.scope_id
-          : (projects[0]?.id ?? "")
+          : ""
         : (current.scope_id ?? "web_security"),
     });
   }
@@ -117,48 +117,27 @@ export function RoleBindingsEditor({
                     label={`Scope ${index + 1}`}
                     value={
                       binding.scope_type === "project"
-                        ? `project:${binding.scope_id ?? ""}`
-                        : (binding.scope_id ?? "")
+                        ? (binding.scope_id ?? "")
+                        : ""
                     }
-                    onChange={(scope) =>
+                    placeholder={
+                      binding.scope_type === "module"
+                        ? `${binding.scope_id === "web_security" ? "Web Security" : "Cloud Security"} (existing binding)`
+                        : binding.scope_id
+                          ? "Project unavailable"
+                          : "Choose a project"
+                    }
+                    onChange={(scope_id) =>
                       replace(index, {
                         ...binding,
-                        scope_type: scope.startsWith("project:")
-                          ? "project"
-                          : "module",
-                        scope_id: scope.startsWith("project:")
-                          ? scope.slice(8)
-                          : scope,
+                        scope_type: "project",
+                        scope_id,
                       })
                     }
-                    options={[
-                      ...(binding.role !== "lead"
-                        ? [
-                            { value: "web_security", label: "Web Security" },
-                            {
-                              value: "cloud_security",
-                              label: "Cloud Security",
-                            },
-                          ]
-                        : []),
-                      { value: "project:", label: "Select project" },
-                      ...(binding.scope_id &&
-                      binding.scope_type === "project" &&
-                      !projects.some(
-                        (project) => project.id === binding.scope_id,
-                      )
-                        ? [
-                            {
-                              value: `project:${binding.scope_id}`,
-                              label: "Unavailable project",
-                            },
-                          ]
-                        : []),
-                      ...projects.map((project) => ({
-                        value: `project:${project.id}`,
-                        label: project.name,
-                      })),
-                    ]}
+                    options={projects.map((project) => ({
+                      value: project.id,
+                      label: project.name,
+                    }))}
                   />
                 </div>
               </div>

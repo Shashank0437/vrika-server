@@ -349,7 +349,7 @@ test("admin edits multiple constrained bindings with optimistic version", async 
   await page.screenshot({ path: "/tmp/vrika-role-picker-redesign.png" });
   await page.keyboard.press("Escape");
   await choose(page, "Role 1", "Analyst");
-  await choose(page, "Scope 1", "Cloud Security");
+  await choose(page, "Scope 1", "App review");
   await dialog.getByRole("button", { name: "Add binding" }).click();
   await choose(page, "Role 2", "Project lead");
   await choose(page, "Scope 2", "App review");
@@ -357,7 +357,10 @@ test("admin edits multiple constrained bindings with optimistic version", async 
   await expect(dialog).toHaveCount(0);
   expect(state.writes[0]).toEqual({
     path: "/tenant/members/user-2/bindings",
-    body: { role_bindings: [cloud, lead], expected_version: 4 },
+    body: {
+      role_bindings: [binding("analyst", "project", "project-1"), lead],
+      expected_version: 4,
+    },
   });
 });
 
@@ -376,8 +379,16 @@ test("invitations default to viewer and conflict errors preserve edits", async (
     .getByLabel("Display name / username")
     .fill("New member");
   await page.getByRole("button", { name: "Send invite" }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "Select a project",
+  );
+  expect(state.writes).toEqual([]);
+  await choose(page, "Scope 1", "App review");
+  await page.getByRole("button", { name: "Send invite" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(state.writes[0].body.role_bindings).toEqual([viewer]);
+  expect(state.writes[0].body.role_bindings).toEqual([
+    binding("viewer", "project", "project-1"),
+  ]);
   await page
     .getByRole("button", { name: "Edit bindings for member@example.test" })
     .click();
@@ -410,11 +421,51 @@ test("own role changes refresh authentication and remove write controls", async 
   await expect(page.getByRole("combobox", { name: "Role 1" })).toContainText(
     "Viewer",
   );
+  await choose(page, "Scope 1", "App review");
   await page.getByRole("button", { name: "Save bindings" }).click();
   await expect(page.getByRole("button", { name: "Invite user" })).toHaveCount(
     0,
   );
   expect(state.authReads()).toBeGreaterThanOrEqual(2);
+});
+
+test("scope dropdown lists only real projects and preserves existing module access until changed", async ({
+  page,
+}) => {
+  const state = await mockWorkspace(page, [admin]);
+  await page.route("**/be/projects", (route) =>
+    route.fulfill({
+      json: [project, { ...project, id: "project-2", name: "Other project" }],
+    }),
+  );
+  await page.goto("/dashboard/users", { waitUntil: "domcontentloaded" });
+  await page
+    .getByRole("button", { name: "Edit bindings for member@example.test" })
+    .click();
+  const scope = page.getByRole("combobox", { name: "Scope 1" });
+  await expect(scope).toContainText("Web Security (existing binding)");
+  await scope.click();
+  await expect(page.getByRole("option")).toHaveText([
+    "App review",
+    "Other project",
+  ]);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Save bindings" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.writes[0].body.role_bindings).toEqual([viewer]);
+  await page.getByRole("button", { name: "Invite user" }).click();
+  await expect(scope).toContainText("Choose a project");
+  for (const role of ["Viewer", "Analyst", "Project lead"]) {
+    await choose(page, "Role 1", role);
+    await scope.click();
+    await expect(page.getByRole("option")).toHaveText([
+      "App review",
+      "Other project",
+    ]);
+    await page.keyboard.press("Escape");
+  }
+  await choose(page, "Scope 1", "Other project");
+  await expect(scope).toContainText("Other project");
 });
 
 test("project lead must select a project before creating a scan", async ({

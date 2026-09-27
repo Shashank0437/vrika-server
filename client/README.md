@@ -30,9 +30,11 @@ client gates module entry. All API authorization remains server-enforced.
 
 Organization administrators can add/remove multiple constrained Role + Scope
 bindings under **User management**. The role picker contains Viewer, Analyst and
-Project Lead only; administrator access is a separate control. Viewer and Analyst
-can target a module or a project. Invitations default to Viewer in Web Security,
-not organization-wide visibility.
+Project Lead only; administrator access is a separate control. Scope menus list
+actual projects only, with no module options or selectable placeholder. Invitations
+and new bindings default to Viewer with no project selected; a project is required
+before saving. Existing module bindings are identified in the closed control and
+preserved unless explicitly changed or removed.
 Updates send `expected_version` to `/tenant/members/{id}/bindings`; a conflict
 keeps the editor open and asks the operator to reopen refreshed bindings. Changing
 your own bindings refreshes authentication immediately.
