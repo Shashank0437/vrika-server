@@ -29,18 +29,24 @@ client gates module entry. All API authorization remains server-enforced.
 ## Managing access
 
 Organization administrators can add/remove multiple constrained Role + Scope
-bindings under **User management**. Invitations default to global Viewer.
+bindings under **User management**. The role picker contains Viewer, Analyst and
+Project Lead only; administrator access is a separate control. Viewer and Analyst
+can target a module or a project. Invitations default to Viewer in Web Security,
+not organization-wide visibility.
 Updates send `expected_version` to `/tenant/members/{id}/bindings`; a conflict
 keeps the editor open and asks the operator to reopen refreshed bindings. Changing
 your own bindings refreshes authentication immediately.
 
-**Projects** supports creation (admin), renaming and membership changes (admin or
-the corresponding project lead). Membership does **not** grant access or role
-bindings. Leads use a minimal organization member picker without gaining access
-to the administration directory. The page contains project details and membership
+**Projects** supports creation (admin), renaming and project-role changes (admin or
+the corresponding project lead). Leads assign Viewer, Analyst or Lead for their
+own project only. Changes are saved immediately with optimistic versions, and
+preserve module, administrator and other-project bindings. Members with broader
+access keep it; assigning a project Viewer does not demote an administrator.
+Leads use a minimal organization member picker without gaining access
+to the administration directory. The page contains project details and team access
 only, without web-session or cloud-provider assignment panels or requests.
 Web and Cloud project pickers sit in their existing header rows. Project name and
-membership are separate API updates; errors explain
+role changes are separate API updates; errors explain
 that an earlier update may already have succeeded.
 
 Project, member and role choices use `WorkspaceSelect`: a searchable custom
@@ -54,8 +60,10 @@ These presentation changes do not change API authorization.
 `useProjectScope` shares Web project selection between history and chat. The
 custom picker remains in the header, including when a chat is open. Selection is
 stored per user, organization and module; the `project` URL parameter overrides
-the saved value. `all` and `unassigned` are view choices, never project IDs sent
-when creating a session. Cloud uses its own persisted selection.
+the saved value. `all` is an aggregate view, not a project ID. The Unassigned
+option is removed; legacy `unassigned` URLs and saved preferences resolve to All
+projects. Creating a new chat scan requires an actual project selection.
+Cloud uses its own persisted selection.
 
 History, its metrics and Recent Chats use project-filtered API queries.
 Out-of-order responses cannot replace the current project's results, and routine

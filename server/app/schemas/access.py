@@ -15,13 +15,16 @@ class RoleBinding(BaseModel):
 
     @model_validator(mode="after")
     def valid_scope(self):
-        if self.role in {"viewer", "admin"}:
+        # Read legacy Viewer records during rollout; validate_bindings rejects new global grants.
+        if self.role == "admin" or (
+            self.role == "viewer" and self.scope_type == "global"
+        ):
             valid = self.scope_type == "global" and self.scope_id is None
-        elif self.role == "analyst":
-            valid = self.scope_type == "module" and self.scope_id in {
-                "web_security",
-                "cloud_security",
-            }
+        elif self.role in {"viewer", "analyst"}:
+            valid = (
+                self.scope_type == "module"
+                and self.scope_id in {"web_security", "cloud_security"}
+            ) or (self.scope_type == "project" and bool(self.scope_id))
         else:
             valid = self.scope_type == "project" and bool(self.scope_id)
         if not valid:
@@ -63,3 +66,18 @@ class ProjectProvidersIn(BaseModel):
 
 class SessionProjectIn(BaseModel):
     project_id: str | None = None
+
+
+class ProjectMemberRoleIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    role: Literal["viewer", "analyst", "lead"] | None
+    expected_version: int = Field(ge=0)
+
+
+class ProjectMemberRoleOut(BaseModel):
+    id: str
+    email: str
+    username: str
+    role: Literal["viewer", "analyst", "lead"] | None
+    is_member: bool
+    access_version: int

@@ -311,11 +311,11 @@ export async function analyzeAgentChatSession(sessionId: string): Promise<{ succ
   return JSON.parse(text) as { success: boolean; result?: string };
 }
 
-export async function createAgentChatSession(title = "", projectId?: string | null): Promise<AgentChatSession> {
+export async function createAgentChatSession(title: string, projectId: string): Promise<AgentChatSession> {
   const res = await fetch(`${getApiBase()}${PREFIX}/sessions`, {
     method: "POST",
     headers: bearerHeaders(true),
-    body: JSON.stringify({ title, ...(projectId ? { project_id: projectId } : {}) }),
+    body: JSON.stringify({ title, project_id: projectId }),
   });
   const text = await res.text();
   if (!res.ok) throw new ApiError(detailFromResponseBody(text, res.statusText), res.status, text);

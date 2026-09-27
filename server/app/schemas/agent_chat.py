@@ -15,7 +15,7 @@ class AgentChatContext(BaseModel):
 
 class AgentChatSessionCreate(BaseModel):
     title: str = ""
-    project_id: str | None = None
+    project_id: str = Field(min_length=1)
 
 
 class AgentChatSessionPatch(BaseModel):

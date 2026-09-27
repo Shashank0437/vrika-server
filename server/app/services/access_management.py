@@ -26,6 +26,10 @@ async def validate_bindings(db, organization_id, bindings: list[dict]) -> None:
     if len(set(parsed)) != len(parsed):
         raise HTTPException(400, "Duplicate role bindings")
     for binding in parsed:
+        if binding.role == "viewer" and binding.scope_type == "global":
+            raise HTTPException(
+                400, "Viewer access requires explicit module or project bindings"
+            )
         if binding.scope_type == "project":
             project = await db.projects.find_one(
                 {
@@ -67,6 +71,25 @@ async def complete_pending_access(db, user):
             upsert=True,
         )
         await sync_cloud_access(db, get_settings(), proposed)
+        before_projects = {
+            b["scope_id"] for b in pending["before"] if b["scope_type"] == "project"
+        }
+        after_projects = {
+            b["scope_id"] for b in pending["bindings"] if b["scope_type"] == "project"
+        }
+        roster_projects = before_projects | after_projects
+        if pending.get("managed_project_id"):
+            roster_projects.add(pending["managed_project_id"])
+        for project_id in roster_projects:
+            roster_result = await db.projects.update_one(
+                {"_id": object_id(project_id), "organization_id": user["organization_id"]},
+                {
+                    "$addToSet" if project_id in after_projects else "$pull":
+                    {"member_ids": str(user["_id"])}
+                },
+            )
+            if roster_result.matched_count != 1:
+                raise HTTPException(409, "Project changed during access synchronization")
         result = await db.users.update_one(
             {"_id": user["_id"], "pending_access_change.id": pending["id"]},
             {
@@ -112,7 +135,10 @@ async def resume_pending_access(db, user):
         await lock.release()
 
 
-async def update_bindings(db, actor, member_id, bindings, expected_version):
+async def update_bindings(
+    db, actor, member_id, bindings, expected_version,
+    *, managed_project_id=None, project_role=None,
+):
     """Serialize organization role changes, including last-admin checks and cloud synchronization."""
     org_id = actor["organization_id"]
     lock = get_redis().lock(f"rbac:{org_id}", timeout=120, blocking_timeout=5)
@@ -130,8 +156,20 @@ async def update_bindings(db, actor, member_id, bindings, expected_version):
         current_actor = await db.users.find_one(
             {"_id": actor["_id"], "organization_id": org_id}
         )
-        if not current_actor or not has_permission(current_actor, "manage_roles"):
+        allowed = current_actor and has_permission(
+            current_actor,
+            "manage_members" if managed_project_id else "manage_roles",
+            project_id=managed_project_id,
+        )
+        if not allowed:
             raise HTTPException(403, "Role-management permission has been revoked")
+        if managed_project_id:
+            if project_role not in {None, "viewer", "analyst", "lead"}:
+                raise HTTPException(400, "Invalid project role")
+            if not await db.projects.find_one(
+                {"_id": object_id(managed_project_id), "organization_id": org_id}
+            ):
+                raise HTTPException(404, "Project not found")
         target = await db.users.find_one(
             {"_id": object_id(member_id), "organization_id": org_id}
         )
@@ -141,6 +179,20 @@ async def update_bindings(db, actor, member_id, bindings, expected_version):
             raise HTTPException(
                 409, "Permissions changed since this page loaded. Reload and retry."
             )
+        if managed_project_id:
+            bindings = [
+                binding for binding in effective_bindings(target)
+                if not (
+                    binding["scope_type"] == "project"
+                    and binding["scope_id"] == managed_project_id
+                )
+            ]
+            if project_role is not None:
+                bindings.append({
+                    "role": project_role,
+                    "scope_type": "project",
+                    "scope_id": managed_project_id,
+                })
         await validate_bindings(db, org_id, bindings)
         proposed = {
             **target,
@@ -165,6 +217,7 @@ async def update_bindings(db, actor, member_id, bindings, expected_version):
             "bindings": bindings,
             "version": expected_version + 1,
             "created_at": datetime.now(UTC),
+            "managed_project_id": managed_project_id,
         }
         result = await db.users.update_one(
             {"_id": target["_id"], "organization_id": org_id},

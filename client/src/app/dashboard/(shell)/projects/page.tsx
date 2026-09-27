@@ -13,12 +13,11 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { hasPermission } from "@/lib/access";
+import { canEnterModule, hasPermission } from "@/lib/access";
 import { listProjects, projectHref, type Project } from "@/lib/projects";
 import { SessionDialog } from "@/components/dashboard/SessionDialog";
-import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
+import { ProjectMemberRoles } from "@/components/dashboard/ProjectMemberRoles";
 
-type Member = { id: string; email: string; username: string };
 const primaryButton =
   "inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary shadow-sm transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50";
 const secondaryButton =
@@ -28,16 +27,11 @@ export default function ProjectsPage() {
   const { user } = useAuth();
   const canAdmin = hasPermission(user, "manage_roles");
   const [projects, setProjects] = useState<Project[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [membersLoading, setMembersLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [memberError, setMemberError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [target, setTarget] = useState<Project | "new" | null>(null);
   const [name, setName] = useState("");
-  const [memberIds, setMemberIds] = useState<string[]>([]);
-  const [memberId, setMemberId] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -51,26 +45,12 @@ export default function ProjectsPage() {
       setLoading(false);
     }
   }, []);
-  const loadMembers = useCallback(async () => {
-    setMembersLoading(true);
-    try {
-      setMembers(await api<Member[]>("/projects/member-options"));
-      setMemberError(null);
-    } catch (e) {
-      setMemberError(e instanceof Error ? e.message : "Could not load members");
-    } finally {
-      setMembersLoading(false);
-    }
-  }, []);
   useEffect(() => {
     void load();
-    void loadMembers();
-  }, [load, loadMembers]);
+  }, [load]);
   function open(project: Project | "new") {
     setTarget(project);
     setName(project === "new" ? "" : project.name);
-    setMemberIds(project === "new" ? [] : project.member_ids);
-    setMemberId("");
     setFormError(null);
   }
   async function save(event: FormEvent) {
@@ -93,10 +73,6 @@ export default function ProjectsPage() {
         await api(`/projects/${encodeURIComponent(target.id)}`, {
           method: "PATCH",
           json: { name: name.trim() },
-        });
-        await api(`/projects/${encodeURIComponent(target.id)}/members`, {
-          method: "PUT",
-          json: { member_ids: memberIds },
         });
       }
       setTarget(null);
@@ -192,7 +168,17 @@ export default function ProjectsPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate text-sm font-semibold text-on-surface">
-                      <Link href={projectHref("/dashboard", project.id)} className="hover:text-primary hover:underline">{project.name}</Link>
+                      <Link
+                        href={projectHref(
+                          canEnterModule(user, "web_security")
+                            ? "/dashboard"
+                            : "/dashboard/cloud-security",
+                          project.id,
+                        )}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {project.name}
+                      </Link>
                     </h3>
                     <div className="mt-1.5 flex items-center gap-3 text-xs text-on-surface-variant">
                       <span className="inline-flex items-center gap-1.5">
@@ -256,8 +242,9 @@ export default function ProjectsPage() {
       </div>
       <p className="flex items-start gap-2 text-xs leading-5 text-on-surface-variant">
         <ShieldCheck className="mt-0.5 size-4 shrink-0" />
-        Project leads manage their team. Organization admins assign access
-        separately in User management.
+        Project leads assign Viewer, Analyst and Lead within their projects.
+        Only organization administrators can change module or administrator
+        access.
       </p>
       {target && (
         <SessionDialog
@@ -317,108 +304,12 @@ export default function ProjectsPage() {
                 />
               </label>
               {target !== "new" && (
-                <section>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">Team members</h3>
-                    <span className="text-xs text-on-surface-variant">
-                      {memberIds.length} assigned
-                    </span>
-                  </div>
-                  {memberError && (
-                    <p
-                      role="alert"
-                      className="mb-3 rounded-lg bg-error/8 p-3 text-sm text-error"
-                    >
-                      {memberError}{" "}
-                      <button
-                        type="button"
-                        className="underline"
-                        onClick={() => void loadMembers()}
-                      >
-                        Retry
-                      </button>
-                    </p>
-                  )}
-                  <div className="mb-4 flex items-center gap-2">
-                    <WorkspaceSelect
-                      label="Add organization member"
-                      value={memberId}
-                      onChange={setMemberId}
-                      disabled={membersLoading || !!memberError}
-                      className="flex-1"
-                      placeholder={
-                        membersLoading ? "Loading members…" : "Find a teammate…"
-                      }
-                      options={members
-                        .filter((member) => !memberIds.includes(member.id))
-                        .map((member) => ({
-                          value: member.id,
-                          label: member.username || member.email,
-                          description: member.email,
-                        }))}
-                    />
-                    <button
-                      type="button"
-                      className={secondaryButton}
-                      disabled={!memberId || memberIds.includes(memberId)}
-                      onClick={() => {
-                        setMemberIds([...memberIds, memberId]);
-                        setMemberId("");
-                      }}
-                    >
-                      <Plus className="size-4" />
-                      Add member
-                    </button>
-                  </div>
-                  <ul className="divide-y divide-outline-variant/60 rounded-xl border border-outline-variant/70">
-                    {memberIds.map((id) => {
-                      const member = members.find((item) => item.id === id);
-                      return (
-                        <li
-                          key={id}
-                          className="flex items-center gap-3 px-4 py-3"
-                        >
-                          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/8 text-xs font-bold text-primary">
-                            {(member?.username || member?.email || "?")
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">
-                              {member?.username ||
-                                member?.email ||
-                                "Member details unavailable"}
-                            </p>
-                            <p className="truncate text-xs text-on-surface-variant">
-                              {member?.email}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            aria-label={`Remove member ${id}`}
-                            onClick={() =>
-                              setMemberIds(
-                                memberIds.filter((member) => member !== id),
-                              )
-                            }
-                            className="rounded-lg p-2 text-on-surface-variant hover:bg-error/8 hover:text-error"
-                          >
-                            <X className="size-4" />
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {!memberIds.length && (
-                    <p className="rounded-xl border border-dashed border-outline-variant p-6 text-center text-sm text-on-surface-variant">
-                      No team members yet. Add a teammate above.
-                    </p>
-                  )}
-                  <p className="mt-3 text-xs leading-5 text-on-surface-variant">
-                    Adding a member does not change their permissions. An admin
-                    can assign role bindings in User management.
-                  </p>
-                </section>
+                <ProjectMemberRoles
+                  projectId={target.id}
+                  onChanged={() => void load()}
+                  onSelfChanged={() => setTarget(null)}
+                  onBusyChange={setBusy}
+                />
               )}
             </fieldset>
             <footer className="flex shrink-0 justify-end gap-3 border-t border-outline-variant/60 bg-surface-container-low/50 px-6 py-4">

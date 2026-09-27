@@ -26,7 +26,7 @@ def workspace(monkeypatch):
         "email": "viewer@example.test",
         "roles": ["tenant_member"],
         "role_bindings": [
-            {"role": "viewer", "scope_type": "global", "scope_id": None},
+            {"role": "viewer", "scope_type": "module", "scope_id": "web_security"},
         ],
     }
     lead = {
@@ -111,13 +111,179 @@ def test_viewer_reads_all_org_chats_but_cannot_create_or_edit(workspace):
     assert (
         client.post(f"/workspace/agent-chat/sessions/{sid}/analyze").status_code == 403
     )
-    assert client.get("/tenant/members").status_code == 200
+    assert client.get("/tenant/members").status_code == 403
     assert (
         client.post(
             "/tenant/invitations", json={"email": "x@example.test", "username": "X"}
         ).status_code
         == 403
     )
+
+
+@pytest.mark.parametrize("role", ["viewer", "analyst", "lead"])
+def test_lead_assigns_only_current_project_binding(workspace, role):
+    client, db, use, viewer, lead, admin, project1, project2 = workspace
+    other = {"role": "analyst", "scope_type": "project", "scope_id": str(project2)}
+    original = [*viewer["role_bindings"], other]
+    asyncio.run(db.users.update_one(
+        {"_id": viewer["_id"]}, {"$set": {"role_bindings": original}}
+    ))
+    use(lead)
+    endpoint = f"/projects/{project1}/members/{viewer['_id']}/role"
+    response = client.put(endpoint, json={"role": role, "expected_version": 0})
+    assert response.status_code == 200, response.text
+    assert response.json()["role"] == role
+    assert "role_bindings" not in response.json()
+    saved = asyncio.run(db.users.find_one({"_id": viewer["_id"]}))
+    assert saved["role_bindings"] == [
+        *original, {"role": role, "scope_type": "project", "scope_id": str(project1)}
+    ]
+    project = asyncio.run(db.projects.find_one({"_id": project1}))
+    assert str(viewer["_id"]) in project["member_ids"]
+    assert client.put(endpoint, json={"role": "viewer", "expected_version": 0}).status_code == 409
+    response = client.put(endpoint, json={"role": None, "expected_version": 1})
+    assert response.status_code == 200
+    saved = asyncio.run(db.users.find_one({"_id": viewer["_id"]}))
+    assert saved["role_bindings"] == original
+    assert not response.json()["is_member"]
+    # An administrator's broader privilege survives project-role changes.
+    response = client.put(
+        f"/projects/{project1}/members/{admin['_id']}/role",
+        json={"role": "viewer", "expected_version": 0},
+    )
+    assert response.status_code == 200
+    saved = asyncio.run(db.users.find_one({"_id": admin["_id"]}))
+    assert admin["role_bindings"][0] in saved["role_bindings"]
+
+
+def test_project_role_management_denies_escalation_and_rechecks_actor(workspace):
+    client, db, use, viewer, lead, _, project1, project2 = workspace
+    use(lead)
+    endpoint = f"/projects/{project1}/members/{viewer['_id']}/role"
+    assert client.get(f"/projects/{project1}/member-roles").status_code == 200
+    assert client.get(f"/projects/{project2}/member-roles").status_code == 403
+    assert client.put(endpoint, json={"role": "admin", "expected_version": 0}).status_code == 422
+    assert client.put(endpoint, json={
+        "role": "lead", "expected_version": 0, "scope_id": str(project2)
+    }).status_code == 422
+    assert client.put(
+        f"/projects/{project2}/members/{viewer['_id']}/role",
+        json={"role": "lead", "expected_version": 0},
+    ).status_code == 403
+    assert client.put(
+        f"/projects/{project1}/members/{ObjectId()}/role",
+        json={"role": "viewer", "expected_version": 0},
+    ).status_code == 404
+    asyncio.run(db.users.update_one(
+        {"_id": lead["_id"]}, {"$set": {"role_bindings": []}}
+    ))
+    # The dependency still contains the stale Lead; the lock-protected check must reject it.
+    assert client.put(endpoint, json={"role": "viewer", "expected_version": 0}).status_code == 403
+
+
+@pytest.mark.parametrize("role", ["viewer", "analyst"])
+def test_project_viewers_and_analysts_cannot_manage_roles(workspace, role):
+    client, db, use, viewer, lead, _, project1, _ = workspace
+    scoped = {**viewer, "role_bindings": [
+        {"role": role, "scope_type": "project", "scope_id": str(project1)}
+    ]}
+    asyncio.run(db.users.update_one({"_id": viewer["_id"]}, {"$set": scoped}))
+    use(scoped)
+    rows = client.get("/workspace/agent-chat/sessions")
+    assert rows.status_code == 200 and len(rows.json()) == 1
+    assert client.get(f"/projects/{project1}/member-roles").status_code == 403
+    assert client.put(
+        f"/projects/{project1}/members/{lead['_id']}/role",
+        json={"role": "viewer", "expected_version": 0},
+    ).status_code == 403
+    response = client.post("/workspace/agent-chat/sessions", json={"project_id": str(project1)})
+    assert response.status_code == (200 if role == "analyst" else 403)
+
+
+def test_new_global_viewer_grants_are_rejected(workspace):
+    client, _, use, viewer, _, admin, _, _ = workspace
+    use(admin)
+    assert client.put(
+        f"/tenant/members/{viewer['_id']}/bindings",
+        json={"role_bindings": [{"role": "viewer", "scope_type": "global", "scope_id": None}],
+              "expected_version": 0},
+    ).status_code == 400
+    assert client.post(
+        "/tenant/invitations",
+        json={"email": "new@example.com", "username": "New",
+              "role_bindings": [{"role": "viewer", "scope_type": "global", "scope_id": None}]},
+    ).status_code == 400
+
+
+def test_new_sessions_require_a_real_project_even_for_administrators(workspace):
+    client, db, use, _, _, admin, project1, _ = workspace
+    use(admin)
+    before = asyncio.run(db.agent_chat_sessions.count_documents({}))
+    for body in ({}, {"project_id": None}, {"project_id": ""}):
+        response = client.post("/workspace/agent-chat/sessions", json=body)
+        assert response.status_code == 422, response.text
+    for project_id in ("all", "unassigned"):
+        assert client.post(
+            "/workspace/agent-chat/sessions", json={"project_id": project_id}
+        ).status_code == 400
+    assert asyncio.run(db.agent_chat_sessions.count_documents({})) == before
+    assert client.post(
+        "/workspace/agent-chat/sessions", json={"project_id": str(project1)}
+    ).status_code == 200
+
+
+def test_explicit_viewer_migration_preserves_module_reads_and_is_retryable(workspace):
+    from scripts.migrate_explicit_viewers import migrate
+
+    _, db, _, viewer, _, _, _, _ = workspace
+    legacy = [{"role": "viewer", "scope_type": "global", "scope_id": None}]
+
+    async def run():
+        await db.users.update_one(
+            {"_id": viewer["_id"]}, {"$set": {"role_bindings": legacy}}
+        )
+        await db.organization_invitations.insert_one({
+            "organization_id": viewer["organization_id"],
+            "status": "pending", "role_bindings": legacy,
+        })
+        await migrate(db, viewer["organization_id"])
+        assert (await db.users.find_one({"_id": viewer["_id"]}))["role_bindings"] == legacy
+        await migrate(db, viewer["organization_id"], apply=True)
+        after = await db.users.find_one({"_id": viewer["_id"]})
+        assert after["access_version"] == 1
+        assert after["role_bindings"] == [
+            {"role": "viewer", "scope_type": "module", "scope_id": "web_security"},
+            {"role": "viewer", "scope_type": "module", "scope_id": "cloud_security"},
+        ]
+        invitation = await db.organization_invitations.find_one({})
+        assert invitation["role_bindings"] == after["role_bindings"]
+        await migrate(db, viewer["organization_id"], apply=True)
+        assert (await db.users.find_one({"_id": viewer["_id"]}))["access_version"] == 1
+        assert await db.access_audit.count_documents({}) == 2
+
+    asyncio.run(run())
+
+
+def test_project_role_sync_failure_recovers_role_and_roster(workspace, monkeypatch):
+    from fastapi import HTTPException
+
+    client, db, use, viewer, lead, _, project1, _ = workspace
+    use(lead)
+    monkeypatch.setattr(cloud_access, "sync_cloud_access", AsyncMock(side_effect=HTTPException(503, "Cloud unavailable")))
+    response = client.put(
+        f"/projects/{project1}/members/{viewer['_id']}/role",
+        json={"role": "analyst", "expected_version": 0},
+    )
+    assert response.status_code == 503
+    pending = asyncio.run(db.users.find_one({"_id": viewer["_id"]}))
+    assert pending["role_bindings"] == viewer["role_bindings"]
+    monkeypatch.setattr(cloud_access, "sync_cloud_access", AsyncMock(return_value=None))
+    saved = asyncio.run(access_management.resume_pending_access(db, pending))
+    assert saved["role_bindings"][-1] == {
+        "role": "analyst", "scope_type": "project", "scope_id": str(project1),
+    }
+    project = asyncio.run(db.projects.find_one({"_id": project1}))
+    assert project["member_ids"] == [str(viewer["_id"])]
 
 
 def test_lead_lists_only_own_project_and_cannot_reassign_or_escalate(workspace):

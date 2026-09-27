@@ -223,34 +223,76 @@ test("project selection filters history metrics and recent chats, persists acros
   await expect(page).toHaveURL(/project=project-b/);
 });
 
-test("All projects and Unassigned retain legacy scans without treating filter values as project IDs", async ({
+test("Unassigned is absent and legacy links require a real project for new scans", async ({
   page,
 }) => {
   const state = await workspace(page);
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-  await choose(page, "Web project", "Unassigned");
+  await page.getByRole("combobox", { name: "Web project" }).click();
+  await expect(
+    page.getByRole("option", { name: "Unassigned", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("option", { name: /^All projects/ }).click();
   await expect(page.getByText("Legacy scan", { exact: true })).toBeVisible();
   await expect(
     page.getByText("Unassigned scan", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Alpha scan", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Alpha scan", { exact: true })).toBeVisible();
   await expect(
     page
       .getByText("Total scans", { exact: true })
       .locator("..")
       .locator("p")
       .nth(1),
-  ).toHaveText("2");
-  await choose(page, "Web project", "All projects");
+  ).toHaveText("4");
   await expect(page.getByText("Alpha scan", { exact: true })).toBeVisible();
   await expect(page.getByText("Beta scan", { exact: true })).toBeVisible();
   await page.goto("/dashboard/scan?new=1&project=unassigned", {
     waitUntil: "domcontentloaded",
   });
-  await page.locator("textarea").fill("Review legacy target");
+  await expect(
+    page.getByRole("combobox", { name: "Scan project" }),
+  ).toContainText("All projects");
+  await expect(page).toHaveURL(/project=all/);
+  await expect(page.locator("textarea")).toHaveCount(0);
+  await expect(
+    page.getByText("Select a project above to start a new scan."),
+  ).toBeVisible();
+  await page.getByRole("combobox", { name: "Scan project" }).click();
+  await expect(
+    page.getByRole("option", { name: "Unassigned", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("option", { name: /^Alpha project/ }).click();
+  await page.locator("textarea").fill("Review project target");
   await page.locator("textarea").press("Enter");
   await expect.poll(() => state.created.length).toBe(1);
-  expect(state.created[0].project_id).toBeUndefined();
+  expect(state.created[0].project_id).toBe("project-a");
+});
+
+test("saved Unassigned selections recover without showing a stale option", async ({
+  page,
+}) => {
+  await workspace(page);
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "vrika:project:org-1:user-1:web_security",
+      "unassigned",
+    ),
+  );
+  await page.goto("/dashboard/scan?new=1", { waitUntil: "domcontentloaded" });
+  await expect(
+    page.getByRole("combobox", { name: "Scan project" }),
+  ).toContainText("All projects");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem("vrika:project:org-1:user-1:web_security"),
+      ),
+    )
+    .toBe("");
+  await expect(page.locator("textarea")).toHaveCount(0);
+  await choose(page, "Scan project", "Beta project");
+  await expect(page.locator("textarea")).toBeVisible();
 });
 
 test("slow and failed history responses never replace a different project's data", async ({

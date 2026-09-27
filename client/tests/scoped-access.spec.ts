@@ -13,7 +13,7 @@ const binding = (
   scope_type: RoleBinding["scope_type"],
   scope_id: string | null = null,
 ): RoleBinding => ({ role, scope_type, scope_id });
-const viewer = binding("viewer", "global");
+const viewer = binding("viewer", "module", "web_security");
 const admin = binding("admin", "global");
 const web = binding("analyst", "module", "web_security");
 const cloud = binding("analyst", "module", "cloud_security");
@@ -51,8 +51,14 @@ test("permission matrix uses canonical bindings and only matching scopes", () =>
   expect(hasPermission(user([]), "view")).toBe(false);
   expect(landingRoute(user([]))).toBe("/dashboard/no-access");
   expect(hasPermission(user([viewer]), "view", { projectId: "other" })).toBe(
-    true,
+    false,
   );
+  expect(
+    hasPermission(user([viewer]), "view", { module: "web_security" }),
+  ).toBe(true);
+  expect(
+    hasPermission(user([viewer]), "view", { module: "cloud_security" }),
+  ).toBe(false);
   for (const action of [
     "execute",
     "edit",
@@ -114,6 +120,24 @@ async function mockWorkspace(
   const writes: { path: string; body: Record<string, unknown> }[] = [];
   let currentBindings = bindings;
   let members = [member];
+  let projectMembers = [
+    {
+      id: "user-2",
+      username: "Member",
+      email: "member@example.test",
+      role: "viewer",
+      is_member: true,
+      access_version: 4,
+    },
+    {
+      id: "user-3",
+      username: "New teammate",
+      email: "new@example.test",
+      role: null as string | null,
+      is_member: false,
+      access_version: 0,
+    },
+  ];
   let authReads = 0;
   await page.addInitScript(() =>
     localStorage.setItem("vrika_token", "synthetic-ui-test"),
@@ -135,6 +159,20 @@ async function mockWorkspace(
     if (method !== "GET") {
       const body = request.postDataJSON() ?? {};
       writes.push({ path, body });
+      if (/\/projects\/project-1\/members\/[^/]+\/role$/.test(path)) {
+        const id = path.split("/").at(-2);
+        const saved = projectMembers.find((row) => row.id === id)!;
+        const updated = {
+          ...saved,
+          role: body.role,
+          is_member: !!body.role,
+          access_version: saved.access_version + 1,
+        };
+        projectMembers = projectMembers.map((row) =>
+          row.id === id ? updated : row,
+        );
+        return route.fulfill({ json: updated });
+      }
       if (path.endsWith("/bindings")) {
         if (conflict)
           return route.fulfill({
@@ -174,6 +212,8 @@ async function mockWorkspace(
         ],
       });
     if (path === "/projects") return route.fulfill({ json: [project] });
+    if (path === "/projects/project-1/member-roles")
+      return route.fulfill({ json: projectMembers });
     if (path === "/projects/member-options")
       return route.fulfill({
         json: [
@@ -256,28 +296,23 @@ test("explicit empty bindings overrides legacy admin and offers sign out", async
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test("viewer sees directory and settings read-only, and cannot create or send chats", async ({
+test("module viewer cannot enter admin panels, create scans or send chats", async ({
   page,
 }) => {
   const state = await mockWorkspace(page, [viewer]);
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("link", { name: /New scan/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Start scan" })).toHaveCount(0);
-  await page.getByRole("link", { name: "User management" }).click();
-  await expect(page.getByText("member@example.test")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Invite user" })).toHaveCount(
+  await expect(page.getByRole("link", { name: "User management" })).toHaveCount(
     0,
   );
-  await expect(page.getByRole("button", { name: /Edit bindings/ })).toHaveCount(
-    0,
-  );
+  await page.goto("/dashboard/users", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(/\/dashboard$/);
   await page.goto("/dashboard/settings", { waitUntil: "domcontentloaded" });
-  await expect(page.getByText(/Read-only organization settings/)).toBeVisible();
-  await expect(page.locator("fieldset").first()).toHaveAttribute(
-    "disabled",
-    "",
-  );
-  await page.goto("/dashboard/scan?chat_id=chat-1", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/dashboard/scan?chat_id=chat-1", {
+    waitUntil: "domcontentloaded",
+  });
   await expect(page.getByText(/Read-only workspace/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "New chat", exact: true }),
@@ -309,6 +344,8 @@ test("admin edits multiple constrained bindings with optimistic version", async 
     .click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "Role 1" }).click();
+  await expect(page.getByRole("option")).toHaveCount(3);
+  await expect(page.getByRole("option", { name: /^Admin/ })).toHaveCount(0);
   await page.screenshot({ path: "/tmp/vrika-role-picker-redesign.png" });
   await page.keyboard.press("Escape");
   await choose(page, "Role 1", "Analyst");
@@ -366,7 +403,13 @@ test("own role changes refresh authentication and remove write controls", async 
   await page
     .getByRole("button", { name: "Edit bindings for owner@example.test" })
     .click();
-  await choose(page, "Role 1", "Viewer");
+  await page
+    .getByRole("checkbox", { name: /Organization administrator/ })
+    .uncheck();
+  await page.getByRole("button", { name: "Add binding" }).click();
+  await expect(page.getByRole("combobox", { name: "Role 1" })).toContainText(
+    "Viewer",
+  );
   await page.getByRole("button", { name: "Save bindings" }).click();
   await expect(page.getByRole("button", { name: "Invite user" })).toHaveCount(
     0,
@@ -395,7 +438,7 @@ test("project lead must select a project before creating a scan", async ({
     .toBe("project-1");
 });
 
-test("project lead manages membership without granting role bindings", async ({
+test("project lead assigns Viewer, Analyst and Lead only through project-scoped endpoints", async ({
   page,
 }) => {
   const state = await mockWorkspace(page, [lead]);
@@ -407,14 +450,33 @@ test("project lead manages membership without granting role bindings", async ({
   await page.getByLabel("Project name").fill("Renamed review");
   await choose(page, "Add organization member", "New teammate");
   await page.getByRole("button", { name: "Add member", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Project role for new@example.test" }),
+  ).toContainText("Viewer");
+  await choose(page, "Project role for new@example.test", "Analyst");
+  await expect(
+    page.getByRole("combobox", { name: "Project role for new@example.test" }),
+  ).toContainText("Analyst");
+  await choose(page, "Project role for new@example.test", "Lead");
+  await expect(
+    page.getByRole("combobox", { name: "Project role for new@example.test" }),
+  ).toContainText("Lead");
   await page.getByRole("button", { name: "Save project" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(state.writes).toEqual([
-    { path: "/projects/project-1", body: { name: "Renamed review" } },
     {
-      path: "/projects/project-1/members",
-      body: { member_ids: ["user-2", "user-3"] },
+      path: "/projects/project-1/members/user-3/role",
+      body: { role: "viewer", expected_version: 0 },
     },
+    {
+      path: "/projects/project-1/members/user-3/role",
+      body: { role: "analyst", expected_version: 1 },
+    },
+    {
+      path: "/projects/project-1/members/user-3/role",
+      body: { role: "lead", expected_version: 2 },
+    },
+    { path: "/projects/project-1", body: { name: "Renamed review" } },
   ]);
 });
 
@@ -439,7 +501,9 @@ test("project controls are custom, inline in the top row, and keyboard accessibl
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/dashboard/cloud-security", { waitUntil: "domcontentloaded" });
+  await page.goto("/dashboard/cloud-security", {
+    waitUntil: "domcontentloaded",
+  });
   const cloudProject = page.getByRole("combobox", { name: "Cloud project" });
   await expect(cloudProject).toBeVisible();
   const header = page.locator("header").filter({ has: cloudProject });

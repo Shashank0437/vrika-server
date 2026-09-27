@@ -168,7 +168,7 @@ async def create_invitation(
     bindings = (
         [binding.model_dump() for binding in body.role_bindings]
         if body.role_bindings is not None
-        else effective_bindings({"roles": [body.role]})
+        else []
     )
     await validate_bindings(db, org_id, bindings)
     from app.services.smtp_service import get_org_smtp_config

@@ -33,10 +33,21 @@ Global means the current organization, never other organizations.
 
 | Role | Scope | Permissions |
 | --- | --- | --- |
-| Viewer | Global | View web, cloud and administration panels |
-| Analyst | Web Security or Cloud Security | View, execute and edit within that module |
-| Lead | Project | View, execute, edit and manage project members |
-| Admin | Global | All permissions, including `manage_roles` |
+| Viewer | Web Security, Cloud Security, or a project | Read-only within that binding |
+| Analyst | Web Security, Cloud Security, or a project | View, execute and edit within that binding |
+| Lead | Project | View, execute, edit and assign Viewer/Analyst/Lead within that project |
+| Organization administrator | Organization | Separate administrative privilege, including `manage_roles` |
+
+The standard role selector contains only Viewer, Analyst and Project Lead.
+Administrator access is controlled separately. New global Viewer grants are
+rejected: viewing both security modules requires two explicit bindings.
+Membership by itself grants no permissions; API invitations without bindings have
+no access. The UI invitation default is Viewer in Web Security, visibly editable.
+After deploying both services, migrate legacy global Viewers with
+`python server/scripts/migrate_explicit_viewers.py --organization-id <id> --apply`.
+Omit `--apply` for a dry run. Web/Cloud visibility is preserved; administration
+panels are reserved for organization administrators. The migration is retryable
+and audited, including pending invitations.
 
 Explicit empty bindings remove all access. Existing `tenant_admin` users retain
 global Admin access; existing `tenant_member` users retain both module Analyst
@@ -47,23 +58,29 @@ Interrupted cross-service changes remain durably pending and are resumed before
 the affected user's next authenticated request or the next role update. Until
 synchronization succeeds, those requests return an explicit unavailable error.
 
-The Projects page manages project names and team membership; it does not expose
+The Projects page manages project names and project-scoped roles; it does not expose
 web-session or cloud-account/provider assignment controls. Project selection
 uses a custom searchable picker in the existing Web/Cloud header row. New web
 sessions can select a project, and Cloud project leads select their project
 before adding accounts. Existing API access boundaries are unchanged. Unassigned resources are not
-visible to project-only leads. Membership is a roster, not an implicit permission
-grant; only `manage_roles` can change bindings. Organization-wide configuration
+visible to project-only users. `manage_roles` controls organization/module access.
+Project Leads use `/projects/{id}/member-roles` and
+`PUT /projects/{id}/members/{member_id}/role` to change only the named project's
+binding. These operations recheck the actor under the same organization lock,
+require `expected_version`, preserve every other binding, and synchronize Cloud
+access and the membership roster through the durable pending-change flow.
+Organization-wide configuration
 is not project configuration and remains outside a project lead's scope.
 
 **Project views:** the Web project picker filters Session History, its metrics,
 and Recent Chats. It stays available inside an open chat. Selection is saved per
 user, organization and module, and is carried in the `project` URL parameter.
 Project names on the Projects page open that project's Web history.
-**All projects** shows all authorized projects; **Unassigned** includes older
-sessions without a project and is available only with module-wide read access.
-New scans use the selected project; starting from All projects or Unassigned
-leaves a new scan unassigned. Existing sessions are never silently reassigned.
+**All projects** shows all authorized sessions, including any legacy sessions
+without a project. There is no Unassigned picker option; old URLs and saved
+Unassigned selections open All projects instead. Starting a new scan in chat
+requires selecting a project; the creation API also requires `project_id`.
+Existing sessions are never silently reassigned.
 Cloud selection also persists and is forwarded to the existing scoped embed.
 
 The session-list and session-intelligence APIs accept optional

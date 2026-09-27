@@ -18,7 +18,18 @@ type AccessUser = Pick<AuthUser, "roles" | "role_bindings"> | null | undefined;
 
 export function getRoleBindings(user: AccessUser): RoleBinding[] {
   if (!user) return [];
-  if (user.role_bindings !== undefined) return user.role_bindings;
+  if (user.role_bindings !== undefined)
+    return user.role_bindings.flatMap((binding): RoleBinding[] =>
+      binding.role === "viewer" &&
+      binding.scope_type === "global" &&
+      binding.scope_id === null
+        ? ["web_security", "cloud_security"].map((scope_id) => ({
+            role: "viewer",
+            scope_type: "module",
+            scope_id,
+          }))
+        : [binding],
+    );
   if (user.roles?.some((role) => role === "tenant_admin" || role === "admin"))
     return [{ role: "admin", scope_type: "global", scope_id: null }];
   if (user.roles?.some((role) => ["member", "tenant_member"].includes(role)))
@@ -42,26 +53,27 @@ export function hasPermission(
       binding.scope_id === null
     )
       return true;
+    const actions: Record<AccessRole, readonly AccessAction[]> = {
+      viewer: ["view"],
+      analyst: ["view", "execute", "edit"],
+      lead: ["view", "execute", "edit", "manage_members"],
+      admin: [],
+    };
+    if (!actions[binding.role].includes(action)) return false;
     if (
-      binding.role === "viewer" &&
-      binding.scope_type === "global" &&
-      binding.scope_id === null
-    )
-      return action === "view";
-    if (
-      binding.role === "analyst" &&
+      (binding.role === "analyst" || binding.role === "viewer") &&
       binding.scope_type === "module" &&
       binding.scope_id === scope.module &&
       ["web_security", "cloud_security"].includes(binding.scope_id ?? "")
     )
-      return ["view", "execute", "edit"].includes(action);
+      return true;
     if (
-      binding.role === "lead" &&
+      ["viewer", "analyst", "lead"].includes(binding.role) &&
       binding.scope_type === "project" &&
       !!scope.projectId &&
       binding.scope_id === scope.projectId
     )
-      return ["view", "execute", "edit", "manage_members"].includes(action);
+      return true;
     return false;
   });
 }
@@ -74,7 +86,10 @@ export function canEnterModule(
   return (
     hasPermission(user, "view", { module }) ||
     getRoleBindings(user).some(
-      (b) => b.role === "lead" && b.scope_type === "project" && !!b.scope_id,
+      (b) =>
+        b.scope_type === "project" &&
+        !!b.scope_id &&
+        hasPermission(user, "view", { module, projectId: b.scope_id }),
     )
   );
 }
@@ -83,7 +98,13 @@ export function canStartScan(user: AccessUser): boolean {
   return (
     hasPermission(user, "execute", { module: "web_security" }) ||
     getRoleBindings(user).some(
-      (b) => b.role === "lead" && b.scope_type === "project" && !!b.scope_id,
+      (b) =>
+        b.scope_type === "project" &&
+        !!b.scope_id &&
+        hasPermission(user, "execute", {
+          module: "web_security",
+          projectId: b.scope_id,
+        }),
     )
   );
 }
@@ -101,10 +122,8 @@ export function canVisitDashboard(user: AccessUser, pathname: string): boolean {
     return hasPermission(user, "view");
   if (pathname.startsWith("/dashboard/projects"))
     return (
-      hasPermission(user, "view") ||
-      getRoleBindings(user).some(
-        (b) => b.role === "lead" && b.scope_type === "project",
-      )
+      canEnterModule(user, "web_security") ||
+      canEnterModule(user, "cloud_security")
     );
   return canEnterModule(
     user,

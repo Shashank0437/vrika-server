@@ -87,3 +87,35 @@ def test_duplicate_bindings_rejected():
     binding = {"role": "viewer", "scope_type": "global"}
     with pytest.raises(ValidationError):
         UpdateBindingsIn(role_bindings=[binding, binding], expected_version=0)
+
+
+@pytest.mark.parametrize("role", ["viewer", "analyst"])
+def test_viewer_and_analyst_roles_are_independent_of_scope(role):
+    project_user = user(role, "project", "p1")
+    assert has_permission(project_user, "view", project_id="p1")
+    assert has_permission(project_user, "execute", project_id="p1") == (role == "analyst")
+    assert not has_permission(project_user, "view", project_id="p2")
+    assert not has_permission(project_user, "view", module="web_security")
+    assert not has_permission(project_user, "manage_members", project_id="p1")
+    assert not has_permission(project_user, "manage_roles", project_id="p1")
+    module_user = user(role, "module", "web_security")
+    assert has_permission(module_user, "view", module="web_security")
+    assert not has_permission(module_user, "view", module="cloud_security")
+    assert not has_permission(module_user, "view")
+
+
+def test_global_viewer_expansion_is_idempotent_and_preserves_other_bindings():
+    from scripts.migrate_explicit_viewers import expand_viewers
+
+    before = [
+        *user("viewer", "global")["role_bindings"],
+        *user("analyst", "project", "p1")["role_bindings"],
+        *user("viewer", "module", "web_security")["role_bindings"],
+    ]
+    after = expand_viewers(before)
+    assert after == [
+        {"role": "viewer", "scope_type": "module", "scope_id": "web_security"},
+        {"role": "viewer", "scope_type": "module", "scope_id": "cloud_security"},
+        {"role": "analyst", "scope_type": "project", "scope_id": "p1"},
+    ]
+    assert expand_viewers(after) == after

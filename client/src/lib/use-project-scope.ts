@@ -28,17 +28,19 @@ export function useProjectScope(
     let next = parameter === "all" ? "" : parameter;
     try {
       if (next === null) next = localStorage.getItem(key) ?? "";
-      else localStorage.setItem(key, next);
+      if (next === UNASSIGNED_PROJECT) next = "";
+      localStorage.setItem(key, next);
       setStorageError(null);
     } catch {
       setStorageError(
         "Project preference could not be saved on this device. Use the project link to keep your selection.",
       );
     }
+    if (next === UNASSIGNED_PROJECT) next = "";
     setSelection({ key, scope: next ?? "" });
-    if (parameter === null && next) {
+    if ((parameter === null && next) || parameter === UNASSIGNED_PROJECT) {
       const url = new URL(window.location.href);
-      url.searchParams.set("project", next);
+      url.searchParams.set("project", next || "all");
       window.history.replaceState(null, "", url);
     }
   }, [key, parameter]);
@@ -64,6 +66,7 @@ export function useProjectScope(
   const setScope = useCallback(
     (next: string, resetChat = false) => {
       if (!key) return;
+      if (next === UNASSIGNED_PROJECT) next = "";
       setSelection({ key, scope: next });
       try {
         localStorage.setItem(key, next);
@@ -84,15 +87,11 @@ export function useProjectScope(
     [key],
   );
 
-  const allowUnassigned =
-    module === "web_security" && hasPermission(user, "view", { module });
   const accessibleProjects = projects.filter((project) =>
     hasPermission(user, "view", { module, projectId: project.id }),
   );
   const validScope =
-    !scope ||
-    (scope === UNASSIGNED_PROJECT && allowUnassigned) ||
-    accessibleProjects.some((project) => project.id === scope);
+    !scope || accessibleProjects.some((project) => project.id === scope);
   const error =
     loadError ??
     storageError ??
@@ -107,20 +106,11 @@ export function useProjectScope(
         module === "cloud_security"
           ? "View all accessible cloud resources."
           : hasPermission(user, "execute", { module })
-            ? "View all sessions. New scans are saved to Unassigned."
-            : allowUnassigned
+            ? "View all sessions. Select a project to start a new scan."
+            : hasPermission(user, "view", { module })
               ? "View all accessible sessions."
               : "View accessible projects. Select a project to start a scan.",
     },
-    ...(allowUnassigned
-      ? [
-          {
-            value: UNASSIGNED_PROJECT,
-            label: "Unassigned",
-            description: "Sessions without a project, including older scans.",
-          },
-        ]
-      : []),
     ...accessibleProjects.map((project) => ({
       value: project.id,
       label: project.name,

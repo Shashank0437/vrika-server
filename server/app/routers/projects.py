@@ -11,9 +11,11 @@ from app.schemas.access import (
     ProjectMembersIn,
     ProjectOut,
     ProjectProvidersIn,
+    ProjectMemberRoleIn,
+    ProjectMemberRoleOut,
 )
-from app.services.access import accessible_project_ids, has_permission
-from app.services.access_management import object_id
+from app.services.access import accessible_project_ids, effective_bindings, has_permission
+from app.services.access_management import object_id, update_bindings
 from app.services.cloud_access import sync_cloud_access
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -179,3 +181,52 @@ async def assign_members(
         {"$set": {"member_ids": member_ids}},
     )
     return project_out({**doc, "member_ids": member_ids})
+
+
+def project_member_role_out(user, project):
+    roles = [
+        binding["role"] for binding in effective_bindings(user)
+        if binding["scope_type"] == "project" and binding["scope_id"] == str(project["_id"])
+    ]
+    rank = {"viewer": 0, "analyst": 1, "lead": 2}
+    role = max(roles, key=rank.__getitem__) if roles else None
+    return ProjectMemberRoleOut(
+        id=str(user["_id"]),
+        email=user["email"],
+        username=user.get("username", ""),
+        role=role,
+        is_member=bool(role) or str(user["_id"]) in project.get("member_ids", []),
+        access_version=user.get("access_version", 0),
+    )
+
+
+@router.get("/{project_id}/member-roles", response_model=list[ProjectMemberRoleOut])
+async def list_project_member_roles(
+    project_id: str,
+    user=Depends(require_auth_user),
+    db=Depends(get_database),
+):
+    project = await require_project(db, user, project_id, "manage_members")
+    members = await db.users.find(
+        {"organization_id": user["organization_id"]}
+    ).sort("username", 1).to_list(length=None)
+    return [project_member_role_out(member, project) for member in members]
+
+
+@router.put("/{project_id}/members/{member_id}/role", response_model=ProjectMemberRoleOut)
+async def set_project_member_role(
+    project_id: str,
+    member_id: str,
+    body: ProjectMemberRoleIn,
+    user=Depends(require_auth_user),
+    db=Depends(get_database),
+):
+    await require_project(db, user, project_id, "manage_members")
+    saved = await update_bindings(
+        db, user, member_id, [], body.expected_version,
+        managed_project_id=project_id, project_role=body.role,
+    )
+    project = await db.projects.find_one(
+        {"_id": object_id(project_id), "organization_id": user["organization_id"]}
+    )
+    return project_member_role_out(saved, project)

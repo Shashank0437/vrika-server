@@ -77,7 +77,7 @@ export function DashboardUsersManagement() {
       )
     ) {
       setFormError(
-        "Select a project for each Project lead role before saving.",
+        "Select a project for each project-scoped binding before saving.",
       );
       return;
     }
@@ -353,8 +353,9 @@ export function DashboardUsersManagement() {
                 projects={projects}
               />
               <p className="text-xs leading-5 text-on-surface-variant">
-                Project membership alone does not grant access. Role bindings
-                can only be assigned by an organization administrator.
+                Organization and module access is managed here by
+                administrators. Project leads can manage Viewer, Analyst and
+                Lead bindings for their own projects from Projects.
               </p>
               <div className="flex justify-end gap-3 border-t border-outline-variant/60 pt-5">
                 <button

@@ -922,7 +922,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
   const selectedProjectId = selectedSessionId
     ? (sessions.find((session) => session.id === selectedSessionId) ?? (deepLinkedSessionRef.current?.id === selectedSessionId ? deepLinkedSessionRef.current : undefined))?.project_id
     : projectId;
-  const canExecute = project.ready && hasPermission(user, "execute", { module: "web_security", projectId: selectedProjectId });
+  const canExecute = project.ready && (!!selectedSessionId || !!projectId) && hasPermission(user, "execute", { module: "web_security", projectId: selectedProjectId });
   const canCreate = canStartScan(user);
   const isTenantAdmin = canExecute;
 
@@ -1707,6 +1707,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
       try {
         setActionErr(null);
         if (specialistMeta?.forceNewSession || !sessionId) {
+          if (!creationProjectId) throw new Error("Select a project before starting a new scan.");
           const s = await createAgentChatSession("", creationProjectId);
           sessionId = s.id;
           locallyCreatedSessionIdsRef.current.add(s.id);
@@ -2361,6 +2362,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
         </header>
 
         {!canCreate && <p className="border-b border-outline-variant px-6 py-3 text-sm">Read-only workspace. You can view sessions and download existing reports.</p>}
+        {canCreate && !selectedSessionId && !projectId && <p role="status" className="border-b border-outline-variant px-6 py-3 text-sm">Select a project above to start a new scan.</p>}
 
         <div className="flex min-h-0 flex-1 flex-row overflow-hidden relative">
           <div className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-all duration-200 ${activePreviewAttachment && !previewFullscreen ? "hidden lg:flex" : "flex"}`}>
