@@ -37,6 +37,8 @@ FastAPI backend for registration approval (**Brevo** email), JWT login, and per-
 
 The backend calls **POST `https://api.brevo.com/v3/smtp/email`** (`htmlContent` + `textContent`).
 
+Cloud scan notifications use a text-based Vrika wordmark and provider badge, with inline styles and table-based layout. Keep this header image-independent: Gmail does not reliably display base64/data-URI or SVG images, and the Brevo API fallback does not support inline CID images. This template is shared by automated and manually shared Cloud scan notifications.
+
 ## Contact form (marketing site)
 
 - Set **`CONTACT_ADMIN_EMAILS`** to a comma-separated list (e.g. `ops@yourco.com,founder@yourco.com`). Each receives **one multi-recipient send** when someone submits **POST `/contact`**.
