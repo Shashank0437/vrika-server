@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, type ReactNode } from "react";
 import { CloudSecuritySidebarSection } from "@/components/dashboard/CloudSecuritySidebarSection";
@@ -11,6 +12,7 @@ import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { useAuth } from "@/lib/auth-context";
 import { COMING_SOON_FROM_DASHBOARD_QUERY } from "@/lib/coming-soon-routes";
+import dashboardBackground from "./dashboard-background.webp";
 
 type NavMain = {
   href: string;
@@ -77,7 +79,6 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, loading } = useAuth();
   const isAdmin = !!(user?.roles?.includes("tenant_admin"));
-  const cloudSecurityRoute = pathname.startsWith("/dashboard/cloud-security");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -93,7 +94,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
   if (loading || !user) {
     return (
       <div
-        className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background text-on-surface-variant"
+        className="flex min-h-dvh flex-col items-center justify-center gap-3 text-on-surface-variant"
         aria-busy="true"
       >
         <LoaderSvg className="size-12" label="Loading workspace session" />
@@ -110,7 +111,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
     pathname?.startsWith("/coming-soon/support/");
 
   return (
-    <div className="flex min-h-screen items-start bg-background font-sans text-on-surface">
+    <div className="flex min-h-dvh items-start font-sans text-on-surface">
       <aside className="sticky top-0 flex h-[100dvh] max-h-[100dvh] w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-r border-outline-variant bg-surface-container-low">
         <div className="shrink-0 px-6 pb-4 pt-6">
           <Link
@@ -234,7 +235,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col" style={{ backgroundImage: "url('/bg.png')", backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}>
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-40 flex items-center justify-end border-b border-outline-variant bg-background/90 px-6 py-3 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             {user.organization_name && (
@@ -267,14 +268,31 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-dvh items-center justify-center text-sm text-on-surface-variant">
-          Loading…
-        </div>
-      }
-    >
-      <DashboardShellInner>{children}</DashboardShellInner>
-    </Suspense>
+    <div className="relative isolate min-h-dvh">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-y-0 left-64 right-0 -z-10 bg-gradient-to-br from-[#f3efff] via-background to-[#eee8ff]"
+      >
+        <Image
+          src={dashboardBackground}
+          alt=""
+          fill
+          priority
+          unoptimized
+          placeholder="blur"
+          sizes="calc(100vw - 256px)"
+          className="object-cover object-top"
+        />
+      </div>
+      <Suspense
+        fallback={
+          <div className="flex min-h-dvh items-center justify-center text-sm text-on-surface-variant">
+            Loading…
+          </div>
+        }
+      >
+        <DashboardShellInner>{children}</DashboardShellInner>
+      </Suspense>
+    </div>
   );
 }

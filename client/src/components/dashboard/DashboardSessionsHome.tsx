@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Tooltip } from "@/components/ui/Tooltip";
-import { SessionAnalysisModal } from "@/components/dashboard/SessionAnalysisModal";
-import { SessionDetailsModal } from "@/components/dashboard/SessionDetailsModal";
 import {
   analyzeAgentChatSession,
   downloadAgentChatAttachment,
@@ -16,6 +15,19 @@ import {
   type AgentChatSessionIntelligence,
   type AgentChatSessionStatus,
 } from "@/lib/agentChat";
+
+function SessionPanelLoading() {
+  return <p role="status" className="fixed bottom-4 right-4 z-50 rounded-lg border border-outline-variant bg-surface px-4 py-3 text-sm shadow-lg">Loading session details...</p>;
+}
+
+const SessionDetailsModal = dynamic(
+  () => import("./SessionDetailsModal").then((module) => module.SessionDetailsModal),
+  { loading: SessionPanelLoading },
+);
+const SessionAnalysisModal = dynamic(
+  () => import("./SessionAnalysisModal").then((module) => module.SessionAnalysisModal),
+  { loading: SessionPanelLoading },
+);
 
 const STATUS_LABELS: Record<AgentChatSessionStatus, string> = {
   IN_PROGRESS: "IN PROGRESS",
@@ -50,12 +62,6 @@ function formatDuration(seconds: number): string {
   return `${m}m ${String(s).padStart(2, "0")}s`;
 }
 
-function statusClass(status: AgentChatSessionStatus): string {
-  if (status === "COMPLETED") return "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200";
-  if (status === "FAILED") return "bg-red-50 text-red-800 ring-1 ring-red-100";
-  return "bg-primary-container text-on-primary-container ring-1 ring-primary/20";
-}
-
 function severityChips(row: AgentChatSessionIntelligence): string[] {
   return SEVERITY_ORDER.flatMap((sev) => {
     const key = sev.toLowerCase() as keyof AgentChatSessionIntelligence["findings_count"];
@@ -64,10 +70,6 @@ function severityChips(row: AgentChatSessionIntelligence): string[] {
     const label = sev === "CRITICAL" ? "CRIT" : sev.slice(0, 3);
     return [`${n} ${label}`];
   });
-}
-
-function reportAvailable(row: AgentChatSessionIntelligence): boolean {
-  return Boolean(row.report_metadata?.available || row.findings.length > 0 || row.summary);
 }
 
 function latestReportAttachment(row: AgentChatSessionIntelligence): AgentChatAttachment | null {
@@ -166,15 +168,19 @@ export function DashboardSessionsHome() {
     window.URL.revokeObjectURL(url);
   }
 
-  async function generateReport(row: AgentChatSessionIntelligence, { downloadAfter = false } = {}) {
+  async function handleReportAction(row: AgentChatSessionIntelligence) {
+    if (reportBusyId) return;
     setReportBusyId(row.session_id);
     setReportError(null);
     try {
-      const result = await generateAgentChatSessionReport(row.session_id);
-      await load(true);
-      if (downloadAfter && result.attachment) {
-        await downloadReport(row.session_id, result.attachment);
+      let attachment = latestReportAttachment(row);
+      if (!attachment) {
+        const result = await generateAgentChatSessionReport(row.session_id);
+        await load(true);
+        attachment = result.attachment ?? null;
+        if (!attachment) throw new Error("The report did not return a downloadable file. Please try again.");
       }
+      await downloadReport(row.session_id, attachment);
     } catch (e) {
       setReportError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -182,21 +188,8 @@ export function DashboardSessionsHome() {
     }
   }
 
-  async function handleReportAction(row: AgentChatSessionIntelligence) {
-    const attachment = latestReportAttachment(row);
-    setReportError(null);
-    if (attachment) {
-      try {
-        await downloadReport(row.session_id, attachment);
-      } catch (e) {
-        setReportError(e instanceof Error ? e.message : String(e));
-      }
-      return;
-    }
-    await generateReport(row);
-  }
-
   async function handleAnalyze(row: AgentChatSessionIntelligence) {
+    if (analyzeBusyId) return;
     setAnalyzeBusyId(row.session_id);
     setAnalysisModalOpen(true);
     setAnalysisSummary(null);
@@ -205,14 +198,17 @@ export function DashboardSessionsHome() {
     setReportError(null);
     try {
       const res = await analyzeAgentChatSession(row.session_id);
-      if (res.success && res.result) {
-        try {
-          const parsed = JSON.parse(res.result);
-          setAnalysisSummary(parsed.summary || "No summary provided by AI.");
-        } catch {
-          setAnalysisSummary(res.result);
+      if (!res.success || !res.result) throw new Error("No analysis was returned. Please try again.");
+      let summary = res.result;
+      try {
+        const parsed: unknown = JSON.parse(res.result);
+        if (parsed && typeof parsed === "object" && "summary" in parsed && typeof parsed.summary === "string") {
+          summary = parsed.summary;
         }
+      } catch {
+        // The analysis endpoint also returns plain Markdown.
       }
+      setAnalysisSummary(summary);
       await load(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -402,46 +398,54 @@ export function DashboardSessionsHome() {
           </div>
         ) : null}
         {reportError ? (
-          <div className="border-b border-outline-variant px-6 py-3 text-xs font-semibold text-red-700">
+          <div role="alert" className="border-b border-outline-variant px-6 py-3 text-sm font-semibold text-red-700">
             {reportError}
           </div>
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="min-w-[760px] w-full border-collapse text-left text-sm">
+          <table className="min-w-[1000px] w-full table-fixed border-collapse text-left text-sm">
+            <colgroup>
+              <col />
+              <col className="w-[110px]" />
+              <col className="w-[125px]" />
+              <col className="w-[150px]" />
+              <col className="w-[110px]" />
+              <col className="w-[280px]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-outline-variant/70 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant whitespace-nowrap">
-                <th className="px-6 py-3.5 whitespace-nowrap min-w-[180px]">
+                <th className="px-4 py-3.5 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setSortMode((v) => (v === "newest" ? "oldest" : "newest"))}>
                     <span className="whitespace-nowrap">Target</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5 whitespace-nowrap min-w-[120px]">
+                <th className="px-4 py-3.5 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none">
                     <span className="whitespace-nowrap">Status</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5 whitespace-nowrap min-w-[140px]">
+                <th className="px-4 py-3.5 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setSortMode((v) => (v === "newest" ? "oldest" : "newest"))}>
                     <span className="whitespace-nowrap">Date started</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5 whitespace-nowrap min-w-[150px]">
+                <th className="px-4 py-3.5 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none">
                     <span className="whitespace-nowrap">Executed By</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5 whitespace-nowrap min-w-[140px]">
+                <th className="px-4 py-3.5 whitespace-nowrap">
                   <div className="flex items-center gap-1.5 cursor-pointer select-none">
                     <span className="whitespace-nowrap">Findings</span>
                     <MaterialSymbol name="unfold_more" className="text-sm text-on-surface-variant/60" />
                   </div>
                 </th>
-                <th className="px-6 py-3.5 whitespace-nowrap text-right min-w-[120px]">Actions</th>
+                <th className="px-4 py-3.5 whitespace-nowrap text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -478,20 +482,20 @@ export function DashboardSessionsHome() {
                   const isHttp = r.targets[0]?.startsWith("http");
                   return (
                     <tr key={r.session_id} className="border-b border-outline-variant/60 hover:bg-primary-container/[0.08] transition-colors">
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                             <MaterialSymbol name={isHttp ? "language" : "computer"} className="text-base" filled />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-on-surface text-sm leading-snug">{r.title}</p>
-                            <p className="text-xs text-on-surface-variant font-mono mt-0.5">
+                            <p className="max-w-xs font-semibold text-on-surface text-sm leading-snug [overflow-wrap:anywhere]">{r.title}</p>
+                            <p title={r.targets[0]} className="max-w-xs truncate text-xs text-on-surface-variant font-mono mt-0.5">
                               {sxId(r.session_id)}{r.targets[0] ? ` · ${r.targets[0]}` : ""}
                             </p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                           r.status === "COMPLETED"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
@@ -509,9 +513,9 @@ export function DashboardSessionsHome() {
                           {STATUS_LABELS[r.status]}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-xs text-on-surface-variant">{formatDate(r.started_at)}</td>
-                      <td className="px-6 py-4 text-xs text-on-surface-variant font-medium whitespace-nowrap">{r.executed_by || "—"}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4 text-xs text-on-surface-variant">{formatDate(r.started_at)}</td>
+                      <td className="px-4 py-4 text-xs text-on-surface-variant font-medium [overflow-wrap:anywhere]">{r.executed_by || "—"}</td>
+                      <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-1.5">
                           {chips.length === 0 ? (
                             <span className="text-on-surface-variant text-xs">—</span>
@@ -527,34 +531,29 @@ export function DashboardSessionsHome() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="inline-flex gap-1 text-on-surface-variant">
-                          <Tooltip content={reportAvailable(r) ? "Description and report" : "Description"} align="right">
+                      <td className="px-4 py-4 text-right">
+                        <div role="group" aria-label={`Actions for ${r.title}`} className="inline-flex items-center gap-1 text-on-surface-variant">
+                          <Tooltip content="Command CTL: overview, targets, findings and activity" align="right">
                             <button
                               type="button"
-                              onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
-                              className="rounded-lg p-1.5 hover:bg-surface-container hover:text-primary transition-colors"
+                              aria-label="Command CTL"
+                              aria-haspopup="dialog"
+                              onClick={() => { setReportError(null); setSelectedId(r.session_id); }}
+                              className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-xs font-semibold text-primary hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary"
                             >
-                              <MaterialSymbol name="description" filled className="text-lg" />
-                            </button>
-                          </Tooltip>
-
-                          <Tooltip content="Scan Target" align="right">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
-                              className="rounded-lg p-1.5 hover:bg-surface-container hover:text-primary transition-colors"
-                            >
-                              <MaterialSymbol name="radar" filled className="text-lg" />
+                              <MaterialSymbol name="space_dashboard" filled className="text-lg" />
+                              Command CTL
                             </button>
                           </Tooltip>
 
                           <Tooltip content={analyzeBusyId === r.session_id ? "Analyzing session…" : "Run AI Analysis"} align="right">
                             <button
                               type="button"
-                              disabled={analyzeBusyId === r.session_id}
+                              aria-label={analyzeBusyId === r.session_id ? "Analyzing session" : "Run AI Analysis"}
+                              aria-haspopup="dialog"
+                              disabled={!!analyzeBusyId}
                               onClick={() => handleAnalyze(r)}
-                              className="rounded-lg p-1.5 hover:bg-surface-container hover:text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                              className="rounded-lg p-2.5 hover:bg-surface-container hover:text-primary transition-colors focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <MaterialSymbol
                                 name={analyzeBusyId === r.session_id ? "progress_activity" : "analytics"}
@@ -567,7 +566,8 @@ export function DashboardSessionsHome() {
                           <Tooltip content="Terminal" align="right">
                             <Link
                               href={`/dashboard/scan?chat_id=${encodeURIComponent(r.session_id)}`}
-                              className="rounded-lg p-1.5 hover:bg-surface-container hover:text-primary transition-colors"
+                              aria-label="Open session terminal"
+                              className="rounded-lg p-2.5 hover:bg-surface-container hover:text-primary transition-colors focus-visible:outline-2 focus-visible:outline-primary"
                             >
                               <MaterialSymbol name="terminal" filled className="text-lg" />
                             </Link>
@@ -577,7 +577,7 @@ export function DashboardSessionsHome() {
                             align="right"
                             content={
                               reportBusy
-                                ? "Generating PDF report…"
+                                ? "Preparing PDF report…"
                                 : reportAttachment
                                   ? "Download PDF report"
                                   : "Generate PDF report"
@@ -585,9 +585,10 @@ export function DashboardSessionsHome() {
                           >
                             <button
                               type="button"
-                              disabled={reportBusy}
+                              aria-label={reportBusy ? "Preparing PDF report" : reportAttachment ? "Download PDF report" : "Generate PDF report"}
+                              disabled={!!reportBusyId}
                               onClick={() => handleReportAction(r)}
-                              className={`rounded-lg p-1.5 hover:bg-surface-container transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                              className={`rounded-lg p-2.5 hover:bg-surface-container transition-colors focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40 ${
                                 reportAttachment
                                   ? "text-emerald-700 hover:text-emerald-800"
                                   : "text-primary hover:text-primary"
@@ -600,14 +601,6 @@ export function DashboardSessionsHome() {
                               />
                             </button>
                           </Tooltip>
-
-                          <button
-                            type="button"
-                            onClick={() => setSelectedId((current) => (current === r.session_id ? null : r.session_id))}
-                            className="rounded-lg p-1.5 hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
-                          >
-                            <MaterialSymbol name="more_vert" className="text-lg" />
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -684,20 +677,25 @@ export function DashboardSessionsHome() {
         </div>
       </div>
 
-      <SessionDetailsModal
-        open={!!selectedId}
+      {selected && <SessionDetailsModal
+        key={selected.session_id}
+        open
         onClose={() => setSelectedId(null)}
         session={selected}
-      />
+        reportBusy={!!reportBusyId}
+        reportAvailable={!!latestReportAttachment(selected)}
+        reportError={reportError}
+        onReport={() => void handleReportAction(selected)}
+      />}
 
-      <SessionAnalysisModal
+      {analysisModalOpen && <SessionAnalysisModal
         open={analysisModalOpen}
         onClose={() => setAnalysisModalOpen(false)}
         loading={!!analyzeBusyId}
         summary={analysisSummary}
         error={analysisError}
         title={analysisTitle}
-      />
+      />}
     </div>
   );
 }
