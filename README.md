@@ -28,6 +28,21 @@ To run the same mocked checks against a deployed frontend, set
 
 ## Run everything with Docker Compose
 
+### Chat tool routing
+
+Routing uses the same organization LLM configuration as the main chat. Explicit
+`run`/`use` requests bind catalog tool names (including ZAP and Burp Suite aliases)
+before model shortlisting. If a requested tool is unavailable or disabled, the
+request stops rather than substituting another scanner. Missing schemas and
+routing failures are reported explicitly; they do not become tool-less scan claims.
+
+The agent validates native function names and arguments against the offered
+schemas before approval. Tool-call imitations are never executed. A named scan
+request with a target gets one bounded repair attempt if the model fails to
+produce a valid call, then an explicit error. Approval and execution permissions
+are unchanged. Tool descriptions are shown in both single and batch approvals:
+`burpsuite` is the built-in HTTP/browser **alternative**, not PortSwigger Burp Suite.
+
 ### Scoped access
 
 User management assigns multiple **role bindings**, not a flat user/admin flag.

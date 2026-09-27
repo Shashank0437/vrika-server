@@ -56,6 +56,29 @@ function recentChats(page: Page) {
     .locator("xpath=following-sibling::div[1]");
 }
 
+for (const mode of ["single", "batch"]) {
+  test(`${mode} tool approval discloses the Burp alternative before execution`, async ({ page }) => {
+    await mockChat(page, () => ({ status: 200, json: chats }));
+    const description = "Burp Suite alternative using built-in HTTP/browser analysis; NOT the PortSwigger Burp Suite scanner";
+    const tool = {
+      tool_name: "burpsuite", description, arguments: { target: "https://example.test" },
+      endpoint: "/api/tools/burpsuite-alternative",
+    };
+    await page.route("**/sessions/chat-1/messages", (route) => route.fulfill({
+      json: [{
+        id: "pending-message", role: "assistant", content: "_tool_call_pending:burpsuite_",
+        created_at: "2026-09-26T10:00:00Z",
+        ...(mode === "single"
+          ? { tool_call: { ...tool, state: "pending" } }
+          : { tool_calls: [{ ...tool, slot_index: 0, human_decision: null }], batch_execution_state: "awaiting_quorum" }),
+      }],
+    }));
+    await page.goto("/dashboard/scan?chat_id=chat-1");
+    await expect(page.getByText(description, { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
+  });
+}
+
 test("New scan preserves the mounted chat list after clearing the new-chat URL", async ({
   page,
 }) => {

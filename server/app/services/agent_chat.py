@@ -648,6 +648,52 @@ _EXPLICIT_RUN_TOOL_RE = re.compile(
     r"\b(use|run)\s+(nmap|nikto|nuclei|httpx|subfinder|amass|ffuf|gobuster|sqlmap)\b",
     re.IGNORECASE,
 )
+_NAMED_TOOL_COMMAND_RE = re.compile(
+    r"\b(?:run|execute|launch|start|use|invoke|scan\s+(?:with|using))\s+"
+    r"(?:(?:the|both)\s+)?",
+    re.IGNORECASE,
+)
+
+
+def requested_catalog_tools(message: str, catalog: list[dict[str, Any]]) -> list[str]:
+    """Bind command operands, not tool names mentioned in targets or explanations."""
+    if _looks_like_tool_pick_question(message) or re.match(
+        r"^\s*(?:how|what|why|explain|tell me)\b", message, re.IGNORECASE
+    ):
+        return []
+    aliases = {}
+    for item in catalog:
+        name = str(item.get("name") or "").strip()
+        if name:
+            aliases[name.lower()] = name
+            aliases[name.lower().replace("-", "_")] = name
+    for alias, name in {"zap": "zaproxy", "owasp zap": "zaproxy", "burp": "burpsuite", "burp suite": "burpsuite"}.items():
+        if name in aliases:
+            aliases[alias] = name
+    if not aliases:
+        return []
+    names = re.compile(
+        r"(?:" + "|".join(re.escape(n) for n in sorted(aliases, key=len, reverse=True)) + r")(?![\w./-])",
+        re.IGNORECASE,
+    )
+    text = message.replace("`", "")
+    selected = []
+    for command in _NAMED_TOOL_COMMAND_RE.finditer(text):
+        if re.search(r"\b(?:not|never|don't|dont)\s*$", text[:command.start()], re.IGNORECASE):
+            continue
+        rest = text[command.end():]
+        while match := names.match(rest):
+            name = aliases[match.group().lower()]
+            if name not in selected:
+                selected.append(name)
+            rest = rest[match.end():]
+            separator = re.match(r"\s*(?:,\s*(?:and\s+)?|and\s+|then\s+|\+\s*)", rest, re.IGNORECASE)
+            if not separator:
+                break
+            rest = rest[separator.end():]
+    return selected
+
+
 _SKIPPED_TOOL_RE = re.compile(
     r"\[Skipped \*\*([^*]+)\*\* — operator rejected\]", re.IGNORECASE
 )
@@ -2310,8 +2356,18 @@ async def plan_router_turn(
             continue
         seen_in.add(n)
         explicit.append(n)
-        if len(explicit) >= max_pick:
-            break
+    if len(explicit) > max_pick:
+        return RouterTurnResult("operational", None, None, {"routing_error": f"Request at most {max_pick} tools per turn. No tools were selected."})
+
+    if not explicit and _NAMED_TOOL_COMMAND_RE.search(user_message):
+        try:
+            _, catalog = await fetch_agent_health_and_catalog(settings)
+        except AgentUnreachableError as exc:
+            logger.warning("Named-tool catalog unavailable: %s", exc.message)
+            return RouterTurnResult("operational", None, None, {"routing_error": "Cannot verify tool availability. No tools were selected."})
+        explicit = requested_catalog_tools(user_message, catalog.get("tools") or [])
+        if len(explicit) > max_pick:
+            return RouterTurnResult("operational", None, None, {"routing_error": f"Request at most {max_pick} tools per turn. No tools were selected."})
 
     if not explicit and _looks_like_tool_pick_question(user_message):
         meta_pick: dict[str, Any] = {"intent_override": "tool_pick_question"}
@@ -2333,6 +2389,7 @@ async def plan_router_turn(
                 "tools": router_catalog_pick,
                 "max_tool_names": settings.agent_router_max_tools,
             }
+            route_intent_pick_payload["llm_config"] = await resolve_llm_config_for_org(db, settings, organization_id)
             if session_id:
                 route_intent_pick_payload["session_id"] = str(session_id)
             if turn_id:
@@ -2387,7 +2444,7 @@ async def plan_router_turn(
             "operational",
             None,
             None,
-            {"success": False, "error": "Agent catalog unreachable"},
+            {"success": False, "routing_error": "Agent catalog unreachable. No tools were selected."},
         )
     by_name, router_catalog = ctx
     meta.update(await _fetch_keyword_category_hint(settings, user_message))
@@ -2401,14 +2458,18 @@ async def plan_router_turn(
             if n in by_name and n not in seen_o:
                 seen_o.add(n)
                 ordered.append(n)
-        if not ordered:
+        unavailable = [n for n in explicit if n not in by_name]
+        if unavailable:
+            logger.warning("Requested chat tools unavailable or disallowed: %s", unavailable)
             return RouterTurnResult(
                 "operational",
                 None,
                 None,
-                {**meta, "explicit_tools_unresolved": True},
+                {**meta, "routing_error": f"Requested tools are unavailable or disabled for this organization: {', '.join(unavailable)}. No substitute was selected."},
             )
         tools_objs = [by_name[n] for n in ordered]
+        if len(tools_objs) == 1:
+            meta["router_category"] = tools_objs[0].get("category")
         return await _bridge_fetch_tool_schemas(
             settings,
             tools_objs,
@@ -2425,6 +2486,7 @@ async def plan_router_turn(
             "tools": router_catalog,
             "max_tool_names": settings.agent_router_max_tools,
         }
+        route_intent_payload["llm_config"] = await resolve_llm_config_for_org(db, settings, organization_id)
         if session_id:
             route_intent_payload["session_id"] = str(session_id)
         if turn_id:
@@ -2530,6 +2592,8 @@ async def maybe_upgrade_router_result_for_llm(
     turn_id: str | None = None,
 ) -> RouterTurnResult:
     """Re-route or attach fallback schemas when the first router pass would stream the LLM without tool schemas."""
+    if (rt.meta or {}).get("routing_error") or (rt.meta or {}).get("explicit_tool_names"):
+        return rt
     if _looks_like_tool_pick_question(user_message):
         return rt
     explicit = bool(explicit_tool_names)
@@ -2620,6 +2684,7 @@ async def stream_cipherstrike_turn(
     batch_only_tool_names: frozenset[str] | None = None,
     batch_exclude_tool_names: frozenset[str] | None = None,
     turn_id: str | None = None,
+    require_tool_call: bool = False,
 ) -> AsyncIterator[str]:
     """
     Forward SSE from NyxStrike cipherstrike bridge and persist assistant message on completion.
@@ -2649,6 +2714,8 @@ async def stream_cipherstrike_turn(
         body["turn_id"] = turn_id
     if tool_schemas:
         body["schemas"] = tool_schemas
+    if require_tool_call:
+        body["require_tool_call"] = True
 
     try:
         llm_cfg = await resolve_llm_config_for_org(db, settings, organization_id)
@@ -2656,6 +2723,9 @@ async def stream_cipherstrike_turn(
             body["llm_config"] = llm_cfg
     except Exception as exc:
         logger.warning("stream_cipherstrike_turn: failed to resolve org LLM config: %s", exc)
+        yield "data: [ERROR] Cannot load the organization's model configuration. No tools were started.\n\n"
+        yield "data: [DONE]\n\n"
+        return
 
     buffer = ""
     tool_pending_persisted = False

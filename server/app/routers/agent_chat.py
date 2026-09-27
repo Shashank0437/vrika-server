@@ -1265,7 +1265,7 @@ async def post_message_stream(
                 )
             except Exception:
                 logger.exception("plan_router_turn")
-                rt = RouterTurnResult("operational", None, None, {})
+                rt = RouterTurnResult("operational", None, None, {"routing_error": "Tool routing failed. No tools were selected. Please retry."})
 
             rt = await maybe_upgrade_router_result_for_llm(
                 settings,
@@ -1278,6 +1278,22 @@ async def post_message_stream(
                 session_id=sid,
                 turn_id=turn_id,
             )
+
+            routing_error = (rt.meta or {}).get("routing_error")
+            if routing_error or (rt.intent == "operational" and not rt.schemas):
+                error_text = str(routing_error or "No valid tools are available for this request. No scan was started.")
+                logger.warning("Agent chat routing stopped: %s", error_text)
+                await insert_message(
+                    db,
+                    organization_id=user["organization_id"],
+                    user_id=user["_id"],
+                    session_id=sid,
+                    role="assistant",
+                    content=f"[Error] {error_text}",
+                )
+                yield f"data: [ERROR] {error_text}\n\n"
+                yield "data: [DONE]\n\n"
+                return
 
             if specialist_session_blocks_tools(sess_fresh or {}, user_msg):
                 rt = RouterTurnResult(
@@ -1335,6 +1351,10 @@ async def post_message_stream(
                 batch_only_tool_names=batch_only,
                 batch_exclude_tool_names=batch_exclude,
                 turn_id=turn_id,
+                require_tool_call=bool(
+                    (rt.meta or {}).get("explicit_tool_names")
+                    and (current_target or recent_target_from_rows(rows, current_user_message=user_msg))
+                ),
             ):
                 yield chunk
         except AgentUnreachableError as e:

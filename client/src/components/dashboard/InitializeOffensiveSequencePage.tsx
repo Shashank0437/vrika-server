@@ -2787,6 +2787,9 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                               )
                                             ) : null}
                                           </div>
+                                          {slot.description ? (
+                                            <p className="text-[11px] text-on-surface-variant">{slot.description}</p>
+                                          ) : null}
                                           {preview ? (
                                             <p
                                               className="truncate font-mono text-[10px] text-on-surface-variant/90"
@@ -2906,6 +2909,9 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
                                 <p className="mt-1 font-mono text-[11px] text-on-surface-variant">
                                   {String(m.tool_call.tool_name ?? "")}
                                 </p>
+                                {m.tool_call.description ? (
+                                  <p className="mt-1 text-[12px] text-on-surface-variant">{m.tool_call.description}</p>
+                                ) : null}
                                 {awaitingApproval ? (
                                   <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-surface-container-lowest p-2 text-[11px] text-on-surface">
                                     {JSON.stringify(m.tool_call.arguments ?? {}, null, 2)}
