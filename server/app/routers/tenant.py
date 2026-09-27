@@ -2,6 +2,7 @@ import logging
 import secrets
 from datetime import UTC, datetime
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -10,7 +11,7 @@ from app.constants import ORG_INVITE_REDIS_PREFIX
 from app.db import get_database
 from app.dependencies.tenant import require_tenant_admin
 from app.redis_client import get_redis
-from app.schemas.tenant import CreateInvitationIn, TenantMemberOut
+from app.schemas.tenant import CreateInvitationIn, TenantMemberOut, UpdateMemberRoleIn
 from app.schemas.tenant_tools import OrgToolPolicyOut, PatchToolEnabledIn
 from app.services.agent_client import (
     AgentUnreachableError,
@@ -92,6 +93,65 @@ async def list_tenant_members(
             ),
         )
     return out
+
+
+@router.patch("/members/{member_id}/role", response_model=TenantMemberOut)
+@router.put("/members/{member_id}/role", response_model=TenantMemberOut)
+async def update_member_role(
+    member_id: str,
+    body: UpdateMemberRoleIn,
+    user: dict = Depends(require_tenant_admin),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> TenantMemberOut:
+    org_id = user["organization_id"]
+    try:
+        member_oid = ObjectId(member_id)
+    except Exception:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Invalid member ID format.",
+        )
+
+    target_user = await db.users.find_one({"_id": member_oid, "organization_id": org_id})
+    if not target_user:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail="Member not found in your organization.",
+        )
+
+    # Prevent demoting the only administrator in the organization
+    if body.role == "tenant_member" and "tenant_admin" in (target_user.get("roles") or []):
+        admin_count = await db.users.count_documents({
+            "organization_id": org_id,
+            "roles": "tenant_admin",
+        })
+        if admin_count <= 1:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the only administrator in the organization. Appoint another administrator first.",
+            )
+
+    new_roles = [body.role]
+    now = datetime.now(UTC)
+    await db.users.update_one(
+        {"_id": member_oid},
+        {"$set": {"roles": new_roles, "updated_at": now}},
+    )
+
+    updated = await db.users.find_one({"_id": member_oid})
+    logger.info(
+        "Updated member role: user_id=%s new_role=%s updated_by=%s org_id=%s",
+        member_id,
+        body.role,
+        str(user["_id"]),
+        str(org_id),
+    )
+    return TenantMemberOut(
+        id=str(updated["_id"]),
+        email=updated["email"],
+        username=updated.get("username") or "",
+        roles=list(updated.get("roles") or []),
+    )
 
 
 @router.post("/invitations", status_code=status.HTTP_201_CREATED)

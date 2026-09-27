@@ -16,6 +16,10 @@ class CreateInvitationIn(BaseModel):
     role: Literal["tenant_member", "tenant_admin"]
 
 
+class UpdateMemberRoleIn(BaseModel):
+    role: Literal["tenant_member", "tenant_admin"]
+
+
 class InvitationPreviewOut(BaseModel):
     organization_name: str
     inviter_display: str

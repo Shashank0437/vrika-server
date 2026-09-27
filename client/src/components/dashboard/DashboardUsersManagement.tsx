@@ -37,6 +37,13 @@ export function DashboardUsersManagement() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [roleModalTarget, setRoleModalTarget] = useState<{
+    member: MemberRow;
+    newRole: "tenant_member" | "tenant_admin";
+  } | null>(null);
+  const [roleSubmitting, setRoleSubmitting] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
+
   const isAdmin = !!(user?.roles?.includes("tenant_admin"));
 
   const loadMembers = useCallback(async () => {
@@ -49,6 +56,28 @@ export function DashboardUsersManagement() {
       setFetchError(e instanceof ApiError ? e.message : "Could not load members");
     }
   }, [user, isAdmin]);
+
+  const onConfirmRoleChange = async () => {
+    if (!roleModalTarget) return;
+    setRoleSubmitting(true);
+    setRoleError(null);
+    try {
+      await api<MemberRow>(`/tenant/members/${roleModalTarget.member.id}/role`, {
+        method: "PATCH",
+        json: { role: roleModalTarget.newRole },
+      });
+      const newRoleLabel = roleModalTarget.newRole === "tenant_admin" ? "ADMIN" : "USER";
+      setSuccessMsg(
+        `Role updated: ${roleModalTarget.member.username || roleModalTarget.member.email} is now a ${newRoleLabel}.`
+      );
+      setRoleModalTarget(null);
+      void loadMembers();
+    } catch (err) {
+      setRoleError(err instanceof ApiError ? err.message : "Failed to update role");
+    } finally {
+      setRoleSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && user && !isAdmin) {
@@ -130,23 +159,71 @@ export function DashboardUsersManagement() {
               <th className="px-5 py-3.5">Username</th>
               <th className="px-5 py-3.5">Email</th>
               <th className="px-5 py-3.5">Role</th>
+              <th className="px-5 py-3.5 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
-              const b = badgeForRoles(row.roles);
-              return (
-                <tr key={row.id} className="border-b border-outline-variant/80 hover:bg-primary-container/[0.12]">
-                  <td className="px-5 py-4 font-semibold text-on-surface">{row.username || "—"}</td>
-                  <td className="px-5 py-4 text-on-surface-variant">{row.email}</td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-bold ${badgeCls(b)}`}>
-                      {b}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-5 py-8 text-center text-sm text-on-surface-variant">
+                  No members found in this workspace.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => {
+                const b = badgeForRoles(row.roles);
+                const isSelf = row.id === user.id || row.email.toLowerCase() === user.email.toLowerCase();
+                return (
+                  <tr key={row.id} className="border-b border-outline-variant/80 hover:bg-primary-container/[0.12]">
+                    <td className="px-5 py-4 font-semibold text-on-surface">
+                      <div className="flex items-center gap-2">
+                        <span>{row.username || "—"}</span>
+                        {isSelf && (
+                          <span className="rounded bg-primary-container px-2 py-0.5 text-[10px] font-bold text-on-primary-container">
+                            You
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-on-surface-variant">{row.email}</td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-bold ${badgeCls(b)}`}>
+                        {b}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      {isSelf ? (
+                        <span className="text-xs text-on-surface-variant/40">—</span>
+                      ) : b === "ADMIN" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRoleError(null);
+                            setRoleModalTarget({ member: row, newRole: "tenant_member" });
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant/80 bg-surface px-3 py-1.5 text-xs font-semibold text-on-surface hover:bg-surface-container-high transition-colors shadow-2xs"
+                        >
+                          <MaterialSymbol name="person" className="text-sm text-on-surface-variant" />
+                          Make User
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRoleError(null);
+                            setRoleModalTarget({ member: row, newRole: "tenant_admin" });
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors shadow-2xs"
+                        >
+                          <MaterialSymbol name="shield_person" className="text-sm" />
+                          Make Admin
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
@@ -236,6 +313,86 @@ export function DashboardUsersManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {roleModalTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-labelledby="role-modal-title"
+            className="w-full max-w-md rounded-2xl border border-outline-variant bg-surface p-6 shadow-xl"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`flex size-11 items-center justify-center rounded-2xl ${
+                    roleModalTarget.newRole === "tenant_member"
+                      ? "bg-amber-500/10 text-amber-700"
+                      : "bg-primary/10 text-primary"
+                  }`}
+                >
+                  <MaterialSymbol
+                    name={roleModalTarget.newRole === "tenant_member" ? "person" : "shield_person"}
+                    className="text-2xl"
+                  />
+                </div>
+                <div>
+                  <h2 id="role-modal-title" className="text-base font-bold text-on-surface">
+                    {roleModalTarget.newRole === "tenant_member" ? "Change role to User" : "Promote to Admin"}
+                  </h2>
+                  <p className="text-xs text-on-surface-variant font-medium">{roleModalTarget.member.email}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                className="rounded-lg p-1 text-on-surface-variant hover:bg-surface-container-high"
+                onClick={() => setRoleModalTarget(null)}
+              >
+                <MaterialSymbol name="close" />
+              </button>
+            </div>
+
+            <p className="mt-4 text-sm text-on-surface-variant leading-relaxed">
+              {roleModalTarget.newRole === "tenant_member"
+                ? `Are you sure you want to demote ${roleModalTarget.member.username || roleModalTarget.member.email} to a standard USER? They will lose all administrative privileges in this organization.`
+                : `Are you sure you want to promote ${roleModalTarget.member.username || roleModalTarget.member.email} to an ADMIN? They will have full administrative privileges including managing members and workspace settings.`}
+            </p>
+
+            {roleError ? (
+              <div className="mt-4 rounded-xl border border-error/30 bg-red-50 px-3 py-2.5 text-xs text-red-900 font-medium">
+                {roleError}
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setRoleModalTarget(null)}
+                disabled={roleSubmitting}
+                className="h-10 rounded-xl px-4 text-xs font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmRoleChange}
+                disabled={roleSubmitting}
+                className={`h-10 inline-flex items-center gap-2 rounded-xl px-5 text-xs font-semibold text-on-primary transition-colors disabled:opacity-50 ${
+                  roleModalTarget.newRole === "tenant_member"
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : "bg-primary hover:bg-primary-dim"
+                }`}
+              >
+                {roleSubmitting
+                  ? "Updating…"
+                  : roleModalTarget.newRole === "tenant_member"
+                    ? "Make User"
+                    : "Make Admin"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
