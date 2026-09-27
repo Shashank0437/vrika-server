@@ -161,7 +161,53 @@ test("background placeholder is visible before authentication and without the im
     .locator("..")
     .evaluate((el) => getComputedStyle(el).backgroundImage);
   expect(fallback).toContain("gradient");
+  expect(await background.boundingBox()).toEqual({
+    x: 0,
+    y: 0,
+    ...page.viewportSize(),
+  });
 });
+
+for (const viewport of [
+  { width: 1440, height: 1000 },
+  { width: 768, height: 1024 },
+]) {
+  test(`loading background fills ${viewport.width}px viewport until the sidebar appears`, async ({
+    page,
+  }) => {
+    await mockWorkspace(page);
+    await page.setViewportSize(viewport);
+    let releaseAuth!: () => void;
+    const authReady = new Promise<void>((resolve) => {
+      releaseAuth = resolve;
+    });
+    await page.route("**/auth/me", async (route) => {
+      await authReady;
+      await route.fallback();
+    });
+    try {
+      await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+      const background = page.locator('img[src*="dashboard-background"]');
+      await expect(page.getByRole("navigation", { name: "Main", exact: true })).toHaveCount(0);
+      await expect(page.getByText("Loading…", { exact: true })).toBeVisible();
+      await expect(background).toHaveCount(1);
+      expect(await background.boundingBox()).toEqual({ x: 0, y: 0, ...viewport });
+      await expect.poll(() =>
+        background.evaluate((img) => (img as HTMLImageElement).naturalWidth),
+      ).toBeGreaterThan(0);
+      await page.screenshot({ path: test.info().outputPath("loading-background.png") });
+
+      releaseAuth();
+      await expect(page.getByRole("navigation", { name: "Main", exact: true })).toBeVisible();
+      await expect(background).toHaveCount(1);
+      expect(await background.boundingBox()).toEqual({
+        x: 256, y: 0, width: viewport.width - 256, height: viewport.height,
+      });
+    } finally {
+      releaseAuth();
+    }
+  });
+}
 
 test("each session has exactly four distinct actions and a working terminal link", async ({
   page,

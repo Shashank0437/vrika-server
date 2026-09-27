@@ -7,6 +7,8 @@ Monorepo with a **Next.js** client (`client/`) and **FastAPI** API (`server/`), 
 The shared dashboard background uses a precompressed WebP, preloaded with a small
 inline blur placeholder and an immediate CSS gradient. It covers the viewport
 beside the sidebar even on tall pages and remains in place while scrolling.
+While the session or dashboard shell is loading, it fills the entire viewport;
+the sidebar offset is applied only when the sidebar is rendered.
 The static import gives it a content-hashed URL for caching; the original
 `client/public/bg.png` is the design source, not the runtime download.
 

@@ -81,6 +81,26 @@ function navActive(pathname: string, item: NavMain): boolean {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
+function DashboardBackground({ hasSidebar = false }: { hasSidebar?: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none fixed inset-y-0 right-0 -z-10 bg-gradient-to-br from-[#f3efff] via-background to-[#eee8ff] ${hasSidebar ? "left-64" : "left-0"}`}
+    >
+      <Image
+        src={dashboardBackground}
+        alt=""
+        fill
+        priority
+        unoptimized
+        placeholder="blur"
+        sizes={hasSidebar ? "calc(100vw - 256px)" : "100vw"}
+        className="object-cover object-top"
+      />
+    </div>
+  );
+}
+
 function DashboardShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -107,6 +127,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
         className="flex min-h-dvh flex-col items-center justify-center gap-3 text-on-surface-variant"
         aria-busy="true"
       >
+        <DashboardBackground />
         <LoaderSvg className="size-12" label="Loading workspace session" />
         <p className="text-sm font-medium">Loading…</p>
       </div>
@@ -122,6 +143,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh items-start font-sans text-on-surface">
+      <DashboardBackground hasSidebar />
       <aside className="sticky top-0 flex h-[100dvh] max-h-[100dvh] w-64 min-w-64 max-w-64 shrink-0 flex-col overflow-hidden border-r border-outline-variant bg-surface-container-low">
         <div className="shrink-0 px-6 pb-4 pt-6">
           <Link
@@ -280,24 +302,10 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <div className="relative isolate min-h-dvh">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-y-0 left-64 right-0 -z-10 bg-gradient-to-br from-[#f3efff] via-background to-[#eee8ff]"
-      >
-        <Image
-          src={dashboardBackground}
-          alt=""
-          fill
-          priority
-          unoptimized
-          placeholder="blur"
-          sizes="calc(100vw - 256px)"
-          className="object-cover object-top"
-        />
-      </div>
       <Suspense
         fallback={
           <div className="flex min-h-dvh items-center justify-center text-sm text-on-surface-variant">
+            <DashboardBackground />
             Loading…
           </div>
         }
