@@ -175,7 +175,7 @@ test("project selection filters history metrics and recent chats, persists acros
   page,
 }) => {
   const state = await workspace(page);
-  await page.goto("/dashboard");
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("Alpha scan", { exact: true })).toBeVisible();
   await choose(page, "Web project", "Alpha project");
   await expect(page.getByText("Beta scan", { exact: true })).toHaveCount(0);
@@ -216,7 +216,7 @@ test("project selection filters history metrics and recent chats, persists acros
     page.getByRole("combobox", { name: "Web project" }),
   ).toContainText("Beta project");
   await expect(page.getByText("Alpha scan", { exact: true })).toHaveCount(0);
-  await page.goto("/dashboard");
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   await expect(
     page.getByRole("combobox", { name: "Web project" }),
   ).toContainText("Beta project");
@@ -227,7 +227,7 @@ test("All projects and Unassigned retain legacy scans without treating filter va
   page,
 }) => {
   const state = await workspace(page);
-  await page.goto("/dashboard");
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   await choose(page, "Web project", "Unassigned");
   await expect(page.getByText("Legacy scan", { exact: true })).toBeVisible();
   await expect(
@@ -244,7 +244,9 @@ test("All projects and Unassigned retain legacy scans without treating filter va
   await choose(page, "Web project", "All projects");
   await expect(page.getByText("Alpha scan", { exact: true })).toBeVisible();
   await expect(page.getByText("Beta scan", { exact: true })).toBeVisible();
-  await page.goto("/dashboard/scan?new=1&project=unassigned");
+  await page.goto("/dashboard/scan?new=1&project=unassigned", {
+    waitUntil: "domcontentloaded",
+  });
   await page.locator("textarea").fill("Review legacy target");
   await page.locator("textarea").press("Enter");
   await expect.poll(() => state.created.length).toBe(1);
@@ -255,7 +257,9 @@ test("slow and failed history responses never replace a different project's data
   page,
 }) => {
   const state = await workspace(page);
-  await page.goto("/dashboard?project=project-b");
+  await page.goto("/dashboard?project=project-b", {
+    waitUntil: "domcontentloaded",
+  });
   await expect(page.getByText("Beta scan", { exact: true })).toBeVisible();
   state.delays["project-a"] = 1200;
   await choose(page, "Web project", "Alpha project");
@@ -276,7 +280,9 @@ test("a direct chat link outside the recent-list limit opens in its real project
   page,
 }) => {
   await workspace(page);
-  await page.goto("/dashboard/scan?project=project-b&chat_id=old-alpha");
+  await page.goto("/dashboard/scan?project=project-b&chat_id=old-alpha", {
+    waitUntil: "domcontentloaded",
+  });
   await expect(
     page.getByRole("combobox", { name: "Scan project" }),
   ).toContainText("Alpha project");
@@ -293,7 +299,7 @@ test("Projects opens its filtered history and revoked access clears cached resul
   page,
 }) => {
   const state = await workspace(page);
-  await page.goto("/dashboard/projects");
+  await page.goto("/dashboard/projects", { waitUntil: "domcontentloaded" });
   await page.getByRole("link", { name: "Alpha project", exact: true }).click();
   await expect(
     page.getByRole("combobox", { name: "Web project" }),
@@ -314,12 +320,16 @@ test("Cloud project selection survives navigation and remains usable after embed
   page,
 }) => {
   const state = await workspace(page);
-  await page.goto("/dashboard/cloud-security");
+  await page.goto("/dashboard/cloud-security", {
+    waitUntil: "domcontentloaded",
+  });
   await choose(page, "Cloud project", "Alpha project");
   await expect.poll(() => state.embedScopes.at(-1)).toBe("project-a");
-  await page.goto("/dashboard");
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   const count = state.embedScopes.length;
-  await page.goto("/dashboard/cloud-security");
+  await page.goto("/dashboard/cloud-security", {
+    waitUntil: "domcontentloaded",
+  });
   await expect(
     page.getByRole("combobox", { name: "Cloud project" }),
   ).toContainText("Alpha project");
