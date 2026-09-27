@@ -39,6 +39,16 @@ def workspace(monkeypatch):
         "roster_cloud": user("roster-cloud", [binding("analyst", "module", "cloud_security")]),
         "roster_admin": user("roster-admin", [{"role": "admin", "scope_type": "global", "scope_id": None}]),
         "owner": user("owner", [{"role": "admin", "scope_type": "global", "scope_id": None}]),
+        "legacy_admin": user("legacy-admin", [], roles=["tenant_admin"]),
+        "demoted_admin": user("demoted-admin", [], roles=["tenant_admin"]),
+        "pending_admin": user(
+            "pending-admin", [{"role": "admin", "scope_type": "global", "scope_id": None}],
+            pending_access_change={"bindings": []},
+        ),
+        "foreign_admin": user(
+            "foreign-admin", [{"role": "admin", "scope_type": "global", "scope_id": None}],
+            organization_id=foreign_org,
+        ),
         "module": user("module", [binding("viewer", "module", "cloud_security")]),
         "other": user("other", [binding("viewer", scope_id=str(other_project))]),
         "web": user("web", [binding("analyst", "module", "web_security")]),
@@ -47,6 +57,7 @@ def workspace(monkeypatch):
         "foreign": user("foreign", [binding("lead")], organization_id=foreign_org),
         "duplicate": user("duplicate", [binding("viewer")]),
     })
+    users["legacy_admin"].pop("role_bindings")
     users["duplicate"]["email"] = " VIEWER@example.test "
     roster = [str(users[key]["_id"]) for key in ("roster_cloud", "roster_admin", "web", "no_access")]
 
@@ -76,7 +87,8 @@ def workspace(monkeypatch):
     )
     settings = SimpleNamespace(frontend_url="https://example.test")
     allowed = {
-        users[key]["email"] for key in ("viewer", "analyst", "lead", "roster_cloud", "roster_admin")
+        users[key]["email"]
+        for key in ("viewer", "analyst", "lead", "roster_cloud", "roster_admin", "owner", "legacy_admin")
     }
     return SimpleNamespace(
         db=db, org=org, project=project, provider=provider, other_provider=other_provider,
@@ -89,9 +101,9 @@ def recipients(call):
     return {call.kwargs["to"], *(call.kwargs.get("cc") or [])}
 
 
-@pytest.mark.parametrize("scanner", ["owner", "viewer"])
+@pytest.mark.parametrize("scanner", ["owner", "viewer", "module"])
 @pytest.mark.parametrize("kind", ["report", "attack"])
-def test_only_authorized_project_members_receive_mail(workspace, scanner, kind):
+def test_only_authorized_project_members_and_org_admins_receive_mail(workspace, scanner, kind):
     w = workspace
     send = (mail.send_cloud_scan_completed_notification if kind == "report"
             else mail.send_attack_paths_completed_notification)
@@ -108,12 +120,46 @@ def test_only_authorized_project_members_receive_mail(workspace, scanner, kind):
     assert "Project: SECOPS" in w.send.call_args.kwargs["body"]
 
 
-def test_different_project_does_not_use_account_name_or_owner(workspace):
+def test_different_project_receives_its_members_plus_org_admins(workspace):
     w = workspace
     _, to, cc = asyncio.run(mail.resolve_project_recipients(
         w.db, w.org, w.other_provider, w.users["owner"]["email"]
     ))
-    assert {to, *cc} == {"other@example.test"}
+    assert {to, *cc} == {
+        "other@example.test", "owner@example.test", "roster-admin@example.test",
+        "legacy-admin@example.test",
+    }
+
+
+def test_admin_receives_when_project_has_no_other_eligible_members(workspace):
+    w = workspace
+    asyncio.run(w.db.users.delete_many({"_id": {"$ne": w.users["owner"]["_id"]}}))
+    _, to, cc = asyncio.run(mail.resolve_project_recipients(w.db, w.org, w.provider))
+    assert to == "owner@example.test"
+    assert cc == []
+
+
+def test_retry_excludes_newly_demoted_admin(workspace):
+    w = workspace
+
+    async def first_send(*args, **kwargs):
+        if w.send.await_count == 1:
+            await w.db.users.update_one(
+                {"_id": w.users["owner"]["_id"]},
+                {"$set": {"role_bindings": [], "roles": ["tenant_admin"]}},
+            )
+            raise RuntimeError("SMTP attachment failure")
+        return {"status": "sent"}
+
+    w.send.side_effect = first_send
+    asyncio.run(mail.send_cloud_scan_completed_notification(
+        w.db, w.settings, org_id=w.org, provider_id=w.provider,
+        scanner_email="owner@example.test", provider="azure",
+        account_id="same-account", scan_id=str(uuid4()),
+    ))
+    assert w.send.await_count == 2
+    assert recipients(w.send.call_args_list[0]) == w.allowed
+    assert recipients(w.send.call_args_list[1]) == w.allowed - {"owner@example.test"}
 
 
 @pytest.mark.parametrize("case", ["unassigned", "foreign", "ambiguous", "empty"])

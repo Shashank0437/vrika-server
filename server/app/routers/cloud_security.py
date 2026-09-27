@@ -48,7 +48,7 @@ async def notify_scan_completed(
     db: AsyncIOMotorDatabase = Depends(get_database),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
-    """Send a Cloud report only to authorized members of its provider's project."""
+    """Send a Cloud report to authorized project members and organization admins."""
     try:
         project = await resolve_notification_project(
             db, user["organization_id"], str(payload.provider_id)

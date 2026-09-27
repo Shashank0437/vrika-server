@@ -2,7 +2,7 @@
 server/app/services/cloud_scan_notifications.py
 
 Renders and sends Cloud Security scan completion and Attack Graph notifications
-via the organization's dynamic SMTP server, restricted to the provider's project members.
+via the organization's dynamic SMTP server, to project members and organization admins.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ _jinja_env = Environment(loader=FileSystemLoader(str(_TEMPLATE_DIR)), autoescape
 
 
 class NotificationRoutingError(RuntimeError):
-    """A notification cannot be safely routed to one project's members."""
+    """A notification cannot be safely routed to project members and org admins."""
 
 
 async def resolve_notification_project(db, org_id: ObjectId, provider_id: str) -> dict:
@@ -57,6 +57,10 @@ async def resolve_project_recipients(
             {"role_bindings": {"$elemMatch": {
                 "scope_type": "project", "scope_id": project_id,
             }}},
+            {"role_bindings": {"$elemMatch": {
+                "role": "admin", "scope_type": "global",
+            }}},
+            {"role_bindings": {"$exists": False}, "roles": "tenant_admin"},
         ],
     })
     recipients: set[str] = set()
@@ -84,7 +88,7 @@ async def resolve_project_recipients(
             org_id, project_id,
         )
         raise NotificationRoutingError(
-            "Cloud email requires at least one project member with Cloud Security read access"
+            "Cloud email requires an organization admin or a project member with Cloud Security read access"
         )
     preferred = scanner_email.strip().lower()
     to = preferred if preferred in recipients else min(recipients)
@@ -190,7 +194,7 @@ async def send_cloud_scan_completed_notification(
     pdf_report_filename: Optional[str] = None,
     pdf_attachments: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """Dispatch reports only to authorized members of the provider's project."""
+    """Dispatch reports to authorized project members and organization admins."""
     project = await resolve_notification_project(db, org_id, provider_id)
     org = await db[ORGANIZATIONS_COLLECTION].find_one({"_id": org_id})
     org_name = org.get("name") if org else "Your Organization"
@@ -316,7 +320,7 @@ async def send_attack_paths_completed_notification(
     blast_radius_count: Optional[str] = None,
     top_attack_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Dispatch a high-priority alert only to authorized project members."""
+    """Dispatch a high-priority alert to authorized project members and org admins."""
     project, to, cc = await resolve_project_recipients(
         db, org_id, provider_id, scanner_email
     )
