@@ -246,7 +246,8 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex items-center justify-end border-b border-outline-variant bg-background/90 px-6 py-3 backdrop-blur-sm">
+        <header className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-outline-variant bg-background/90 px-4 py-3 backdrop-blur-sm sm:px-6">
+          <div id="dashboard-header-actions" className="min-w-0 flex-1" />
           <div className="flex items-center gap-3">
             {user.organization_name && (
               <>
@@ -254,7 +255,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
                   <span className="flex h-5 w-5 items-center justify-center rounded bg-primary-container text-[11px] font-black uppercase text-primary">
                     {user.organization_name.slice(0, 2).toUpperCase()}
                   </span>
-                  <span className="text-sm font-semibold text-on-surface">
+                  <span className="hidden text-sm font-semibold text-on-surface sm:inline">
                     {user.organization_name}
                   </span>
                   <MaterialSymbol name="expand_more" className="text-base text-on-surface-variant/70" />

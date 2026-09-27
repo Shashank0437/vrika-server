@@ -8,11 +8,13 @@ export function SessionDialog({
   onClose,
   labelledBy,
   children,
+  size = "default",
 }: {
   open: boolean;
   onClose: () => void;
   labelledBy: string;
   children: ReactNode;
+  size?: "default" | "compact";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -74,7 +76,7 @@ export function SessionDialog({
         )
           onClose();
       }}
-      className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl overflow-hidden rounded-2xl border border-outline-variant bg-surface text-on-surface shadow-2xl backdrop:bg-black/45 backdrop:backdrop-blur-[2px]"
+      className={`fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] ${size === "compact" ? "max-w-2xl" : "max-w-4xl"} overflow-hidden rounded-2xl border border-outline-variant bg-surface text-on-surface shadow-2xl backdrop:bg-black/45 backdrop:backdrop-blur-[2px]`}
     >
       <div className="flex max-h-[calc(100dvh-2rem)] flex-col">{children}</div>
     </dialog>

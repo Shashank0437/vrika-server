@@ -1,13 +1,37 @@
 "use client";
 
+import { Plus, ShieldCheck, Trash2 } from "lucide-react";
 import type { AccessRole, RoleBinding } from "@/lib/access";
 import type { Project } from "@/lib/projects";
+import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
 
 export const viewerBinding: RoleBinding = {
   role: "viewer",
   scope_type: "global",
   scope_id: null,
 };
+const roles: { value: AccessRole; label: string; description: string }[] = [
+  {
+    value: "viewer",
+    label: "Viewer",
+    description: "Read-only access across the organization",
+  },
+  {
+    value: "analyst",
+    label: "Analyst",
+    description: "Run scans and manage one security module",
+  },
+  {
+    value: "lead",
+    label: "Project lead",
+    description: "Manage work and members within one project",
+  },
+  {
+    value: "admin",
+    label: "Admin",
+    description: "Full organization access, including roles",
+  },
+];
 
 export function RoleBindingsEditor({
   value,
@@ -36,86 +60,100 @@ export function RoleBindingsEditor({
   }
   return (
     <section className="space-y-3" aria-label="Role bindings">
-      <p className="text-sm">
-        Roles apply only within their scope in this organization. Multiple
-        bindings combine matching permissions.
-      </p>
-      {value.length === 0 && (
-        <p>No bindings: this account will have no workspace access.</p>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Roles & access</h3>
+        <span className="text-xs text-on-surface-variant">
+          {value.length} {value.length === 1 ? "binding" : "bindings"}
+        </span>
+      </div>
+      {!value.length && (
+        <p className="rounded-xl border border-dashed border-outline-variant p-5 text-sm text-on-surface-variant">
+          No bindings: this account will have no workspace access.
+        </p>
       )}
       {value.map((binding, index) => (
         <div
           key={index}
-          className="flex flex-wrap items-end gap-3 rounded border border-outline-variant p-3"
+          className="rounded-xl border border-outline-variant/70 bg-surface-container-low/40 p-4"
         >
-          <label className="flex flex-col gap-1">
-            Role {index + 1}
-            <select
-              className="rounded border p-2"
-              value={binding.role}
-              onChange={(e) => changeRole(index, e.target.value as AccessRole)}
+          <div className="flex items-end gap-3">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs font-semibold text-on-surface-variant">
+                  Role {index + 1}
+                </p>
+                <WorkspaceSelect
+                  label={`Role ${index + 1}`}
+                  value={binding.role}
+                  options={roles}
+                  onChange={(role) => changeRole(index, role)}
+                />
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold text-on-surface-variant">
+                  Scope {index + 1}
+                </p>
+                <WorkspaceSelect
+                  label={`Scope ${index + 1}`}
+                  value={binding.scope_id ?? "global"}
+                  disabled={binding.scope_type === "global"}
+                  onChange={(scope_id) =>
+                    replace(index, { ...binding, scope_id })
+                  }
+                  options={
+                    binding.scope_type === "global"
+                      ? [{ value: "global", label: "Entire organization" }]
+                      : binding.scope_type === "module"
+                        ? [
+                            { value: "web_security", label: "Web Security" },
+                            {
+                              value: "cloud_security",
+                              label: "Cloud Security",
+                            },
+                          ]
+                        : [
+                            { value: "", label: "Select project" },
+                            ...(binding.scope_id &&
+                            !projects.some(
+                              (project) => project.id === binding.scope_id,
+                            )
+                              ? [
+                                  {
+                                    value: binding.scope_id,
+                                    label: "Unavailable project",
+                                  },
+                                ]
+                              : []),
+                            ...projects.map((project) => ({
+                              value: project.id,
+                              label: project.name,
+                            })),
+                          ]
+                  }
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label={`Remove binding ${index + 1}`}
+              onClick={() => onChange(value.filter((_, i) => i !== index))}
+              className="flex size-10 shrink-0 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-error/8 hover:text-error"
             >
-              <option value="viewer">Viewer — read only</option>
-              <option value="analyst">Analyst — module operations</option>
-              <option value="lead">
-                Lead — project operations and members
-              </option>
-              <option value="admin">Admin — organization administration</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            Scope {index + 1}
-            <select
-              className="rounded border p-2"
-              required
-              value={binding.scope_id ?? "global"}
-              disabled={binding.scope_type === "global"}
-              onChange={(e) =>
-                replace(index, { ...binding, scope_id: e.target.value })
-              }
-            >
-              {binding.scope_type === "global" && (
-                <option value="global">Global — this organization</option>
-              )}
-              {binding.scope_type === "module" && (
-                <>
-                  <option value="web_security">Web Security</option>
-                  <option value="cloud_security">Cloud Security</option>
-                </>
-              )}
-              {binding.scope_type === "project" && (
-                <>
-                  <option value="">Select project</option>
-                  {binding.scope_id &&
-                    !projects.some((p) => p.id === binding.scope_id) && (
-                      <option value={binding.scope_id}>
-                        {binding.scope_id} (unavailable)
-                      </option>
-                    )}
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
-          </label>
-          <button
-            type="button"
-            aria-label={`Remove binding ${index + 1}`}
-            onClick={() => onChange(value.filter((_, i) => i !== index))}
-            className="rounded border px-3 py-2"
-          >
-            Remove
-          </button>
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+          <p className="mt-3 flex items-center gap-1.5 text-xs text-on-surface-variant">
+            <ShieldCheck className="size-3.5 shrink-0" />
+            {roles.find((role) => role.value === binding.role)?.description}
+          </p>
         </div>
       ))}
       <button
         type="button"
         onClick={() => onChange([...value, { ...viewerBinding }])}
-        className="rounded border px-3 py-2"
+        className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-primary transition hover:bg-primary/8"
       >
+        <Plus className="size-4" />
         Add binding
       </button>
     </section>

@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getRoleBindings, hasPermission } from "@/lib/access";
@@ -44,6 +46,8 @@ export function CloudSecurityWorkspace() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState("");
   const [projectError, setProjectError] = useState<string | null>(null);
+  const [toolbar, setToolbar] = useState<HTMLElement | null>(null);
+  useEffect(() => { setToolbar(document.getElementById("dashboard-header-actions")); }, []);
   const showProjects = hasPermission(user, "manage_roles") || getRoleBindings(user).some((b) => b.scope_type === "project");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -228,17 +232,13 @@ export function CloudSecurityWorkspace() {
 
   return (
     <div className="relative flex min-h-[calc(100dvh-4rem)] flex-1 flex-col overflow-hidden bg-background">
-      {showProjects && <div className="relative z-20 border-b bg-surface p-3">
-        <label>Cloud project
-          <select aria-label="Cloud project" className="ml-3 rounded border p-2" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-            <option value="">All accessible resources</option>
-            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-          </select>
-        </label>
-        {!hasPermission(user, "execute", { module: "cloud_security" }) && !projectId &&
-          <p className="text-sm">Select a project before adding a cloud account. Existing accounts remain scoped to your access.</p>}
-        {projectError && <p role="alert" className="text-error">{projectError}</p>}
-      </div>}
+      {showProjects && toolbar && createPortal(
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden shrink-0 text-xs font-semibold text-on-surface-variant lg:block">Cloud project</span>
+          <WorkspaceSelect label="Cloud project" value={projectId} onChange={setProjectId} className="w-full max-w-64"
+            options={[{ value: "", label: "All accessible resources", description: "Choose a project to add accounts within it." }, ...projects.map((project) => ({ value: project.id, label: project.name }))]} />
+          {projectError && <span role="alert" className="max-w-48 text-xs text-error">{projectError}</span>}
+        </div>, toolbar)}
       {/* Cloud Security Loading Screen */}
       <div
         className={`absolute inset-0 z-10 flex items-center justify-center bg-[#f4f3fb] p-6 transition-opacity duration-300 ${

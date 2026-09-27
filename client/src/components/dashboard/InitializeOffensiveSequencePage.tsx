@@ -13,6 +13,7 @@ import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import type { AuthUser } from "@/lib/auth-context";
 import { canStartScan, hasPermission } from "@/lib/access";
 import { listProjects, type Project } from "@/lib/projects";
+import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
 import {
   createAgentChatSession,
   deleteAgentChatSession,
@@ -2260,17 +2261,22 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
 
       {/* Main column */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="sticky top-0 z-40 flex shrink-0 items-start justify-between gap-4 border-b border-outline-variant bg-background/95 px-4 py-4 backdrop-blur-sm sm:px-6 lg:px-8 xl:px-10">
+        <header className="sticky top-0 z-40 flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant bg-background/95 px-4 py-4 backdrop-blur-sm sm:px-6 lg:px-8 xl:px-10">
           <div className="min-w-0 pt-0.5">
             <h1 className="text-lg font-black leading-tight tracking-tight text-on-surface md:text-xl">
               Vrika{" "}
-              <span className="font-bold text-on-surface-variant">| Agentic Workspace</span>
+              <span className="hidden font-bold text-on-surface-variant md:inline">| Agentic Workspace</span>
             </h1>
-            <p className="mt-1 text-[12px] text-on-surface-variant md:text-[13px]">
+            <p className="mt-1 hidden text-[12px] text-on-surface-variant lg:block md:text-[13px]">
               Vrika v1.0.0 — Offensive AI Subsystem
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            {!selectedSessionId && canCreate && <div className="w-40 sm:w-56">
+              <WorkspaceSelect label="Scan project" value={projectId} disabled={projectsLoading} onChange={setProjectId}
+                options={[{ value: "", label: projectsLoading ? "Loading projects…" : requiresProject ? "Select a project" : "No project", description: requiresProject ? "Choose a project you lead before starting a scan." : "Module-wide access" },
+                  ...projects.filter((project) => hasPermission(user, "execute", { module: "web_security", projectId: project.id })).map((project) => ({ value: project.id, label: project.name }))]} />
+            </div>}
             {/* Top-right Report Generation / Download Multi-State Action Button */}
             {selectedSessionId ? (
               reportBusyId === selectedSessionId ? (
@@ -2325,19 +2331,7 @@ export function InitializeOffensiveSequencePage({ user }: { user: AuthUser }) {
           </div>
         </header>
 
-        {!selectedSessionId && canCreate && <div className="border-b border-outline-variant px-6 py-3">
-          <label className="flex items-center gap-3 text-sm">Scan project
-            <select aria-label="Scan project" className="rounded border border-outline-variant bg-surface p-2" value={projectId} disabled={projectsLoading}
-              onChange={(event) => setProjectId(event.target.value)}>
-              <option value="">{requiresProject ? "Select an accessible project (required)" : "No project (module scope)"}</option>
-              {projects.filter((project) => hasPermission(user, "execute", { module: "web_security", projectId: project.id })).map((project) =>
-                <option key={project.id} value={project.id}>{project.name}</option>)}
-            </select>
-          </label>
-          {projectsLoading && <p role="status" className="text-sm">Loading projects…</p>}
-          {projectsError && <p role="alert" className="text-sm text-error">Could not load projects: {projectsError}</p>}
-          {requiresProject && !projectId && <p className="text-sm">Choose a project you lead before starting a scan.</p>}
-        </div>}
+        {!selectedSessionId && canCreate && projectsError && <p role="alert" className="px-6 py-2 text-sm text-error">Could not load projects: {projectsError}</p>}
         {!canCreate && <p className="border-b border-outline-variant px-6 py-3 text-sm">Read-only workspace. You can view sessions and download existing reports.</p>}
 
         <div className="flex min-h-0 flex-1 flex-row overflow-hidden relative">

@@ -47,9 +47,11 @@ Interrupted cross-service changes remain durably pending and are resumed before
 the affected user's next authenticated request or the next role update. Until
 synchronization succeeds, those requests return an explicit unavailable error.
 
-Projects group web sessions and cloud accounts/providers. Admins assign existing
-resources from Projects; new web sessions can select a project. Cloud project
-leads select their project before adding accounts. Unassigned resources are not
+The Projects page manages project names and team membership; it does not expose
+web-session or cloud-account/provider assignment controls. Project selection
+uses a custom searchable picker in the existing Web/Cloud header row. New web
+sessions can select a project, and Cloud project leads select their project
+before adding accounts. Existing API access boundaries are unchanged. Unassigned resources are not
 visible to project-only leads. Membership is a roster, not an implicit permission
 grant; only `manage_roles` can change bindings. Organization-wide configuration
 is not project configuration and remains outside a project lead's scope.

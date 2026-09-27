@@ -174,7 +174,13 @@ async function mockWorkspace(
         ],
       });
     if (path === "/projects") return route.fulfill({ json: [project] });
-    if (path === "/projects/member-options") return route.fulfill({ json: [] });
+    if (path === "/projects/member-options")
+      return route.fulfill({
+        json: [
+          member,
+          { id: "user-3", username: "New teammate", email: "new@example.test" },
+        ],
+      });
     if (path.endsWith("/capabilities"))
       return route.fulfill({ json: { llm_configured: true } });
     if (path === "/auth/cloud-security/embed")
@@ -286,20 +292,30 @@ test("viewer sees directory and settings read-only, and cannot create or send ch
   expect(state.writes).toEqual([]);
 });
 
+async function choose(page: Page, label: string, option: string) {
+  await page.getByRole("combobox", { name: label, exact: true }).click();
+  await page.getByRole("option", { name: new RegExp(`^${option}`) }).click();
+}
+
 test("admin edits multiple constrained bindings with optimistic version", async ({
   page,
 }) => {
   const state = await mockWorkspace(page, [admin]);
   await page.goto("/dashboard/users");
+  await expect(page.getByText("Team directory")).toBeVisible();
+  await page.screenshot({ path: "/tmp/vrika-users-redesign.png" });
   await page
     .getByRole("button", { name: "Edit bindings for member@example.test" })
     .click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Role 1").selectOption("analyst");
-  await dialog.getByLabel("Scope 1").selectOption("cloud_security");
+  await dialog.getByRole("combobox", { name: "Role 1" }).click();
+  await page.screenshot({ path: "/tmp/vrika-role-picker-redesign.png" });
+  await page.keyboard.press("Escape");
+  await choose(page, "Role 1", "Analyst");
+  await choose(page, "Scope 1", "Cloud Security");
   await dialog.getByRole("button", { name: "Add binding" }).click();
-  await dialog.getByLabel("Role 2").selectOption("lead");
-  await dialog.getByLabel("Scope 2").selectOption("project-1");
+  await choose(page, "Role 2", "Project lead");
+  await choose(page, "Scope 2", "App review");
   await dialog.getByRole("button", { name: "Save bindings" }).click();
   await expect(dialog).toHaveCount(0);
   expect(state.writes[0]).toEqual({
@@ -328,12 +344,14 @@ test("invitations default to viewer and conflict errors preserve edits", async (
   await page
     .getByRole("button", { name: "Edit bindings for member@example.test" })
     .click();
-  await page.getByLabel("Role 1").selectOption("analyst");
+  await choose(page, "Role 1", "Analyst");
   await page.getByRole("button", { name: "Save bindings" }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
     "changed while you were editing",
   );
-  await expect(page.getByLabel("Role 1")).toHaveValue("analyst");
+  await expect(page.getByRole("combobox", { name: "Role 1" })).toContainText(
+    "Analyst",
+  );
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Edit bindings for member@example.test" }),
@@ -348,7 +366,7 @@ test("own role changes refresh authentication and remove write controls", async 
   await page
     .getByRole("button", { name: "Edit bindings for owner@example.test" })
     .click();
-  await page.getByLabel("Role 1").selectOption("viewer");
+  await choose(page, "Role 1", "Viewer");
   await page.getByRole("button", { name: "Save bindings" }).click();
   await expect(page.getByRole("button", { name: "Invite user" })).toHaveCount(
     0,
@@ -362,10 +380,10 @@ test("project lead must select a project before creating a scan", async ({
   const state = await mockWorkspace(page, [lead]);
   await page.goto("/dashboard/scan?new=1");
   await expect(
-    page.getByText("Choose a project you lead before starting a scan."),
-  ).toBeVisible();
+    page.getByRole("combobox", { name: "Scan project" }),
+  ).toContainText("Select a project");
   await expect(page.locator("textarea")).toHaveCount(0);
-  await page.getByLabel("Scan project").selectOption("project-1");
+  await choose(page, "Scan project", "App review");
   await page.locator("textarea").fill("Review https://example.test");
   await page.locator("textarea").press("Enter");
   await expect
@@ -387,7 +405,7 @@ test("project lead manages membership without granting role bindings", async ({
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Manage App review" }).click();
   await page.getByLabel("Project name").fill("Renamed review");
-  await page.getByRole("textbox", { name: /^Member ID/ }).fill("user-3");
+  await choose(page, "Add organization member", "New teammate");
   await page.getByRole("button", { name: "Add member", exact: true }).click();
   await page.getByRole("button", { name: "Save project" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -398,4 +416,92 @@ test("project lead manages membership without granting role bindings", async ({
       body: { member_ids: ["user-2", "user-3"] },
     },
   ]);
+});
+
+test("project controls are custom, inline in the top row, and keyboard accessible", async ({
+  page,
+}) => {
+  await mockWorkspace(page, [admin]);
+  await page.goto("/dashboard/scan?new=1");
+  const scan = page.getByRole("combobox", { name: "Scan project" });
+  await expect(scan).toBeVisible();
+  await expect(page.locator("header").filter({ has: scan })).toHaveCount(1);
+  await expect(page.locator("select")).toHaveCount(0);
+  await scan.focus();
+  await page.keyboard.press("ArrowDown");
+  await page.getByRole("textbox", { name: "Search scan project" }).fill("App");
+  await page.keyboard.press("Enter");
+  await expect(scan).toContainText("App review");
+  await expect(scan).toBeFocused();
+  await page.screenshot({ path: "/tmp/vrika-scan-header-redesign.png" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/dashboard/cloud-security");
+  const cloudProject = page.getByRole("combobox", { name: "Cloud project" });
+  await expect(cloudProject).toBeVisible();
+  const header = page.locator("header").filter({ has: cloudProject });
+  await expect(header).toHaveCount(1);
+  await expect(header).toContainText("Cloud project");
+  await page.screenshot({ path: "/tmp/vrika-cloud-header-redesign.png" });
+  await cloudProject.click();
+  await page.keyboard.press("Escape");
+  await expect(cloudProject).toBeFocused();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const bounds = await cloudProject.boundingBox();
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+});
+
+test("Projects contains only project details and membership, with no resource assignment requests", async ({
+  page,
+}) => {
+  await mockWorkspace(page, [admin]);
+  const resourceRequests: string[] = [];
+  page.on("request", (request) => {
+    if (
+      /\/be\/(projects\/cloud-providers|workspace\/agent-chat\/sessions)/.test(
+        request.url(),
+      )
+    )
+      resourceRequests.push(request.url());
+  });
+  await page.goto("/dashboard/projects");
+  await page.getByRole("textbox", { name: "Search projects" }).fill("absent");
+  await expect(page.getByText("No matching projects")).toBeVisible();
+  await page.getByRole("button", { name: "Clear search" }).click();
+  await page.screenshot({
+    path: "/tmp/vrika-projects-redesign.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Manage App review" }).click();
+  await expect(page.getByText("Web sessions", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Cloud accounts/providers", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator("select")).toHaveCount(0);
+  await page.getByRole("combobox", { name: "Add organization member" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Add organization member" }),
+  ).toBeFocused();
+  await page.screenshot({ path: "/tmp/vrika-project-dialog-redesign.png" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("combobox", { name: "Add organization member" }).click();
+  const option = page.getByRole("option", { name: /^New teammate/ });
+  await expect(option).toBeVisible();
+  const optionBounds = await option.boundingBox();
+  expect(optionBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(optionBounds!.x + optionBounds!.width).toBeLessThanOrEqual(390);
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Save project" }),
+  ).toBeVisible();
+  expect(resourceRequests).toEqual([]);
 });

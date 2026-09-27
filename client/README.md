@@ -37,10 +37,17 @@ your own bindings refreshes authentication immediately.
 **Projects** supports creation (admin), renaming and membership changes (admin or
 the corresponding project lead). Membership does **not** grant access or role
 bindings. Leads use a minimal organization member picker without gaining access
-to the administration directory. Admins can assign existing web sessions and
-cloud providers; the Cloud workspace also has a project selector. Project name,
-membership and resource assignments are separate API updates; errors explain
+to the administration directory. The page contains project details and membership
+only, without web-session or cloud-provider assignment panels or requests.
+Web and Cloud project pickers sit in their existing header rows. Project name and
+membership are separate API updates; errors explain
 that an earlier update may already have succeeded.
+
+Project, member and role choices use `WorkspaceSelect`: a searchable custom
+listbox with keyboard navigation, Escape dismissal and focus restoration.
+Its popover stays inside the viewport and above modal content. Directory search,
+human-readable role labels and explicit empty states keep raw IDs out of the UI.
+These presentation changes do not change API authorization.
 
 ## Targeted validation
 
