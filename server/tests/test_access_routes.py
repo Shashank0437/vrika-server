@@ -235,7 +235,7 @@ def test_new_sessions_require_a_real_project_even_for_administrators(workspace):
 def test_explicit_viewer_migration_preserves_module_reads_and_is_retryable(workspace):
     from scripts.migrate_explicit_viewers import migrate
 
-    _, db, _, viewer, _, _, _, _ = workspace
+    _, db, _, viewer, lead, _, project1, _ = workspace
     legacy = [{"role": "viewer", "scope_type": "global", "scope_id": None}]
 
     async def run():
@@ -257,6 +257,8 @@ def test_explicit_viewer_migration_preserves_module_reads_and_is_retryable(works
         ]
         invitation = await db.organization_invitations.find_one({})
         assert invitation["role_bindings"] == after["role_bindings"]
+        project = await db.projects.find_one({"_id": project1})
+        assert project["member_ids"] == [str(lead["_id"])]
         await migrate(db, viewer["organization_id"], apply=True)
         assert (await db.users.find_one({"_id": viewer["_id"]}))["access_version"] == 1
         assert await db.access_audit.count_documents({}) == 2

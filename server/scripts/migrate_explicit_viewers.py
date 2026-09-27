@@ -11,6 +11,7 @@ from app.db import init_db, get_database, close_db
 from app.redis_client import close_redis
 from app.services.access import effective_bindings, has_permission
 from app.services.access_management import object_id, update_bindings
+from app.services import access_management
 
 
 def expand_viewers(bindings):
@@ -74,7 +75,40 @@ async def migrate(db, organization_id, apply=False):
             )
             if result.matched_count != 1:
                 raise RuntimeError("Invitation changed concurrently; review and retry")
-    print(f"Global Viewers: {changed}; pending invitations: {pending}; apply={apply}")
+    lock = access_management.get_redis().lock(
+        f"rbac:{organization_id}", timeout=120, blocking_timeout=5
+    )
+    if not await lock.acquire():
+        raise RuntimeError("Another access change is in progress; retry migration")
+    roster_additions = 0
+    try:
+        current_users = await db.users.find(
+            {"organization_id": organization_id}
+        ).to_list(None)
+        for user in current_users:
+            for binding in effective_bindings(user):
+                if binding["scope_type"] != "project":
+                    continue
+                project = await db.projects.find_one({
+                    "_id": object_id(binding["scope_id"]),
+                    "organization_id": organization_id,
+                })
+                if not project:
+                    raise RuntimeError("A project binding references a missing project")
+                if str(user["_id"]) in project.get("member_ids", []):
+                    continue
+                roster_additions += 1
+                if apply:
+                    await db.projects.update_one(
+                        {"_id": project["_id"], "organization_id": organization_id},
+                        {"$addToSet": {"member_ids": str(user["_id"])}},
+                    )
+    finally:
+        await lock.release()
+    print(
+        f"Global Viewers: {changed}; pending invitations: {pending}; "
+        f"project roster additions: {roster_additions}; apply={apply}"
+    )
 
 
 async def main(args):

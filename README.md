@@ -47,7 +47,9 @@ After deploying both services, migrate legacy global Viewers with
 `python server/scripts/migrate_explicit_viewers.py --organization-id <id> --apply`.
 Omit `--apply` for a dry run. Web/Cloud visibility is preserved; administration
 panels are reserved for organization administrators. The migration is retryable
-and audited, including pending invitations.
+and audited, including pending invitations. It also reconciles existing
+project-role holders into their projects' membership rosters without removing
+manually assigned members.
 
 Explicit empty bindings remove all access. Existing `tenant_admin` users retain
 global Admin access; existing `tenant_member` users retain both module Analyst
