@@ -145,7 +145,7 @@ export default function AndroidDynamicPage() {
               const hash = str(a.MD5);
               return (
                 <li key={hash} className="flex flex-wrap items-center gap-4 px-5 py-3.5 sm:px-6">
-                  <PlatformAvatar scan={{ scan_type: "apk", file_name: str(a.FILE_NAME) }} />
+                  <PlatformAvatar scan={{ scan_type: "apk", file_name: str(a.FILE_NAME), hash }} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-on-surface">{str(a.APP_NAME) || str(a.FILE_NAME)}</p>
                     <p className="truncate font-mono text-xs text-on-surface-variant">

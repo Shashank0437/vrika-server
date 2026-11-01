@@ -17,6 +17,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
@@ -28,6 +29,7 @@ from app.dependencies.auth import require_auth_user
 from app.schemas.mobile_security import MobileSecurityEmbedOut
 from app.services import mobile_security_client as engine
 from app.services.access import has_permission
+from app.services.mobile_report_pdf import build_mobile_report_pdf
 from app.services.mobile_security_actions import ENGINE_ACTIONS, EngineAction
 from app.services.mobile_bridge import (
     ProwlerBridgeError,
@@ -343,14 +345,45 @@ async def scan_pdf(
 ) -> Response:
     doc = await _completed_scan(db, user, scan_hash)
     try:
-        pdf = await engine.pdf_report(settings, doc["hash"])
+        report = await engine.report_json(settings, doc["hash"])
+        try:
+            card = await engine.scorecard(settings, doc["hash"])
+        except MobileSecurityApiError:
+            card = None
     except MobileSecurityApiError as exc:
         raise _engine_error(exc) from exc
+    org_settings = await db["organization_settings"].find_one(
+        {"organization_id": user["organization_id"]}, {"branding": 1}
+    ) or {}
+    logo_b64 = (org_settings.get("branding") or {}).get("logo_base64")
+    pdf = await run_in_threadpool(build_mobile_report_pdf, report, card, doc, logo_b64)
     stem = re.sub(r"[^A-Za-z0-9._-]", "_", PurePath(doc.get("file_name") or doc["hash"]).stem)[:80]
     return Response(
         content=pdf,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{stem or "report"}-mobile-security.pdf"'},
+    )
+
+
+@scans_router.get("/scans/{scan_hash}/icon")
+async def scan_icon(
+    scan_hash: str,
+    user: dict = Depends(require_mobile_permission("view")),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    doc = await _owned_scan(db, user, scan_hash)
+    try:
+        resp = await engine.call(settings, "POST", "/api/v1/icon", data={"hash": doc["hash"]})
+    except MobileSecurityApiError as exc:
+        raise _engine_error(exc) from exc
+    ctype = resp.headers.get("content-type", "")
+    if not ctype.startswith("image/") or "svg" in ctype:
+        raise HTTPException(404, "Icon not found")
+    return Response(
+        content=resp.content,
+        media_type=ctype,
+        headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"},
     )
 
 

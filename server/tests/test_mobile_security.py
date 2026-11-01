@@ -178,3 +178,22 @@ def test_engine_app_lists_are_tenant_filtered(ctx):
     )
     res = ctx["client"].post("/mobile-security/engine/static.tasks", json={"params": {}})
     assert [t["checksum"] for t in res.json()] == [HASH]
+
+
+def test_branded_pdf_renders_untrusted_engine_text(ctx):
+    ctx["use"](ctx["viewer"])
+    ctx["mocks"]["report_json"].return_value = {
+        "app_name": "Demo <script>x</script> & Co",
+        "package_name": "com.demo",
+        "md5": HASH,
+        "code_analysis": {"findings": {"rule": {"metadata": {"severity": "high", "description": "<b>Bad</b> & worse"}, "files": {"a/B.java": "1,2"}}}},
+        "manifest_analysis": {"manifest_findings": [{"severity": "warning", "title": "Debuggable<br>yes", "description": "x"}]},
+        "permissions": {"android.permission.CAMERA": {"status": "dangerous", "info": "camera", "description": "d"}},
+        "certificate_analysis": {"certificate_findings": [["high", "desc", "title"]]},
+        "domains": {"evil.test": {"bad": "yes", "geolocation": {"country_long": "X"}}},
+        "secrets": ["key=abc"],
+    }
+    res = ctx["client"].get(f"/mobile-security/scans/{HASH}/pdf")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert res.content.startswith(b"%PDF")

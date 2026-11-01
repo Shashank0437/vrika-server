@@ -236,6 +236,23 @@ export async function downloadPdf(scan: Pick<MobileScan, "hash" | "file_name">):
   URL.revokeObjectURL(url);
 }
 
+const iconCache = new Map<string, Promise<string | null>>();
+
+/** Object URL for a scan's app icon (fetched with auth; null when the app has none). */
+export function getAppIcon(hash: string): Promise<string | null> {
+  let hit = iconCache.get(hash);
+  if (!hit) {
+    const token = getToken();
+    hit = fetch(`${getApiBase()}${BASE}/scans/${enc(hash)}/icon`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(async (res) => (res.ok ? URL.createObjectURL(await res.blob()) : null))
+      .catch(() => null);
+    iconCache.set(hash, hit);
+  }
+  return hit;
+}
+
 export const ACCEPTED_EXTENSIONS = [
   ".apk", ".aab", ".xapk", ".apks", ".ipa", ".appx", ".jar", ".aar", ".so", ".dylib", ".a", ".zip",
 ];

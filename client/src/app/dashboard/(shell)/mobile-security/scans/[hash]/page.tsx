@@ -353,19 +353,19 @@ export default function MobileScanReportPage() {
 
       {completed && report && sections && (
         <>
-          <nav className="terminal-scroll -mx-1 flex gap-1 overflow-x-auto px-1 pb-1" aria-label="Report sections">
+          <nav className="flex flex-wrap gap-1" aria-label="Report sections">
             {tabs.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 aria-current={tab === t.id ? "page" : undefined}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition ${
                   tab === t.id ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                 }`}
               >
                 {t.label}
                 {t.count !== undefined && t.count > 0 && (
-                  <span className={`rounded-md px-1.5 text-[11px] ${tab === t.id ? "bg-on-primary/20" : "bg-surface-container-high"}`}>{t.count}</span>
+                  <span className={`rounded px-1 text-[10.5px] ${tab === t.id ? "bg-on-primary/20" : "bg-surface-container-high"}`}>{t.count}</span>
                 )}
               </button>
             ))}

@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, Apple, Bot, Box, CheckCircle2, Clock3, Loader2, MonitorSmartphone, XCircle } from "lucide-react";
 import {
+  getAppIcon,
   getEngineStatus,
   platformOf,
   scoreGrade,
@@ -112,12 +113,14 @@ export function ScoreRing({ score, size = 112, label = "Security score" }: { sco
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-bold leading-none text-on-surface" style={{ fontSize: size / 3.6 }}>
+        <span className="font-bold leading-none text-on-surface" style={{ fontSize: size < 72 ? size / 3 : size / 3.6 }}>
           {score ?? "–"}
         </span>
-        <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
-          Grade {grade}
-        </span>
+        {size >= 72 && (
+          <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
+            Grade {grade}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -140,10 +143,34 @@ export function StatusBadge({ status }: { status: MobileScanStatus }) {
   );
 }
 
-export function PlatformAvatar({ scan, size = "md" }: { scan: Pick<MobileScan, "scan_type" | "file_name">; size?: "md" | "lg" }) {
+export function PlatformAvatar({
+  scan,
+  size = "md",
+}: {
+  scan: Pick<MobileScan, "scan_type" | "file_name"> & { hash?: string; status?: MobileScanStatus };
+  size?: "md" | "lg";
+}) {
+  const [icon, setIcon] = useState<string | null>(null);
+  const iconHash = scan.hash && (scan.status === undefined || scan.status === "completed") ? scan.hash : null;
+  useEffect(() => {
+    let live = true;
+    setIcon(null);
+    if (iconHash) getAppIcon(iconHash).then((url) => live && setIcon(url));
+    return () => {
+      live = false;
+    };
+  }, [iconHash]);
   const platform = platformOf(scan);
   const box = size === "lg" ? "size-16 rounded-2xl" : "size-10 rounded-xl";
-  const icon = size === "lg" ? "size-8" : "size-5";
+  const icon_ = size === "lg" ? "size-8" : "size-5";
+  if (icon) {
+    return (
+      <span className={`inline-flex shrink-0 items-center justify-center overflow-hidden bg-surface-container-lowest ring-1 ring-outline-variant/50 ${box}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={icon} alt="" className="size-full object-cover" onError={() => setIcon(null)} />
+      </span>
+    );
+  }
   const styles = {
     android: "bg-gradient-to-br from-tertiary-container/70 to-tertiary-container/30 text-tertiary",
     ios: "bg-gradient-to-br from-surface-container-highest to-surface-container text-on-surface",
@@ -153,7 +180,7 @@ export function PlatformAvatar({ scan, size = "md" }: { scan: Pick<MobileScan, "
   const Icon = { android: Bot, ios: Apple, windows: MonitorSmartphone, other: Box }[platform];
   return (
     <span className={`inline-flex shrink-0 items-center justify-center ${box} ${styles}`} aria-label={platform}>
-      <Icon className={icon} />
+      <Icon className={icon_} />
     </span>
   );
 }
