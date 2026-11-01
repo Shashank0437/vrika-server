@@ -253,7 +253,7 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
   const [scriptQuery, setScriptQuery] = useState("");
   const [procs, setProcs] = useState<{ pid: number; name: string; identifier: string }[] | null>(null);
   const [target, setTarget] = useState("");
-  const { busy, error, run } = useEngine();
+  const { busy, error, run, attempt } = useEngine();
 
   useEffect(() => {
     run<{ files?: string[] }>("frida.list_scripts", { device: "android" }, "scripts").then((r) => r && setScripts(asArr(r.files).map(str)));
@@ -354,23 +354,24 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
       <div className="flex flex-wrap items-center gap-2">
         {(
           [
-            ["spawn", "Spawn & Inject", primaryButton],
-            ["session", "Inject", secondaryButton],
+            ["spawn", "Spawn & Inject", primaryButton, "Restart the app under Frida and load the selected hooks/script from its first instruction."],
+            ["session", "Inject", secondaryButton, "Load the current script into the Frida session already running (after Spawn & Inject or Attach)."],
           ] as const
-        ).map(([action, label, cls_]) => (
-          <button key={action} className={cls_} disabled={busy !== null} onClick={() => void instrument(action)}>
+        ).map(([action, label, cls_, hint]) => (
+          <button key={action} className={cls_} title={hint} disabled={busy !== null} onClick={() => void instrument(action)}>
             {busy === action ? <Spinner /> : <Play className="size-4" />}
             {label}
           </button>
         ))}
         <button
           className={secondaryButton}
+          title="List running apps, then hook into one without restarting it."
           disabled={busy !== null}
           onClick={async () => {
-            const r = await run<{ message?: unknown }>("frida.instrument", { ...hooks(), frida_action: "ps" }, "ps");
-            const list = asArr(r?.message).map(asObj).map((p) => ({ pid: Number(p.pid), name: str(p.name), identifier: str(p.identifier) }));
+            const r = await attempt<{ message?: unknown }>("frida.instrument", { ...hooks(), frida_action: "ps" }, "ps");
+            const list = r.ok ? asArr(r.data.message).map(asObj).map((p) => ({ pid: Number(p.pid), name: str(p.name), identifier: str(p.identifier) })) : [];
             setProcs(list);
-            log("List running apps", Boolean(r), `${list.length} processes`);
+            log("List running apps", r.ok, r.ok ? `${list.length} processes` : r.error);
           }}
         >
           {busy === "ps" ? <Spinner /> : <Activity className="size-4" />}
@@ -378,10 +379,11 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
         </button>
         <button
           className={secondaryButton}
+          title="Restart the app briefly to record classes/DEX files it loads at runtime."
           disabled={busy !== null}
           onClick={async () => {
-            const r = await run("frida.get_dependencies", { hash }, "deps");
-            log("Get dependencies", Boolean(r), r);
+            const r = await attempt("frida.get_dependencies", { hash }, "deps");
+            log("Get dependencies", r.ok, r.ok ? r.data : r.error);
           }}
         >
           Get dependencies
@@ -418,9 +420,9 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
   }
 
   async function instrument(action: "spawn" | "session", extra: Record<string, string> = {}) {
-    const r = await run("frida.instrument", { ...hooks(), frida_action: action, ...extra }, action);
+    const r = await attempt("frida.instrument", { ...hooks(), frida_action: action, ...extra }, action);
     const label = extra.pid ? `Attach to ${extra.new_package} (PID ${extra.pid})` : action === "spawn" ? "Spawn & inject" : "Inject into session";
-    log(label, Boolean(r), r ?? undefined);
+    log(label, r.ok, r.ok ? r.data : r.error);
   }
 }
 
@@ -433,7 +435,11 @@ function PollingPanel({ title, description, icon, action, hash }: { title: strin
     let stop = false;
     const tick = async () => {
       const r = await run(action, { hash, stream: "1" }, "poll");
-      if (!stop && r) setData(asObj(r).data ?? asObj(r).message ?? r);
+      if (!stop && r) {
+        const body = asObj(r);
+        const empty = body.data === undefined && /does not exist|no data/i.test(str(body.message));
+        if (!empty) setData(body.data ?? body.message ?? r);
+      }
     };
     void tick();
     const t = setInterval(tick, 3000);

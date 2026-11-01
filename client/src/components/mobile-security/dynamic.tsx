@@ -60,7 +60,20 @@ export function useEngine() {
       setBusy(null);
     }
   }, []);
-  return { busy, error, setError, run };
+  const attempt = useCallback(async <T = Record<string, unknown>,>(name: string, params: EngineParams = {}, key = name) => {
+    setBusy(key);
+    setError(null);
+    try {
+      return { ok: true as const, data: await engineAction<T>(name, params) };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Action failed";
+      setError(message);
+      return { ok: false as const, error: message };
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+  return { busy, error, setError, run, attempt };
 }
 
 /** Generic form bound to one allowlisted engine action. */
