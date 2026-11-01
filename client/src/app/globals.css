@@ -139,6 +139,19 @@
   animation-delay: -9s;
 }
 
+@keyframes mobile-scan-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.mobile-scan-progress {
+  animation: mobile-scan-progress 1.4s ease-in-out infinite;
+}
+
 .landing-hero-mesh {
   background-image:
     radial-gradient(circle at 10% 20%, rgba(196, 181, 253, 0.25) 0%, transparent 40%),

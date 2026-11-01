@@ -90,6 +90,17 @@ async def require_mobile_access(user: dict = Depends(require_auth_user)) -> dict
     return user
 
 
+def require_mobile_permission(action: str):
+    """Mobile scans are org-wide (not project-scoped), so module-wide permission is required."""
+
+    async def dependency(user: dict = Depends(require_auth_user)) -> dict:
+        if not has_permission(user, action, module="mobile_security"):
+            raise HTTPException(403, f"Mobile Security {action} permission required")
+        return user
+
+    return dependency
+
+
 async def require_web_module_access(
     request: Request, user: dict = Depends(require_auth_user)
 ) -> dict:

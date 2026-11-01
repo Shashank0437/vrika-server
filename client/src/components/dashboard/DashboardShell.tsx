@@ -129,7 +129,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
     () => MAIN_NAV.filter((n) =>
       n.webSecurity ? canEnterModule(user, "web_security") :
       n.cloudSecurity ? canEnterModule(user, "cloud_security") :
-      n.mobileSecurity ? canEnterModule(user, "mobile_security") :
+      n.mobileSecurity ? hasPermission(user, "view", { module: "mobile_security" }) :
       canVisitDashboard(user, n.href)),
     [user],
   );

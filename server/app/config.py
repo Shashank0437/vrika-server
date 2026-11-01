@@ -106,6 +106,28 @@ class Settings(BaseSettings):
         default=30.0,
         validation_alias=AliasChoices("PROWLER_TIMEOUT_SECONDS"),
     )
+    # vrika-mobile-security REST API (include SCRIPT_NAME prefix, e.g. /mobsf).
+    mobile_security_api_url: str = Field(
+        default="http://127.0.0.1:8001/mobsf",
+        validation_alias=AliasChoices("MOBILE_SECURITY_API_URL"),
+    )
+    mobile_security_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("MOBILE_SECURITY_API_KEY"),
+    )
+    mobile_security_timeout_seconds: float = Field(
+        default=60.0,
+        validation_alias=AliasChoices("MOBILE_SECURITY_TIMEOUT_SECONDS"),
+    )
+    mobile_security_scan_timeout_seconds: float = Field(
+        default=1800.0,
+        validation_alias=AliasChoices("MOBILE_SECURITY_SCAN_TIMEOUT_SECONDS"),
+    )
+    mobile_security_max_upload_mb: int = Field(
+        default=500,
+        ge=1,
+        validation_alias=AliasChoices("MOBILE_SECURITY_MAX_UPLOAD_MB"),
+    )
     agent_llm_stream_timeout_seconds: float = Field(
         default=600.0,
         validation_alias=AliasChoices("AGENT_LLM_STREAM_TIMEOUT_SECONDS"),
@@ -184,6 +206,7 @@ class Settings(BaseSettings):
         "agent_api_token",
         "vrika_bridge_secret",
         "prowler_bridge_secret",
+        "mobile_security_api_key",
         mode="before",
     )
     @classmethod

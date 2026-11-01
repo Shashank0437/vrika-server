@@ -113,7 +113,7 @@ export function landingRoute(user: AccessUser): string {
   if (canEnterModule(user, "web_security")) return "/dashboard";
   if (canEnterModule(user, "cloud_security"))
     return "/dashboard/cloud-security";
-  if (canEnterModule(user, "mobile_security"))
+  if (hasPermission(user, "view", { module: "mobile_security" }))
     return "/dashboard/mobile-security";
   return "/dashboard/no-access";
 }
@@ -129,7 +129,7 @@ export function canVisitDashboard(user: AccessUser, pathname: string): boolean {
       canEnterModule(user, "mobile_security")
     );
   if (pathname.startsWith("/dashboard/mobile-security"))
-    return canEnterModule(user, "mobile_security");
+    return hasPermission(user, "view", { module: "mobile_security" });
   return canEnterModule(
     user,
     pathname.startsWith("/dashboard/cloud-security")

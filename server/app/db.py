@@ -4,6 +4,7 @@ from app.config import get_settings
 from app.constants import (
     AGENT_CHAT_MESSAGES_COLLECTION,
     AGENT_CHAT_SESSIONS_COLLECTION,
+    MOBILE_SECURITY_SCANS_COLLECTION,
     ORG_TOOL_POLICY_COLLECTION,
     SSO_CONFIGS_COLLECTION,
     TOOL_EXECUTION_LOG_COLLECTION,
@@ -65,6 +66,12 @@ async def init_db() -> None:
     )
     await db[SSO_CONFIGS_COLLECTION].create_index("domain", unique=True)
     await db[SSO_CONFIGS_COLLECTION].create_index("organization_id", unique=True)
+    await db[MOBILE_SECURITY_SCANS_COLLECTION].create_index(
+        [("organization_id", 1), ("hash", 1)], unique=True
+    )
+    await db[MOBILE_SECURITY_SCANS_COLLECTION].create_index(
+        [("organization_id", 1), ("updated_at", -1)]
+    )
 
 
 async def close_db() -> None:

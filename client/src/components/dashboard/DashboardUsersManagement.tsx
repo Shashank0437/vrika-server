@@ -254,9 +254,11 @@ export function DashboardUsersManagement() {
                                     ? "Web Security"
                                     : binding.scope_id === "cloud_security"
                                       ? "Cloud Security"
-                                      : (projects.find(
-                                          (p) => p.id === binding.scope_id,
-                                        )?.name ?? "Project")}
+                                      : binding.scope_id === "mobile_security"
+                                        ? "Mobile Security"
+                                        : (projects.find(
+                                            (p) => p.id === binding.scope_id,
+                                          )?.name ?? "Project")}
                               </span>
                             </div>
                           ))}

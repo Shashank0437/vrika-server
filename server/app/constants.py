@@ -15,6 +15,8 @@ AGENT_CHAT_SESSIONS_COLLECTION = "agent_chat_sessions"
 AGENT_CHAT_MESSAGES_COLLECTION = "agent_chat_messages"
 AGENT_CHAT_ATTACHMENTS_COLLECTION = "agent_chat_attachments"
 
+MOBILE_SECURITY_SCANS_COLLECTION = "mobile_security_scans"
+
 ALWAYS_DISABLE_CATEGORIES = frozenset({"wifi_pentest", "cloud"})
 ALWAYS_DISABLE_TOOLS = frozenset({
     # wifi_pentest

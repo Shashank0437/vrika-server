@@ -138,7 +138,7 @@ export function RoleBindingsEditor({
                       }
                       placeholder={
                         binding.scope_type === "module"
-                          ? `${binding.scope_id === "web_security" ? "Web Security" : "Cloud Security"} (existing binding)`
+                          ? `${{ web_security: "Web Security", cloud_security: "Cloud Security", mobile_security: "Mobile Security" }[binding.scope_id ?? ""] ?? "Module"} (existing binding)`
                           : binding.scope_id
                             ? "Project unavailable"
                             : "Choose a project"
