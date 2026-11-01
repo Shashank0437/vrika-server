@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
-import { engineStream, getReport, getScan, type MobileReport, type MobileScan } from "@/lib/mobileSecurity";
+import { engineAction, engineStream, getReport, getScan, type MobileReport, type MobileScan } from "@/lib/mobileSecurity";
 import { MOBILE_SECURITY_HREF, mobileDynamicHref } from "@/lib/mobile-security-nav";
 import { ActionForm, Panel, ResultView, useEngine } from "@/components/mobile-security/dynamic";
 import { asArr, asObj, str } from "@/components/mobile-security/ReportSections";
@@ -41,6 +41,129 @@ const AUX_HOOKS = [
   ["search_class", "Search class pattern"],
   ["trace_class", "Trace class methods"],
 ] as const;
+
+function LiveScreen({ canExecute }: { canExecute: boolean }) {
+  const [frame, setFrame] = useState<string | null>(null);
+  const [live, setLive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const img = useRef<HTMLImageElement>(null);
+  const drag = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!live) return;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const r = await engineAction<{ message?: string }>("android.screen_cast");
+        if (!stop && typeof r.message === "string" && r.message.startsWith("data:image/")) setFrame(r.message);
+        setError(null);
+      } catch (e) {
+        if (!stop) setError(e instanceof Error ? e.message : "Screen stream failed");
+      }
+      if (!stop) setTimeout(tick, 400);
+    };
+    void tick();
+    return () => {
+      stop = true;
+    };
+  }, [live]);
+
+  function devicePoint(clientX: number, clientY: number) {
+    const el = img.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return {
+      x: Math.round(((clientX - rect.left) / rect.width) * el.naturalWidth),
+      y: Math.round(((clientY - rect.top) / rect.height) * el.naturalHeight),
+      max_x: el.naturalWidth,
+      max_y: el.naturalHeight,
+    };
+  }
+
+  function send(params: Record<string, string | number>) {
+    const el = img.current;
+    engineAction("android.touch_events", {
+      x: 0,
+      y: 0,
+      max_x: el?.naturalWidth ?? 0,
+      max_y: el?.naturalHeight ?? 0,
+      ...params,
+    }).catch((e) => setError(e instanceof Error ? e.message : "Input failed"));
+  }
+
+  function onUp(e: React.MouseEvent) {
+    const start = drag.current;
+    drag.current = null;
+    const end = devicePoint(e.clientX, e.clientY);
+    if (!start || !end) return;
+    const moved = Math.hypot(end.x - start.x, end.y - start.y) > 25;
+    send(moved ? { ...start, end_x: end.x, end_y: end.y, max_x: end.max_x, max_y: end.max_y, event: "swipe" } : { ...end, event: "touch" });
+  }
+
+  const keyBtn = `${secondaryButton} h-9 px-3 text-xs`;
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="relative flex h-[520px] w-[292px] items-center justify-center overflow-hidden rounded-[2rem] border-[6px] border-[#1b1b21] bg-[#1b1b21] shadow-xl">
+        {frame ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            ref={img}
+            src={frame}
+            alt="Live device screen"
+            draggable={false}
+            className={`max-h-full max-w-full select-none object-contain ${canExecute ? "cursor-pointer" : ""}`}
+            onMouseDown={(e) => {
+              if (!canExecute) return;
+              const p = devicePoint(e.clientX, e.clientY);
+              if (p) drag.current = { x: p.x, y: p.y };
+            }}
+            onMouseUp={(e) => canExecute && onUp(e)}
+          />
+        ) : (
+          <p className="px-6 text-center text-xs text-white/60">{live ? "Connecting to device…" : "Press Go live to mirror the device screen."}</p>
+        )}
+        {live && (
+          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-error px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+            <span className="size-1.5 animate-pulse rounded-full bg-white" /> Live
+          </span>
+        )}
+      </div>
+      <button className={live ? secondaryButton : primaryButton} onClick={() => setLive((v) => !v)}>
+        {live ? <Pause className="size-4" /> : <Play className="size-4" />}
+        {live ? "Pause" : "Go live"}
+      </button>
+      {canExecute && live && (
+        <>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            <button className={keyBtn} onClick={() => send({ event: "back" })}>Back</button>
+            <button className={keyBtn} onClick={() => send({ event: "home" })}>Home</button>
+            <button className={keyBtn} onClick={() => send({ event: "recents" })}>Recents</button>
+          </div>
+          <form
+            className="flex w-full max-w-[292px] gap-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!text) return;
+              send({ event: "text", x: text });
+              setText("");
+            }}
+          >
+            <input
+              className="h-9 min-w-0 flex-1 rounded-lg border border-outline-variant/70 bg-surface-container-lowest px-2.5 text-xs outline-none focus:border-primary"
+              placeholder="Type on device…"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <button type="submit" className={keyBtn}>Send</button>
+            <button type="button" className={keyBtn} onClick={() => send({ event: "enter" })}>⏎</button>
+          </form>
+        </>
+      )}
+      {error && <p className="max-w-[292px] text-center text-xs text-error">{error}</p>}
+    </div>
+  );
+}
 
 function Screens({ hash, canExecute }: { hash: string; canExecute: boolean }) {
   const { busy, error, run } = useEngine();
@@ -74,18 +197,24 @@ function Screens({ hash, canExecute }: { hash: string; canExecute: boolean }) {
       }
     >
       {error && <ErrorBanner message={error} />}
-      {shots.length ? (
-        <div className="terminal-scroll flex gap-3 overflow-x-auto pb-2">
-          {shots.map((s) => (
-            <a key={s.name} href={s.data} download={s.name} className="shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={s.data} alt={s.name} className="h-72 rounded-xl border border-outline-variant/60 object-contain" />
-            </a>
-          ))}
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <LiveScreen canExecute={canExecute} />
+        <div className="min-w-0 flex-1">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Screenshots</p>
+          {shots.length ? (
+            <div className="flex flex-wrap gap-3">
+              {shots.map((s) => (
+                <a key={s.name} href={s.data} download={s.name} className="shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.data} alt={s.name} className="h-44 rounded-xl border border-outline-variant/60 object-contain" />
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-on-surface-variant">No screenshots captured yet.</p>
+          )}
         </div>
-      ) : (
-        <p className="text-sm text-on-surface-variant">No screenshots captured yet.</p>
-      )}
+      </div>
     </Panel>
   );
 }
