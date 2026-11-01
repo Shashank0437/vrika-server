@@ -55,12 +55,13 @@ services:
       PRESIDIO_ANALYZER_URL: http://presidio-analyzer:3000
       PRESIDIO_ANONYMIZER_URL: http://presidio-anonymizer:3000
       PROWLER_API_BASE_URL: ${PROWLER_API_BASE_URL:-http://prowler-api:8080/api/v1}
-      MOBILE_SECURITY_API_URL: ${MOBILE_SECURITY_API_URL:-http://host.docker.internal:8001/mobsf}
+      MOBILE_SECURITY_API_URL: ${MOBILE_SECURITY_API_URL:-http://mobile-security-engine:8000}
     networks:
       default: {}
       prowler:
         aliases:
           - vrika-server-api
+      mobile: {}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -115,3 +116,7 @@ networks:
   prowler:
     external: true
     name: vrika-cloud-security_default
+  # vrika-mobile-security engine network (docker/docker-compose.yml in that repo).
+  mobile:
+    external: true
+    name: ${MOBILE_SECURITY_NETWORK:-docker_vrika_network}

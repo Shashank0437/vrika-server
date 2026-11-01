@@ -106,9 +106,9 @@ class Settings(BaseSettings):
         default=30.0,
         validation_alias=AliasChoices("PROWLER_TIMEOUT_SECONDS"),
     )
-    # vrika-mobile-security REST API (include SCRIPT_NAME prefix, e.g. /mobsf).
+    # vrika-mobile-security engine base URL (engine serves /api/v1 at its root).
     mobile_security_api_url: str = Field(
-        default="http://127.0.0.1:8001/mobsf",
+        default="http://127.0.0.1:8001",
         validation_alias=AliasChoices("MOBILE_SECURITY_API_URL"),
     )
     mobile_security_api_key: str = Field(
