@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRight, Bug, Gauge, Loader2, Radar, Smartphone, Upload } from "lucide-react";
+import { ArrowRight, Bug, Gauge, Radar, Smartphone, Upload } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
 import { isPending } from "@/lib/mobileSecurity";
@@ -15,8 +15,9 @@ import {
   EngineStatusBanner,
   ErrorBanner,
   PageHeader,
+  PageLoader,
   primaryButton,
-  Skeleton,
+  Spinner,
 } from "@/components/mobile-security/ui";
 
 function StatCard({ icon, label, value, hint, accent }: { icon: React.ReactNode; label: string; value: React.ReactNode; hint?: string; accent: string }) {
@@ -70,10 +71,10 @@ export default function MobileSecurityOverviewPage() {
       />
       <EngineStatusBanner />
 
+      {loading ? (
+        <PageLoader label="Loading mobile security…" />
+      ) : (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {loading ? (
-          Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[110px] rounded-2xl" />)
-        ) : (
           <>
             <StatCard icon={<Smartphone className="size-5" />} label="Apps analysed" value={total} accent="bg-primary-container text-primary" />
             <StatCard
@@ -85,15 +86,15 @@ export default function MobileSecurityOverviewPage() {
             />
             <StatCard icon={<Bug className="size-5" />} label="High findings" value={stats.high} hint="Open across all apps" accent="bg-error/10 text-error" />
             <StatCard
-              icon={stats.running ? <Loader2 className="size-5 animate-spin" /> : <Radar className="size-5" />}
+              icon={stats.running ? <Spinner className="size-5" /> : <Radar className="size-5" />}
               label="In progress"
               value={stats.running}
               hint={stats.running ? "Updating automatically" : "No active analysis"}
               accent="bg-amber-500/10 text-amber-700"
             />
           </>
-        )}
       </div>
+      )}
 
       <div className={`${card} overflow-hidden`}>
         <div className="flex items-center justify-between gap-4 border-b border-outline-variant/60 px-5 py-4 sm:px-6">
@@ -111,11 +112,7 @@ export default function MobileSecurityOverviewPage() {
           </div>
         )}
         {loading ? (
-          <div className="space-y-3 p-5">
-            {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className="h-12" />
-            ))}
-          </div>
+          <PageLoader label="Loading scans…" className="py-10" />
         ) : items.length ? (
           <ScansTable
             scans={items.slice(0, 6)}

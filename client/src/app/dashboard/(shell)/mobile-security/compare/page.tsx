@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeftRight, GitCompareArrows, Loader2 } from "lucide-react";
+import { ArrowLeftRight, GitCompareArrows } from "lucide-react";
+import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
 import { compareScans, listScans, plain, platformOf, type CompareResult, type MobileScan } from "@/lib/mobileSecurity";
 import { MOBILE_SECURITY_HREF } from "@/lib/mobile-security-nav";
 import { asArr, asObj, Section, str } from "@/components/mobile-security/ReportSections";
@@ -11,6 +12,7 @@ import {
   EmptyState,
   ErrorBanner,
   PageHeader,
+  PageLoader,
   PlatformAvatar,
   primaryButton,
   ScoreRing,
@@ -30,20 +32,15 @@ function ScanPicker({ label, value, onChange, scans, exclude }: { label: string;
   return (
     <label className="flex min-w-0 flex-1 flex-col gap-1.5">
       <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">{label}</span>
-      <select
+      <WorkspaceSelect
+        label={label}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-11 w-full rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-3 text-sm text-on-surface outline-none focus:border-primary"
-      >
-        <option value="">Select an Android scan…</option>
-        {scans
+        placeholder="Select an Android scan…"
+        options={scans
           .filter((s) => s.hash !== exclude)
-          .map((s) => (
-            <option key={s.hash} value={s.hash}>
-              {(s.app_name || s.file_name) + (s.version_name ? ` · v${s.version_name}` : "")}
-            </option>
-          ))}
-      </select>
+          .map((s) => ({ value: s.hash, label: (s.app_name || s.file_name) + (s.version_name ? ` · v${s.version_name}` : ""), description: s.package_name || s.file_name }))}
+        onChange={onChange}
+      />
     </label>
   );
 }
@@ -167,11 +164,7 @@ function ComparePageInner() {
             <AppCard scan={first} tone="first" />
             <AppCard scan={second} tone="second" />
           </div>
-          {loading && (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-on-surface-variant">
-              <Loader2 className="size-4 animate-spin" /> Comparing…
-            </div>
-          )}
+          {loading && <PageLoader label="Comparing…" />}
           {result &&
             !loading &&
             DIFF_SECTIONS.map(({ key, label }) => {

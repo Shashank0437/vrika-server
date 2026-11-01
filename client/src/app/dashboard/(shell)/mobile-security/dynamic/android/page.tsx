@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileBarChart2, Loader2, Play, RefreshCcw, ShieldCheck, Smartphone, Wifi } from "lucide-react";
+import { ArrowLeft, FileBarChart2, Play, RefreshCcw, ShieldCheck, Smartphone, Wifi } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
 import { engineAction } from "@/lib/mobileSecurity";
 import { MOBILE_SECURITY_HREF, mobileDynamicHref } from "@/lib/mobile-security-nav";
 import { ActionForm, KeyValueGrid, Panel, useEngine } from "@/components/mobile-security/dynamic";
 import { asArr, asObj, str, StringList } from "@/components/mobile-security/ReportSections";
-import { card, EmptyState, EngineStatusBanner, ErrorBanner, PageHeader, PlatformAvatar, primaryButton, secondaryButton, Skeleton } from "@/components/mobile-security/ui";
+import { card, EmptyState, EngineStatusBanner, ErrorBanner, PageHeader, PageLoader, PlatformAvatar, primaryButton, secondaryButton, Spinner } from "@/components/mobile-security/ui";
 
 type DeviceInfo = Record<string, unknown>;
 
@@ -92,7 +92,7 @@ export default function AndroidDynamicPage() {
             )}
           </>
         ) : (
-          <Skeleton className="h-16" />
+          <PageLoader label="Checking device…" className="py-6" />
         )}
       </Panel>
 
@@ -136,10 +136,7 @@ export default function AndroidDynamicPage() {
           <span className="rounded-md bg-primary/8 px-2 py-0.5 text-xs font-semibold text-primary">{apps.length}</span>
         </div>
         {!info ? (
-          <div className="space-y-3 p-5">
-            <Skeleton className="h-12" />
-            <Skeleton className="h-12" />
-          </div>
+          <PageLoader label="Loading apps…" className="py-10" />
         ) : apps.length ? (
           <ul className="divide-y divide-outline-variant/50">
             {apps.map((a) => {
@@ -154,17 +151,15 @@ export default function AndroidDynamicPage() {
                       {a.VERSION_NAME ? ` · v${str(a.VERSION_NAME)}` : ""}
                     </p>
                   </div>
-                  {Boolean(a.DYNAMIC_REPORT_EXISTS) && (
-                    <Link href={`${mobileDynamicHref(hash)}/report`} className={secondaryButton}>
-                      <FileBarChart2 className="size-4" /> Report
-                    </Link>
-                  )}
+                  <Link href={`${mobileDynamicHref(hash)}/report`} className={secondaryButton}>
+                    <FileBarChart2 className="size-4" /> Reports
+                  </Link>
                   <Link href={mobileDynamicHref(hash)} className={secondaryButton}>
                     Open session
                   </Link>
                   {canExecute && (
                     <button className={primaryButton} disabled={!deviceReady || busy !== null} onClick={() => void start(hash)} title={deviceReady ? undefined : "Connect a device first"}>
-                      {busy === hash ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+                      {busy === hash ? <Spinner /> : <Play className="size-4" />}
                       Start analysis
                     </button>
                   )}

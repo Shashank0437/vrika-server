@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronDown, Code2, ExternalLink, FileCode2, Globe, KeyRound, Loader2, Search, ShieldAlert, X } from "lucide-react";
+import { ChevronDown, Code2, ExternalLink, FileCode2, Globe, KeyRound, Search, ShieldAlert, X } from "lucide-react";
 import { formatBytes, plain, viewSource, type MobileReport, type Scorecard, type Severity } from "@/lib/mobileSecurity";
-import { card, EmptyState, ErrorBanner, normalizeSeverity, SEVERITY_META, SeverityChip } from "./ui";
+import { card, EmptyState, ErrorBanner, normalizeSeverity, SEVERITY_META, SeverityChip, Spinner } from "./ui";
 
 type Obj = Record<string, unknown>;
 
@@ -319,7 +319,7 @@ export function SourceViewer({
             </div>
           ) : data === null ? (
             <div className="flex items-center justify-center gap-2 p-10 text-sm text-white/70">
-              <Loader2 className="size-4 animate-spin" /> Loading source…
+              <Spinner className="size-6" label="Loading source" /> Loading source…
             </div>
           ) : (
             <pre className="py-3 font-mono">

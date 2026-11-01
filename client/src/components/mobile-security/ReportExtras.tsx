@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { EyeOff, Loader2, Trash2 } from "lucide-react";
+import { EyeOff, Trash2 } from "lucide-react";
 import { engineAction, type MobileReport } from "@/lib/mobileSecurity";
 import { ResultView } from "./dynamic";
 import { asArr, asObj, Section, str, StringList } from "./ReportSections";
-import { ErrorBanner, iconButton, secondaryButton } from "./ui";
+import { ErrorBanner, iconButton, PageLoader, secondaryButton, Spinner } from "./ui";
 
 type SuppressType = "code" | "manifest";
 
@@ -27,12 +27,12 @@ export function SuppressActions({ hash, rule, type, onDone }: { hash: string; ru
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1">
       <button className={`${secondaryButton} h-8 px-3 text-xs`} disabled={busy !== null} onClick={() => void act("rule")}>
-        {busy === "rule" ? <Loader2 className="size-3.5 animate-spin" /> : <EyeOff className="size-3.5" />}
+        {busy === "rule" ? <Spinner className="size-3.5" /> : <EyeOff className="size-3.5" />}
         Suppress rule
       </button>
       {type === "code" && (
         <button className={`${secondaryButton} h-8 px-3 text-xs`} disabled={busy !== null} onClick={() => void act("files")}>
-          {busy === "files" ? <Loader2 className="size-3.5 animate-spin" /> : <EyeOff className="size-3.5" />}
+          {busy === "files" ? <Spinner className="size-3.5" /> : <EyeOff className="size-3.5" />}
           Suppress in these files
         </button>
       )}
@@ -82,7 +82,7 @@ export function SuppressionsSection({ hash, canEdit, version, onChanged }: { has
         </div>
       )}
       {rows === null ? (
-        <p className="px-6 py-6 text-sm text-on-surface-variant">Loading…</p>
+        <PageLoader label="Loading suppressions…" className="py-8" />
       ) : items.length ? (
         <ul className="divide-y divide-outline-variant/40">
           {items.map((it) => (

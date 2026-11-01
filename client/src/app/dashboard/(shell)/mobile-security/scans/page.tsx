@@ -17,7 +17,7 @@ import {
   PageHeader,
   primaryButton,
   secondaryButton,
-  Skeleton,
+  PageLoader,
 } from "@/components/mobile-security/ui";
 
 const PAGE_SIZE = 15;
@@ -115,11 +115,7 @@ function MobileScansPageInner() {
           </div>
         )}
         {loading ? (
-          <div className="space-y-3 p-5">
-            {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} className="h-12" />
-            ))}
-          </div>
+          <PageLoader label="Loading scans…" className="py-12" />
         ) : items.length ? (
           <ScansTable
             scans={items}

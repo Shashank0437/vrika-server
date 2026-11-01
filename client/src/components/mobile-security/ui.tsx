@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Icon as BrandIcon } from "@iconify/react";
-import { AlertTriangle, Box, CheckCircle2, Clock3, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, Box, CheckCircle2, Clock3, XCircle } from "lucide-react";
+import { LoaderSvg } from "@/components/ui/LoaderSvg";
 import {
   getAppIcon,
   getEngineStatus,
@@ -129,7 +130,7 @@ export function ScoreRing({ score, size = 112, label = "Security score" }: { sco
 
 const STATUS_META: Record<MobileScanStatus, { label: string; cls: string; icon: ReactNode }> = {
   completed: { label: "Completed", cls: "bg-tertiary/10 text-tertiary", icon: <CheckCircle2 className="size-3.5" /> },
-  scanning: { label: "Scanning", cls: "bg-primary/10 text-primary", icon: <Loader2 className="size-3.5 animate-spin" /> },
+  scanning: { label: "Scanning", cls: "bg-primary/10 text-primary", icon: <Spinner className="size-3.5" /> },
   queued: { label: "Queued", cls: "bg-amber-500/10 text-amber-700", icon: <Clock3 className="size-3.5" /> },
   failed: { label: "Failed", cls: "bg-error/10 text-error", icon: <XCircle className="size-3.5" /> },
 };
@@ -232,6 +233,19 @@ export function EngineStatusBanner() {
             : "Ask an administrator to set MOBILE_SECURITY_API_URL and MOBILE_SECURITY_API_KEY on the Vrika API."}
         </p>
       </div>
+    </div>
+  );
+}
+
+export function Spinner({ className = "size-4", label = "Loading" }: { className?: string; label?: string }) {
+  return <LoaderSvg label={label} className={`inline-block shrink-0 ${className}`} />;
+}
+
+export function PageLoader({ label = "Loading…", className = "py-16" }: { label?: string; className?: string }) {
+  return (
+    <div className={`flex flex-col items-center justify-center gap-3 text-on-surface-variant ${className}`}>
+      <LoaderSvg label={label} className="size-12" />
+      <p className="text-sm font-medium">{label}</p>
     </div>
   );
 }

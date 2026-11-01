@@ -4,6 +4,9 @@ from datetime import UTC, datetime
 from pathlib import PurePath
 from typing import Any
 
+from bson import ObjectId
+from bson.errors import InvalidId
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -22,7 +25,12 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
-from app.constants import MOBILE_SECURITY_SCANS_COLLECTION
+from app.constants import (
+    MOBILE_DYNAMIC_REPORTS_COLLECTION,
+    MOBILE_DYNAMIC_SESSIONS_COLLECTION,
+    MOBILE_DYNAMIC_SHOTS_COLLECTION,
+    MOBILE_SECURITY_SCANS_COLLECTION,
+)
 from app.db import get_database
 from app.dependencies.access import require_mobile_access, require_mobile_permission
 from app.dependencies.auth import require_auth_user
@@ -503,7 +511,168 @@ async def engine_action(
         resp = await engine.call(settings, action.method, action.path, data=data)
     except MobileSecurityApiError as exc:
         raise _engine_error(exc) from exc
+    scan_hash = str(payload.params.get("hash", ""))
+    if name == "dynamic.start_analysis":
+        await _start_dynamic_session(db, user, scan_hash)
+    elif name == "dynamic.stop_analysis":
+        report_id = await _snapshot_dynamic_report(db, settings, user, scan_hash)
+        body = resp.json() if "application/json" in resp.headers.get("content-type", "") else {}
+        return JSONResponse({**(body if isinstance(body, dict) else {}), "report_id": report_id})
+    elif name == "android.screenshots":
+        session = await _current_session(db, user, scan_hash)
+        body = resp.json()
+        if session and isinstance(body, dict):
+            body["screenshots"] = _session_shots(body.get("screenshots"), session)
+            body["session_started_at"] = session["started_at"].isoformat()
+        return JSONResponse(body)
     return await _engine_response(name, resp, user, db)
+
+
+async def _current_session(db: AsyncIOMotorDatabase, user: dict, scan_hash: str) -> dict[str, Any] | None:
+    return await db[MOBILE_DYNAMIC_SESSIONS_COLLECTION].find_one(
+        {"organization_id": user["organization_id"], "hash": scan_hash},
+        sort=[("started_at", -1)],
+    )
+
+
+def _session_shots(shots: Any, session: dict[str, Any]) -> list[dict[str, Any]]:
+    started = session["started_at"]
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    since = started.timestamp() - 2
+    return [s for s in (shots or []) if isinstance(s, dict) and float(s.get("mtime") or 0) >= since]
+
+
+async def _start_dynamic_session(db: AsyncIOMotorDatabase, user: dict, scan_hash: str) -> None:
+    await db[MOBILE_DYNAMIC_SESSIONS_COLLECTION].insert_one(
+        {
+            "organization_id": user["organization_id"],
+            "hash": scan_hash,
+            "started_at": _now(),
+            "started_by": user.get("email", ""),
+            "report_id": None,
+        }
+    )
+
+
+async def _snapshot_dynamic_report(
+    db: AsyncIOMotorDatabase, settings: Settings, user: dict, scan_hash: str
+) -> str | None:
+    """Persist this run's report so later runs don't overwrite it in history."""
+    session = await _current_session(db, user, scan_hash)
+    try:
+        report = (await engine.call(settings, "POST", "/api/v1/dynamic/report_json", data={"hash": scan_hash})).json()
+    except MobileSecurityApiError:
+        return None
+    shots: list[dict[str, Any]] = []
+    try:
+        raw = (await engine.call(settings, "POST", "/api/v1/android/screenshots", data={"hash": scan_hash})).json()
+        shots = _session_shots(raw.get("screenshots"), session) if session else list(raw.get("screenshots") or [])
+    except (MobileSecurityApiError, ValueError, AttributeError):
+        shots = []
+    doc = {
+        "organization_id": user["organization_id"],
+        "hash": scan_hash,
+        "session_id": session["_id"] if session else None,
+        "started_at": session["started_at"] if session else None,
+        "created_at": _now(),
+        "created_by": user.get("email", ""),
+        "report": report,
+        "screenshot_count": len(shots),
+    }
+    try:
+        result = await db[MOBILE_DYNAMIC_REPORTS_COLLECTION].insert_one(doc)
+    except Exception:
+        # Oversized engine payloads: keep the run, drop the bulky raw report.
+        doc["report"] = {"error": "Report too large to archive"}
+        result = await db[MOBILE_DYNAMIC_REPORTS_COLLECTION].insert_one(doc)
+    if shots:
+        await db[MOBILE_DYNAMIC_SHOTS_COLLECTION].insert_many(
+            [{"report_id": result.inserted_id, "name": s.get("name"), "mtime": s.get("mtime"), "data": s.get("data")} for s in shots]
+        )
+    if session:
+        await db[MOBILE_DYNAMIC_SESSIONS_COLLECTION].update_one(
+            {"_id": session["_id"]}, {"$set": {"report_id": result.inserted_id, "stopped_at": _now()}}
+        )
+    return str(result.inserted_id)
+
+
+def _report_meta(doc: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(doc["_id"]),
+        "hash": doc["hash"],
+        "started_at": doc.get("started_at"),
+        "created_at": doc.get("created_at"),
+        "created_by": doc.get("created_by", ""),
+        "screenshot_count": doc.get("screenshot_count", 0),
+    }
+
+
+async def _owned_report(db: AsyncIOMotorDatabase, user: dict, report_id: str) -> dict[str, Any]:
+    try:
+        oid = ObjectId(report_id)
+    except (InvalidId, TypeError) as exc:
+        raise HTTPException(400, "Invalid report id") from exc
+    doc = await db[MOBILE_DYNAMIC_REPORTS_COLLECTION].find_one({"_id": oid, "organization_id": user["organization_id"]})
+    if not doc:
+        raise HTTPException(404, "Report not found")
+    return doc
+
+
+@scans_router.get("/scans/{scan_hash}/dynamic/session")
+async def dynamic_session(
+    scan_hash: str,
+    user: dict = Depends(require_mobile_permission("view")),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> dict[str, Any]:
+    await _owned_scan(db, user, scan_hash)
+    s = await _current_session(db, user, scan_hash)
+    if not s:
+        return {"session": None}
+    return {
+        "session": {
+            "started_at": s["started_at"],
+            "started_by": s.get("started_by", ""),
+            "stopped_at": s.get("stopped_at"),
+            "report_id": str(s["report_id"]) if s.get("report_id") else None,
+        }
+    }
+
+
+@scans_router.get("/scans/{scan_hash}/dynamic/reports")
+async def dynamic_reports(
+    scan_hash: str,
+    user: dict = Depends(require_mobile_permission("view")),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> dict[str, Any]:
+    await _owned_scan(db, user, scan_hash)
+    docs = await db[MOBILE_DYNAMIC_REPORTS_COLLECTION].find(
+        {"organization_id": user["organization_id"], "hash": scan_hash}, {"report": 0}
+    ).sort("created_at", -1).to_list(200)
+    return {"items": [_report_meta(d) for d in docs]}
+
+
+@scans_router.get("/dynamic/reports/{report_id}")
+async def dynamic_report_detail(
+    report_id: str,
+    user: dict = Depends(require_mobile_permission("view")),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> dict[str, Any]:
+    doc = await _owned_report(db, user, report_id)
+    shots = await db[MOBILE_DYNAMIC_SHOTS_COLLECTION].find({"report_id": doc["_id"]}, {"_id": 0, "report_id": 0}).sort("mtime", 1).to_list(500)
+    return {**_report_meta(doc), "report": doc.get("report") or {}, "screenshots": shots}
+
+
+@scans_router.delete("/dynamic/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_dynamic_report(
+    report_id: str,
+    user: dict = Depends(require_mobile_permission("edit")),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+) -> Response:
+    doc = await _owned_report(db, user, report_id)
+    await db[MOBILE_DYNAMIC_SHOTS_COLLECTION].delete_many({"report_id": doc["_id"]})
+    await db[MOBILE_DYNAMIC_REPORTS_COLLECTION].delete_one({"_id": doc["_id"]})
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 _UPLOAD_ACTIONS = {"ios.file_upload", "ios.device_file_upload"}

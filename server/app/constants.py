@@ -16,6 +16,9 @@ AGENT_CHAT_MESSAGES_COLLECTION = "agent_chat_messages"
 AGENT_CHAT_ATTACHMENTS_COLLECTION = "agent_chat_attachments"
 
 MOBILE_SECURITY_SCANS_COLLECTION = "mobile_security_scans"
+MOBILE_DYNAMIC_SESSIONS_COLLECTION = "mobile_security_dynamic_sessions"
+MOBILE_DYNAMIC_REPORTS_COLLECTION = "mobile_security_dynamic_reports"
+MOBILE_DYNAMIC_SHOTS_COLLECTION = "mobile_security_dynamic_screenshots"
 
 ALWAYS_DISABLE_CATEGORIES = frozenset({"wifi_pentest", "cloud"})
 ALWAYS_DISABLE_TOOLS = frozenset({

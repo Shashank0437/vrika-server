@@ -4,6 +4,9 @@ from app.config import get_settings
 from app.constants import (
     AGENT_CHAT_MESSAGES_COLLECTION,
     AGENT_CHAT_SESSIONS_COLLECTION,
+    MOBILE_DYNAMIC_REPORTS_COLLECTION,
+    MOBILE_DYNAMIC_SESSIONS_COLLECTION,
+    MOBILE_DYNAMIC_SHOTS_COLLECTION,
     MOBILE_SECURITY_SCANS_COLLECTION,
     ORG_TOOL_POLICY_COLLECTION,
     SSO_CONFIGS_COLLECTION,
@@ -72,6 +75,13 @@ async def init_db() -> None:
     await db[MOBILE_SECURITY_SCANS_COLLECTION].create_index(
         [("organization_id", 1), ("updated_at", -1)]
     )
+    await db[MOBILE_DYNAMIC_SESSIONS_COLLECTION].create_index(
+        [("organization_id", 1), ("hash", 1), ("started_at", -1)]
+    )
+    await db[MOBILE_DYNAMIC_REPORTS_COLLECTION].create_index(
+        [("organization_id", 1), ("hash", 1), ("created_at", -1)]
+    )
+    await db[MOBILE_DYNAMIC_SHOTS_COLLECTION].create_index("report_id")
 
 
 async def close_db() -> None:

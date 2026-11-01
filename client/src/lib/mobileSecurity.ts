@@ -96,6 +96,25 @@ export const compareScans = (hash1: string, hash2: string) =>
 
 export type EngineParams = Record<string, string | number | boolean | string[]>;
 
+export type DynamicSession = { started_at: string; started_by: string; stopped_at: string | null; report_id: string | null };
+export type DynamicReportMeta = { id: string; hash: string; started_at: string | null; created_at: string; created_by: string; screenshot_count: number };
+export type DynamicReportDetail = DynamicReportMeta & {
+  report: Record<string, unknown>;
+  screenshots: { name: string; mtime?: number; data: string }[];
+};
+
+export const getDynamicSession = (hash: string) =>
+  api<{ session: DynamicSession | null }>(`${BASE}/scans/${enc(hash)}/dynamic/session`, { skipPendingOverlay: true });
+
+export const listDynamicReports = (hash: string) =>
+  api<{ items: DynamicReportMeta[] }>(`${BASE}/scans/${enc(hash)}/dynamic/reports`, { skipPendingOverlay: true });
+
+export const getDynamicReport = (id: string) =>
+  api<DynamicReportDetail>(`${BASE}/dynamic/reports/${enc(id)}`, { skipPendingOverlay: true });
+
+export const deleteDynamicReport = (id: string) =>
+  api<void>(`${BASE}/dynamic/reports/${enc(id)}`, { method: "DELETE" });
+
 /** Allowlisted engine operation (dynamic analysis, Frida, iOS, suppressions, queue). */
 export function engineAction<T = Record<string, unknown>>(name: string, params: EngineParams = {}, quiet = true) {
   return api<T>(`${BASE}/engine/${enc(name)}`, { method: "POST", json: { params }, skipPendingOverlay: quiet });

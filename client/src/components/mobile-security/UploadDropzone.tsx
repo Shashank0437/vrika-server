@@ -2,10 +2,10 @@
 
 import { useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CloudUpload, FileArchive, Loader2, ShieldCheck } from "lucide-react";
+import { CloudUpload, FileArchive, ShieldCheck } from "lucide-react";
 import { ACCEPTED_EXTENSIONS, uploadScan } from "@/lib/mobileSecurity";
 import { mobileScanHref } from "@/lib/mobile-security-nav";
-import { card, ErrorBanner } from "./ui";
+import { card, ErrorBanner, Spinner } from "./ui";
 
 export function UploadDropzone({ disabled, onUploaded }: { disabled?: boolean; onUploaded?: () => void }) {
   const router = useRouter();
@@ -86,7 +86,7 @@ export function UploadDropzone({ disabled, onUploaded }: { disabled?: boolean; o
         {busy ? (
           <>
             <span className="flex size-14 items-center justify-center rounded-2xl bg-primary text-on-primary shadow-lg shadow-primary/25">
-              {progress < 100 ? <FileArchive className="size-7" /> : <Loader2 className="size-7 animate-spin" />}
+              {progress < 100 ? <FileArchive className="size-7" /> : <Spinner className="size-8" label="Starting analysis" />}
             </span>
             <div className="w-full max-w-sm">
               <p className="truncate text-sm font-semibold text-on-surface">{file.name}</p>

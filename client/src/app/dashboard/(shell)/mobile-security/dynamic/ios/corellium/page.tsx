@@ -26,7 +26,7 @@ import { engineAction } from "@/lib/mobileSecurity";
 import { MOBILE_SECURITY_HREF } from "@/lib/mobile-security-nav";
 import { ActionForm, KeyValueGrid, Panel, ResultView, useEngine } from "@/components/mobile-security/dynamic";
 import { asArr, asObj, str } from "@/components/mobile-security/ReportSections";
-import { card, EngineStatusBanner, ErrorBanner, PageHeader, secondaryButton, Skeleton } from "@/components/mobile-security/ui";
+import { card, EngineStatusBanner, ErrorBanner, PageHeader, PageLoader, secondaryButton } from "@/components/mobile-security/ui";
 
 const FRIDA_IOS_DEFAULT = "api_monitor,ssl_pinning_bypass,jailbreak_detection_bypass,dump_crypto,dump_data";
 
@@ -115,7 +115,7 @@ export default function IosCorelliumPage() {
             ]}
           />
         ) : (
-          <Skeleton className="h-12" />
+          <PageLoader label="Checking Corellium…" className="py-6" />
         )}
       </Panel>
 

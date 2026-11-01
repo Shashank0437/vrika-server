@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useState, type FormEvent, type ReactNode } from "react";
-import { Loader2, Play, Upload } from "lucide-react";
+import { Play, Upload } from "lucide-react";
+import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
 import { engineAction, engineDownload, engineUpload, plain, type EngineParams } from "@/lib/mobileSecurity";
-import { card, ErrorBanner, primaryButton, secondaryButton } from "./ui";
+import { card, ErrorBanner, primaryButton, secondaryButton, Spinner } from "./ui";
 
 export type Field =
   | { name: string; label: string; type?: "text" | "textarea" | "password"; placeholder?: string; defaultValue?: string; required?: boolean }
@@ -97,6 +98,11 @@ export function ActionForm({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    const missing = fields.find((f) => f.type === "select" && f.required && !values[f.name]);
+    if (missing) {
+      setError(`${missing.label} is required`);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -139,19 +145,13 @@ export function ActionForm({
               <>
                 <span className="text-xs font-semibold text-on-surface-variant">{f.label}</span>
                 {f.type === "select" ? (
-                  <select
-                    className={inputCls}
+                  <WorkspaceSelect
+                    label={f.label}
                     value={String(values[f.name] ?? "")}
-                    required={f.required}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
-                  >
-                    <option value="">Select…</option>
-                    {f.options.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={f.options}
+                    placeholder={f.options.length ? "Select…" : "No options available"}
+                    onChange={(v) => setValues((cur) => ({ ...cur, [f.name]: v }))}
+                  />
                 ) : f.type === "textarea" ? (
                   <textarea
                     className={`${inputCls} min-h-28 font-mono text-xs`}
@@ -182,7 +182,7 @@ export function ActionForm({
           </label>
         )}
         <button type="submit" className={primaryButton} disabled={busy || disabled}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+          {busy ? <Spinner /> : <Play className="size-4" />}
           {submitLabel}
         </button>
       </form>

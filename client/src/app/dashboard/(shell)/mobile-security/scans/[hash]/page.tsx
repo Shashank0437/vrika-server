@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Activity, ArrowLeft, Download, FileWarning, Loader2, RefreshCcw, ScrollText, Trash2 } from "lucide-react";
+import { Activity, ArrowLeft, Download, FileWarning, RefreshCcw, ScrollText, Trash2 } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -52,6 +52,8 @@ import {
   secondaryButton,
   SEVERITY_META,
   Skeleton,
+  Spinner,
+  PageLoader,
   StatusBadge,
 } from "@/components/mobile-security/ui";
 
@@ -289,12 +291,12 @@ export default function MobileScanReportPage() {
         {scan && (
           <div className="relative flex flex-wrap items-center gap-2 border-t border-outline-variant/50 bg-surface-container-lowest/70 px-6 py-3">
             <button className={primaryButton} disabled={!completed || busy !== null} onClick={() => void act("pdf")}>
-              {busy === "pdf" ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {busy === "pdf" ? <Spinner /> : <Download className="size-4" />}
               Download PDF
             </button>
             {canExecute && (
               <button className={secondaryButton} disabled={isPending(scan) || busy !== null} onClick={() => void act("rescan")}>
-                {busy === "rescan" ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
+                {busy === "rescan" ? <Spinner /> : <RefreshCcw className="size-4" />}
                 Rescan
               </button>
             )}
@@ -321,7 +323,7 @@ export default function MobileScanReportPage() {
         <div className={`${card} space-y-5 p-6`}>
           <div className="flex items-center gap-4">
             <span className="relative flex size-12 items-center justify-center rounded-2xl bg-primary-container text-primary">
-              <Loader2 className="size-6 animate-spin" />
+              <Spinner className="size-8" label="Analysing" />
             </span>
             <div>
               <p className="text-base font-semibold text-on-surface">{scan.status === "queued" ? "Queued for analysis" : "Analysing application"}</p>
@@ -344,12 +346,7 @@ export default function MobileScanReportPage() {
       )}
 
       {/* Report */}
-      {completed && !report && !error && (
-        <div className="space-y-4">
-          <Skeleton className="h-11 w-full rounded-xl" />
-          <Skeleton className="h-64 w-full rounded-2xl" />
-        </div>
-      )}
+      {completed && !report && !error && <PageLoader label="Loading report…" />}
 
       {completed && report && sections && (
         <>

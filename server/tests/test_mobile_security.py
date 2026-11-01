@@ -197,3 +197,42 @@ def test_branded_pdf_renders_untrusted_engine_text(ctx):
     assert res.status_code == 200
     assert res.headers["content-type"] == "application/pdf"
     assert res.content.startswith(b"%PDF")
+
+
+def test_dynamic_reports_are_archived_per_run_with_session_screenshots(ctx):
+    import time
+
+    ctx["use"](ctx["analyst"])
+    client = ctx["client"]
+    ctx["mocks"]["call"].return_value = _json_response({"status": "ok"})
+    assert client.post("/mobile-security/engine/dynamic.start_analysis", json={"params": {"hash": HASH}}).status_code == 200
+
+    now = int(time.time())
+    reports = iter([{"run": 1}, {"run": 2}])
+
+    async def engine_call(settings, method, path, data=None, files=None):
+        if path.endswith("dynamic/report_json"):
+            return _json_response(next(reports))
+        if path.endswith("android/screenshots"):
+            return _json_response({"screenshots": [
+                {"name": "old.png", "mtime": now - 3600, "data": "data:image/png;base64,AA=="},
+                {"name": "new.png", "mtime": now + 1, "data": "data:image/png;base64,AA=="},
+            ]})
+        return _json_response({"status": "ok"})
+
+    ctx["mocks"]["call"].side_effect = engine_call
+    shots = client.post("/mobile-security/engine/android.screenshots", json={"params": {"hash": HASH}}).json()
+    assert [s["name"] for s in shots["screenshots"]] == ["new.png"]
+
+    first = client.post("/mobile-security/engine/dynamic.stop_analysis", json={"params": {"hash": HASH}}).json()["report_id"]
+    client.post("/mobile-security/engine/dynamic.start_analysis", json={"params": {"hash": HASH}})
+    second = client.post("/mobile-security/engine/dynamic.stop_analysis", json={"params": {"hash": HASH}}).json()["report_id"]
+
+    items = client.get(f"/mobile-security/scans/{HASH}/dynamic/reports").json()["items"]
+    assert [i["id"] for i in items] == [second, first]
+    detail = client.get(f"/mobile-security/dynamic/reports/{first}").json()
+    assert detail["report"] == {"run": 1}
+    assert [s["name"] for s in detail["screenshots"]] == ["new.png"]
+
+    ctx["use"](_user(ObjectId(), [{"role": "admin", "scope_type": "global", "scope_id": None}]))
+    assert client.get(f"/mobile-security/dynamic/reports/{first}").status_code == 404

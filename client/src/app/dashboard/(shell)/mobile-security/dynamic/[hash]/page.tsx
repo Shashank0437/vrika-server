@@ -11,7 +11,6 @@ import {
   Code2,
   FileBarChart2,
   Globe,
-  Loader2,
   Lock,
   Pause,
   Play,
@@ -25,11 +24,22 @@ import {
 } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
-import { engineAction, engineStream, getReport, getScan, type MobileReport, type MobileScan } from "@/lib/mobileSecurity";
+import {
+  engineAction,
+  engineStream,
+  getDynamicSession,
+  getReport,
+  getScan,
+  timeAgo,
+  type DynamicSession,
+  type MobileReport,
+  type MobileScan,
+} from "@/lib/mobileSecurity";
 import { MOBILE_SECURITY_HREF, mobileDynamicHref } from "@/lib/mobile-security-nav";
 import { ActionForm, Panel, ResultView, useEngine } from "@/components/mobile-security/dynamic";
 import { asArr, asObj, str } from "@/components/mobile-security/ReportSections";
-import { ErrorBanner, PageHeader, PlatformAvatar, primaryButton, secondaryButton } from "@/components/mobile-security/ui";
+import { ErrorBanner, PageHeader, PlatformAvatar, primaryButton, secondaryButton, Spinner } from "@/components/mobile-security/ui";
+import { WorkspaceSelect } from "@/components/ui/WorkspaceSelect";
 
 const DEFAULT_HOOKS = [
   ["api_monitor", "API Monitor"],
@@ -126,7 +136,13 @@ function LiveScreen({ canExecute }: { canExecute: boolean }) {
             onMouseUp={(e) => canExecute && onUp(e)}
           />
         ) : (
-          <p className="px-6 text-center text-xs text-white/60">{live ? "Connecting to device…" : "Press Go live to mirror the device screen."}</p>
+          live ? (
+            <span className="flex flex-col items-center gap-2 text-xs text-white/70">
+              <Spinner className="size-8" label="Connecting to device" /> Connecting to device…
+            </span>
+          ) : (
+            <p className="px-6 text-center text-xs text-white/60">Press Go live to mirror the device screen.</p>
+          )
         )}
         {live && (
           <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-error px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
@@ -194,7 +210,7 @@ function Screens({ hash, canExecute, version }: { hash: string; canExecute: bool
               if (await run("android.screenshot", { hash }, "shot")) void load();
             }}
           >
-            {busy === "shot" ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+            {busy === "shot" ? <Spinner /> : <Camera className="size-4" />}
             Screenshot
           </button>
         )
@@ -234,6 +250,7 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
   const [cls, setCls] = useState({ class_name: "", class_search: "", class_trace: "" });
   const [scripts, setScripts] = useState<string[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
+  const [scriptQuery, setScriptQuery] = useState("");
   const [procs, setProcs] = useState<{ pid: number; name: string; identifier: string }[] | null>(null);
   const [target, setTarget] = useState("");
   const { busy, error, run } = useEngine();
@@ -287,21 +304,35 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
         ))}
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        <label className="min-w-56 flex-1 space-y-1">
-          <span className="text-xs font-semibold text-on-surface-variant">Script library</span>
-          <select
-            multiple
-            className="h-24 w-full rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-2 py-1 text-xs outline-none focus:border-primary"
-            value={picked}
-            onChange={(e) => setPicked(Array.from(e.target.selectedOptions).map((o) => o.value))}
-          >
-            {scripts.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="min-w-56 flex-1 space-y-1">
+          <span className="text-xs font-semibold text-on-surface-variant">Script library {picked.length > 0 && `(${picked.length} selected)`}</span>
+          <input
+            type="search"
+            placeholder="Search scripts…"
+            value={scriptQuery}
+            onChange={(e) => setScriptQuery(e.target.value)}
+            className="no-search-cancel h-9 w-full rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-3 text-xs outline-none focus:border-primary"
+          />
+          <div className="terminal-scroll flex max-h-40 flex-wrap gap-1.5 overflow-auto rounded-xl border border-outline-variant/50 bg-surface-container-low p-2">
+            {scripts
+              .filter((s) => s.toLowerCase().includes(scriptQuery.toLowerCase()))
+              .map((s) => {
+                const on = picked.includes(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setPicked((cur) => (on ? cur.filter((x) => x !== s) : [...cur, s]))}
+                    className={`rounded-lg px-2 py-1 font-mono text-[11px] transition ${on ? "bg-primary text-on-primary" : "bg-surface-container-lowest text-on-surface ring-1 ring-outline-variant/60 hover:ring-primary/50"}`}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            {!scripts.length && <span className="text-xs text-on-surface-variant">No scripts available.</span>}
+          </div>
+        </div>
         <button
           className={secondaryButton}
           disabled={!picked.length || busy !== null}
@@ -328,7 +359,7 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
           ] as const
         ).map(([action, label, cls_]) => (
           <button key={action} className={cls_} disabled={busy !== null} onClick={() => void instrument(action)}>
-            {busy === action ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+            {busy === action ? <Spinner /> : <Play className="size-4" />}
             {label}
           </button>
         ))}
@@ -342,7 +373,7 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
             log("List running apps", Boolean(r), `${list.length} processes`);
           }}
         >
-          {busy === "ps" ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
+          {busy === "ps" ? <Spinner /> : <Activity className="size-4" />}
           Attach
         </button>
         <button
@@ -358,14 +389,14 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
       </div>
       {procs && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-container-low p-3">
-          <select className="h-10 min-w-64 flex-1 rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-3 text-sm" value={target} onChange={(e) => setTarget(e.target.value)}>
-            <option value="">{procs.length ? "Select a running app…" : "No running apps found"}</option>
-            {procs.map((p) => (
-              <option key={p.pid} value={`${p.pid}|${p.identifier}`}>
-                {p.name} — {p.identifier} (PID {p.pid})
-              </option>
-            ))}
-          </select>
+          <WorkspaceSelect
+            className="min-w-64 flex-1"
+            label="Running app"
+            value={target}
+            placeholder={procs.length ? "Select a running app…" : "No running apps found"}
+            options={procs.map((p) => ({ value: `${p.pid}|${p.identifier}`, label: `${p.name} (PID ${p.pid})`, description: p.identifier }))}
+            onChange={setTarget}
+          />
           <button
             className={primaryButton}
             disabled={!target || busy !== null}
@@ -492,6 +523,7 @@ export default function AndroidDynamicSessionPage() {
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [shotVersion, setShotVersion] = useState(0);
+  const [session, setSession] = useState<DynamicSession | null | undefined>(undefined);
   const { busy, error: actionError, run } = useEngine();
   const log = useCallback<LogFn>((label, ok, detail) => {
     setEntries((list) => [{ at: new Date().toLocaleTimeString(), label, ok, detail }, ...list].slice(0, 100));
@@ -500,6 +532,7 @@ export default function AndroidDynamicSessionPage() {
   useEffect(() => {
     getScan(hash).then(setScan).catch((e) => setError(e instanceof Error ? e.message : "Scan not found"));
     getReport(hash).then(setReport).catch(() => setReport(null));
+    getDynamicSession(hash).then((r) => setSession(r.session)).catch(() => setSession(null));
   }, [hash]);
 
   const pkg = str(report?.package_name) || scan?.package_name || "";
@@ -507,7 +540,8 @@ export default function AndroidDynamicSessionPage() {
   const exported = asArr(report?.exported_activities).map(str);
 
   async function stop() {
-    if (await run("dynamic.stop_analysis", { hash }, "stop")) router.push(`${mobileDynamicHref(hash)}/report`);
+    const r = await run<{ report_id?: string }>("dynamic.stop_analysis", { hash }, "stop");
+    if (r) router.push(`${mobileDynamicHref(hash)}/report${r.report_id ? `?id=${encodeURIComponent(r.report_id)}` : ""}`);
   }
 
   return (
@@ -531,7 +565,7 @@ export default function AndroidDynamicSessionPage() {
             </Link>
             {canExecute && (
               <button className={primaryButton} disabled={busy !== null} onClick={() => void stop()}>
-                {busy === "stop" ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-4" />}
+                {busy === "stop" ? <Spinner /> : <Square className="size-4" />}
                 Stop &amp; generate report
               </button>
             )}
@@ -540,6 +574,25 @@ export default function AndroidDynamicSessionPage() {
       />
       {error && <ErrorBanner message={error} />}
       {actionError && <ErrorBanner message={actionError} />}
+      {session !== undefined && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-outline-variant/60 bg-surface-container-lowest px-4 py-3 text-sm">
+          <span className={`size-2 rounded-full ${session && !session.stopped_at ? "animate-pulse bg-tertiary" : "bg-outline"}`} />
+          {session ? (
+            <span className="text-on-surface-variant">
+              {session.stopped_at ? "Last session" : "Session running"} — started {timeAgo(session.started_at)}
+              {session.started_by && ` by ${session.started_by}`}. Screenshots and results below belong to this session only; earlier runs are kept in report history.
+            </span>
+          ) : (
+            <span className="text-on-surface-variant">
+              No session started yet. Start one from{" "}
+              <Link className="font-semibold text-primary hover:underline" href={`${MOBILE_SECURITY_HREF}/dynamic/android`}>
+                Android Dynamic Analyzer
+              </Link>
+              .
+            </span>
+          )}
+        </div>
+      )}
 
       {canExecute && <SessionToolbar hash={hash} log={log} onShot={() => setShotVersion((v) => v + 1)} />}
       <SessionLog entries={entries} />
@@ -630,7 +683,7 @@ function SessionToolbar({ hash, log, onShot }: { hash: string; log: LogFn; onSho
     <div className="flex flex-wrap gap-2 rounded-2xl border border-outline-variant/70 bg-surface-container-lowest p-3 shadow-sm">
       {TOOLBAR.map((item) => (
         <button key={item.key} className={btn} disabled={busy !== null} onClick={() => void run(item)}>
-          {busy === item.key ? <Loader2 className="size-4 animate-spin" /> : item.icon}
+          {busy === item.key ? <Spinner /> : item.icon}
           {item.label}
         </button>
       ))}
