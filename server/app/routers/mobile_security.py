@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import UTC, datetime
 from pathlib import PurePath
@@ -8,20 +9,26 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     File,
+    Form,
     HTTPException,
     Query,
     Response,
     UploadFile,
     status,
 )
+from fastapi.responses import JSONResponse, StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
 from app.constants import MOBILE_SECURITY_SCANS_COLLECTION
 from app.db import get_database
 from app.dependencies.access import require_mobile_access, require_mobile_permission
+from app.dependencies.auth import require_auth_user
 from app.schemas.mobile_security import MobileSecurityEmbedOut
 from app.services import mobile_security_client as engine
+from app.services.access import has_permission
+from app.services.mobile_security_actions import ENGINE_ACTIONS, EngineAction
 from app.services.mobile_bridge import (
     ProwlerBridgeError,
     get_mobile_security_embed_path,
@@ -381,4 +388,122 @@ async def compare_scans(
         return await engine.compare(settings, first["hash"], second["hash"])
     except MobileSecurityApiError as exc:
         raise _engine_error(exc) from exc
+
+
+ParamValue = str | int | float | bool | list[str]
+
+
+class EngineActionIn(BaseModel):
+    params: dict[str, ParamValue] = Field(default_factory=dict)
+
+
+def _form(params: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in params.items():
+        if isinstance(value, bool):
+            out[key] = "1" if value else "0"
+        elif isinstance(value, list):
+            out[key] = [str(v) for v in value]
+        else:
+            out[key] = str(value)
+    return out
+
+
+async def _authorize_action(
+    name: str, user: dict, db: AsyncIOMotorDatabase, params: dict[str, Any]
+) -> EngineAction:
+    action = ENGINE_ACTIONS.get(name)
+    if action is None:
+        raise HTTPException(404, "Unknown Mobile Security action")
+    if not has_permission(user, action.permission, module="mobile_security"):
+        raise HTTPException(403, f"Mobile Security {action.permission} permission required")
+    for key in action.owned:
+        value = params.get(key)
+        if not isinstance(value, str) or not value:
+            raise HTTPException(422, f"Missing parameter: {key}")
+        await _owned_scan(db, user, value)
+    return action
+
+
+async def _engine_response(
+    name: str, resp: Any, user: dict, db: AsyncIOMotorDatabase
+) -> Response:
+    ctype = resp.headers.get("content-type", "")
+    if "application/json" in ctype:
+        body = resp.json()
+        if name in {"static.tasks", "dynamic.get_apps", "ios.dynamic_analysis", "ios.device_dynamic_analysis"}:
+            # The engine is shared across tenants; only expose this organization's scans.
+            owned = {
+                d["hash"]
+                async for d in db[MOBILE_SECURITY_SCANS_COLLECTION].find(
+                    {"organization_id": user["organization_id"]}, {"hash": 1}
+                )
+            }
+            if name == "static.tasks" and isinstance(body, list):
+                body = [t for t in body if isinstance(t, dict) and t.get("checksum") in owned]
+            elif isinstance(body, dict) and isinstance(body.get("apps"), list):
+                body["apps"] = [a for a in body["apps"] if isinstance(a, dict) and a.get("MD5") in owned]
+        return JSONResponse(body)
+    headers = {}
+    if resp.headers.get("content-disposition"):
+        headers["Content-Disposition"] = resp.headers["content-disposition"]
+    return Response(content=resp.content, media_type=ctype or "application/octet-stream", headers=headers)
+
+
+@scans_router.post("/engine/{name}")
+async def engine_action(
+    name: str,
+    payload: EngineActionIn,
+    user: dict = Depends(require_auth_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    action = await _authorize_action(name, user, db, payload.params)
+    data = _form(payload.params)
+    if action.stream:
+        return StreamingResponse(
+            engine.stream(settings, action.path, data),
+            media_type="text/plain; charset=utf-8",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+    try:
+        resp = await engine.call(settings, action.method, action.path, data=data)
+    except MobileSecurityApiError as exc:
+        raise _engine_error(exc) from exc
+    return await _engine_response(name, resp, user, db)
+
+
+_UPLOAD_ACTIONS = {"ios.file_upload", "ios.device_file_upload"}
+
+
+@scans_router.post("/engine/{name}/upload")
+async def engine_upload_action(
+    name: str,
+    file: UploadFile = File(...),
+    params: str = Form("{}"),
+    user: dict = Depends(require_auth_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    if name not in _UPLOAD_ACTIONS:
+        raise HTTPException(404, "Unknown Mobile Security upload action")
+    try:
+        parsed = json.loads(params)
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid params") from exc
+    if not isinstance(parsed, dict):
+        raise HTTPException(400, "Invalid params")
+    action = await _authorize_action(name, user, db, parsed)
+    file_name = PurePath(file.filename or "upload.bin").name
+    try:
+        resp = await engine.call(
+            settings,
+            "POST",
+            action.path,
+            data=_form(parsed),
+            files={"file": (file_name, file.file, file.content_type or "application/octet-stream")},
+        )
+    except MobileSecurityApiError as exc:
+        raise _engine_error(exc) from exc
+    return await _engine_response(name, resp, user, db)
 

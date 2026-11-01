@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any, BinaryIO
 
 import httpx
@@ -55,7 +56,7 @@ async def _request(
         try:
             body = resp.json()
             if isinstance(body, dict):
-                message = str(body.get("error") or body.get("not_found") or body.get("report") or message)
+                message = str(body.get("error") or body.get("message") or body.get("not_found") or body.get("report") or message)
         except ValueError:
             pass
         raise MobileSecurityApiError(message, resp.status_code)
@@ -75,6 +76,41 @@ async def _json(settings: Settings, method: str, path: str, **kwargs: Any) -> di
 
 async def ping(settings: Settings) -> None:
     await _request(settings, "GET", "/api/v1/scans", params={"page": 1, "page_size": 1})
+
+
+async def call(
+    settings: Settings,
+    method: str,
+    path: str,
+    *,
+    data: dict[str, Any] | None = None,
+    files: dict[str, tuple[str, BinaryIO, str]] | None = None,
+) -> httpx.Response:
+    return await _request(
+        settings,
+        method,
+        path,
+        data=data if method == "POST" else None,
+        params=data if method == "GET" else None,
+        files=files,
+        timeout=settings.mobile_security_scan_timeout_seconds,
+    )
+
+
+async def stream(settings: Settings, path: str, data: dict[str, Any]) -> AsyncIterator[bytes]:
+    """Proxy a long-lived engine stream (e.g. logcat) chunk by chunk."""
+    if not is_configured(settings):
+        raise MobileSecurityApiError("Mobile Security is not configured", 503)
+    async with httpx.AsyncClient(
+        base_url=_base_url(settings),
+        timeout=httpx.Timeout(settings.mobile_security_timeout_seconds, read=None),
+        headers={"X-Vrika-Api-Key": settings.mobile_security_api_key},
+    ) as client:
+        async with client.stream("POST", path, data=data) as resp:
+            if resp.status_code >= 400:
+                raise MobileSecurityApiError("Mobile Security engine stream failed", resp.status_code)
+            async for chunk in resp.aiter_bytes():
+                yield chunk
 
 
 async def upload(settings: Settings, file_name: str, fileobj: BinaryIO, content_type: str) -> dict[str, Any]:

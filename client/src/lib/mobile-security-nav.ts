@@ -10,8 +10,11 @@ export const MOBILE_SECURITY_HREF = "/dashboard/mobile-security";
 
 export const MOBILE_SECURITY_NAV: MobileSecurityNavLeaf[] = [
   { id: "overview", label: "Overview", icon: "dashboard", href: MOBILE_SECURITY_HREF, exact: true },
-  { id: "scans", label: "Scans", icon: "radar", href: `${MOBILE_SECURITY_HREF}/scans` },
+  { id: "static", label: "Static Analysis", icon: "radar", href: `${MOBILE_SECURITY_HREF}/scans` },
+  { id: "dynamic", label: "Dynamic Analysis", icon: "insights", href: `${MOBILE_SECURITY_HREF}/dynamic` },
   { id: "compare", label: "Compare", icon: "compare_arrows", href: `${MOBILE_SECURITY_HREF}/compare` },
+  { id: "queue", label: "Scan Queue", icon: "pending_actions", href: `${MOBILE_SECURITY_HREF}/queue` },
+  { id: "console", label: "Classic Console", icon: "terminal", href: `${MOBILE_SECURITY_HREF}/console` },
 ];
 
 export function isMobileNavActive(pathname: string, leaf: MobileSecurityNavLeaf): boolean {
@@ -21,3 +24,6 @@ export function isMobileNavActive(pathname: string, leaf: MobileSecurityNavLeaf)
 
 export const mobileScanHref = (hash: string) =>
   `${MOBILE_SECURITY_HREF}/scans/${encodeURIComponent(hash)}`;
+
+export const mobileDynamicHref = (hash: string) =>
+  `${MOBILE_SECURITY_HREF}/dynamic/${encodeURIComponent(hash)}`;

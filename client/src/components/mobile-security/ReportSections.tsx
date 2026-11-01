@@ -233,7 +233,11 @@ function FileRefs({ files, onView }: { files: Obj; onView?: (file: string, lines
   );
 }
 
-export function codeRows(section: unknown, onView?: (file: string, lines: string) => void): FindingRow[] {
+export function codeRows(
+  section: unknown,
+  onView?: (file: string, lines: string) => void,
+  actions?: (rule: string) => ReactNode,
+): FindingRow[] {
   const findings = asObj(asObj(section).findings);
   return Object.entries(findings).map(([rule, value]) => {
     const v = asObj(value);
@@ -246,12 +250,19 @@ export function codeRows(section: unknown, onView?: (file: string, lines: string
       { label: "CVSS", value: str(md.cvss) },
     ].filter((m) => m.value);
     const files = asObj(v.files);
+    const fileRefs = Object.keys(files).length ? <FileRefs files={files} onView={onView} /> : null;
+    const extra = actions?.(rule);
     return {
       id: rule,
       severity: normalizeSeverity(md.severity),
       title: plain(md.description) || rule,
       meta,
-      body: Object.keys(files).length ? <FileRefs files={files} onView={onView} /> : undefined,
+      body: fileRefs || extra ? (
+        <>
+          {fileRefs}
+          {extra}
+        </>
+      ) : undefined,
     };
   });
 }
@@ -332,7 +343,7 @@ export function SourceViewer({
 
 /* ---------- Configuration (manifest / network / ATS) ---------- */
 
-export function configRows(report: MobileReport): FindingRow[] {
+export function configRows(report: MobileReport, actions?: (rule: string) => ReactNode): FindingRow[] {
   const manifest = asArr(asObj(report.manifest_analysis).manifest_findings).map((f, i) => {
     const o = asObj(f);
     const [title, ...rest] = plain(o.title).split("\n");
@@ -346,6 +357,7 @@ export function configRows(report: MobileReport): FindingRow[] {
         { label: "Rule", value: str(o.rule) },
         { label: "Component", value: str(o.component) },
       ].filter((m) => m.value),
+      body: o.rule ? actions?.(str(o.rule)) : undefined,
     };
   });
   const network = asArr(asObj(report.network_security).network_findings).map((f, i) => {

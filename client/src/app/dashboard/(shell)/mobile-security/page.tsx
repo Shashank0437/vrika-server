@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRight, Bug, Gauge, Loader2, Radar, Smartphone } from "lucide-react";
+import { ArrowRight, Bug, Gauge, Loader2, Radar, Smartphone, Upload } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
 import { isPending } from "@/lib/mobileSecurity";
 import { MOBILE_SECURITY_HREF } from "@/lib/mobile-security-nav";
 import { ScansTable } from "@/components/mobile-security/ScansTable";
-import { UploadDropzone } from "@/components/mobile-security/UploadDropzone";
 import { useMobileScans } from "@/components/mobile-security/useMobileScans";
 import {
   card,
@@ -16,6 +15,7 @@ import {
   EngineStatusBanner,
   ErrorBanner,
   PageHeader,
+  primaryButton,
   Skeleton,
 } from "@/components/mobile-security/ui";
 
@@ -59,9 +59,16 @@ export default function MobileSecurityOverviewPage() {
         eyebrow="Mobile Security / Overview"
         title="Mobile Security"
         description="Analyse Android, iOS and Windows apps for vulnerabilities, insecure configuration, secrets, trackers and malware."
+        actions={
+          canExecute && (
+            <Link href={`${MOBILE_SECURITY_HREF}/scans?upload=1`} className={primaryButton}>
+              <Upload className="size-4" />
+              New scan
+            </Link>
+          )
+        }
       />
       <EngineStatusBanner />
-      <UploadDropzone disabled={!canExecute} onUploaded={() => void reload(true)} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading ? (
@@ -122,7 +129,7 @@ export default function MobileSecurityOverviewPage() {
             <EmptyState
               icon={<Smartphone className="size-6" />}
               title="No apps analysed yet"
-              description="Upload your first build above to get a full security report in minutes."
+              description="Start a new scan from Static Analysis to get a full security report in minutes."
             />
           )
         )}

@@ -94,6 +94,89 @@ export const viewSource = (hash: string, file: string, type: string) =>
 export const compareScans = (hash1: string, hash2: string) =>
   api<CompareResult>(`${BASE}/compare?${new URLSearchParams({ hash1, hash2 })}`);
 
+export type EngineParams = Record<string, string | number | boolean | string[]>;
+
+/** Allowlisted engine operation (dynamic analysis, Frida, iOS, suppressions, queue). */
+export function engineAction<T = Record<string, unknown>>(name: string, params: EngineParams = {}, quiet = true) {
+  return api<T>(`${BASE}/engine/${enc(name)}`, { method: "POST", json: { params }, skipPendingOverlay: quiet });
+}
+
+export async function engineDownload(name: string, params: EngineParams, fallbackName: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${getApiBase()}${BASE}/engine/${enc(name)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ params }),
+  });
+  if (!res.ok) throw new ApiError(await errorDetail(res, "Download failed"), res.status);
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const match = /filename="?([^";]+)"?/.exec(disposition);
+  saveBlob(await res.blob(), match?.[1] ?? fallbackName);
+}
+
+export async function engineUpload<T = Record<string, unknown>>(name: string, file: File, params: EngineParams): Promise<T> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  form.append("params", JSON.stringify(params));
+  const res = await fetch(`${getApiBase()}${BASE}/engine/${enc(name)}/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) throw new ApiError(await errorDetail(res, "Upload failed"), res.status);
+  return (await res.json()) as T;
+}
+
+/** Streams a long-lived engine output (e.g. logcat) until aborted. */
+export async function engineStream(name: string, params: EngineParams, onText: (chunk: string) => void, signal: AbortSignal): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${getApiBase()}${BASE}/engine/${enc(name)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ params }),
+    signal,
+  });
+  if (!res.ok || !res.body) throw new ApiError(await errorDetail(res, "Stream failed"), res.status);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    onText(decoder.decode(value, { stream: true }));
+  }
+}
+
+async function errorDetail(res: Response, fallback: string): Promise<string> {
+  try {
+    const j = (await res.json()) as { detail?: unknown };
+    if (typeof j.detail === "string") return j.detail;
+  } catch {
+    /* keep fallback */
+  }
+  return fallback;
+}
+
+function saveBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export type EngineTask = {
+  task_id: string;
+  file_name: string;
+  app_name?: string;
+  checksum: string;
+  created_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  status: string;
+};
+
 /** XHR so the dropzone can show real upload progress. */
 export function uploadScan(file: File, onProgress?: (pct: number) => void): Promise<MobileScan> {
   return new Promise((resolve, reject) => {

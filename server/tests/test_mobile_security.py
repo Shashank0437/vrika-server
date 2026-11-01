@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from bson import ObjectId
 from fastapi.testclient import TestClient
@@ -52,6 +53,7 @@ def ctx(monkeypatch):
         "scorecard": AsyncMock(return_value={"app_name": "Demo", "security_score": 72, "high": [{}], "warning": []}),
         "report_json": AsyncMock(return_value={"app_name": "Demo"}),
         "delete_scan": AsyncMock(return_value=None),
+        "call": AsyncMock(),
     }
     for name, mock in mocks.items():
         monkeypatch.setattr(engine, name, mock)
@@ -127,3 +129,52 @@ def test_delete_removes_engine_result_when_unreferenced(ctx):
     ctx["use"](ctx["analyst"])
     assert ctx["client"].delete(f"/mobile-security/scans/{HASH}").status_code == 204
     ctx["mocks"]["delete_scan"].assert_awaited_once()
+
+
+def _json_response(body):
+    return httpx.Response(200, json=body)
+
+
+def test_engine_action_unknown_is_rejected(ctx):
+    ctx["use"](ctx["analyst"])
+    res = ctx["client"].post("/mobile-security/engine/static.not_real", json={"params": {}})
+    assert res.status_code == 404
+    ctx["mocks"]["call"].assert_not_called()
+
+
+def test_engine_action_requires_permission(ctx):
+    ctx["use"](ctx["viewer"])
+    res = ctx["client"].post("/mobile-security/engine/dynamic.start_analysis", json={"params": {"hash": HASH}})
+    assert res.status_code == 403
+    ctx["mocks"]["call"].assert_not_called()
+
+
+def test_engine_action_rejects_other_org_hash(ctx):
+    ctx["use"](ctx["analyst"])
+    res = ctx["client"].post("/mobile-security/engine/dynamic.start_analysis", json={"params": {"hash": OTHER_HASH}})
+    assert res.status_code == 404
+    ctx["mocks"]["call"].assert_not_called()
+
+
+def test_engine_action_forwards_owned_hash(ctx):
+    ctx["use"](ctx["analyst"])
+    ctx["mocks"]["call"].return_value = _json_response({"status": "ok"})
+    res = ctx["client"].post("/mobile-security/engine/android.tls_tests", json={"params": {"hash": HASH}})
+    assert res.status_code == 200
+    args, kwargs = ctx["mocks"]["call"].call_args
+    assert args[2] == "/api/v1/android/tls_tests"
+    assert kwargs["data"] == {"hash": HASH}
+
+
+def test_engine_app_lists_are_tenant_filtered(ctx):
+    ctx["use"](ctx["viewer"])
+    ctx["mocks"]["call"].return_value = _json_response(
+        {"apps": [{"MD5": HASH}, {"MD5": OTHER_HASH}], "identifier": None}
+    )
+    res = ctx["client"].post("/mobile-security/engine/dynamic.get_apps", json={"params": {}})
+    assert [a["MD5"] for a in res.json()["apps"]] == [HASH]
+    ctx["mocks"]["call"].return_value = _json_response(
+        [{"checksum": HASH, "task_id": "1"}, {"checksum": OTHER_HASH, "task_id": "2"}]
+    )
+    res = ctx["client"].post("/mobile-security/engine/static.tasks", json={"params": {}})
+    assert [t["checksum"] for t in res.json()] == [HASH]

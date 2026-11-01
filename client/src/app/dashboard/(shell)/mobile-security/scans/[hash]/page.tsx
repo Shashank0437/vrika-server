@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Download, FileWarning, Loader2, RefreshCcw, ScrollText, Trash2 } from "lucide-react";
+import { Activity, ArrowLeft, Download, FileWarning, Loader2, RefreshCcw, ScrollText, Trash2 } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -22,7 +22,8 @@ import {
   type Scorecard,
   type Severity,
 } from "@/lib/mobileSecurity";
-import { MOBILE_SECURITY_HREF } from "@/lib/mobile-security-nav";
+import { MOBILE_SECURITY_HREF, mobileDynamicHref } from "@/lib/mobile-security-nav";
+import { ExtrasSection, extraKeys, SuppressActions, SuppressionsSection } from "@/components/mobile-security/ReportExtras";
 import {
   AppInfo,
   asArr,
@@ -56,7 +57,7 @@ import {
 
 const ANDROID_SOURCE_TYPES = new Set(["apk", "studio", "eclipse"]);
 
-type TabId = "summary" | "code" | "config" | "permissions" | "binary" | "certificate" | "network" | "secrets" | "components" | "logs";
+type TabId = "summary" | "code" | "config" | "permissions" | "binary" | "certificate" | "network" | "secrets" | "components" | "more" | "suppressions" | "logs";
 
 function useLogs(hash: string, active: boolean) {
   const [logs, setLogs] = useState<string[]>([]);
@@ -110,6 +111,7 @@ export default function MobileScanReportPage() {
   const [busy, setBusy] = useState<"pdf" | "rescan" | "delete" | null>(null);
   const [tab, setTab] = useState<TabId>("summary");
   const [source, setSource] = useState<{ file: string; lines: string } | null>(null);
+  const [reportVersion, setReportVersion] = useState(0);
 
   const loadScan = useCallback(async () => {
     try {
@@ -133,14 +135,14 @@ export default function MobileScanReportPage() {
   const completed = scan?.status === "completed";
   useEffect(() => {
     if (!completed) return;
-    setReport(null);
+    if (!reportVersion) setReport(null);
     Promise.all([getReport(hash), getScorecard(hash).catch(() => null)])
       .then(([r, c]) => {
         setReport(r);
         setScorecard(c);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load report"));
-  }, [completed, hash]);
+  }, [completed, hash, reportVersion]);
 
   const logs = useLogs(hash, Boolean(scan && (isPending(scan) || scan.status === "failed" || tab === "logs")));
 
@@ -175,16 +177,21 @@ export default function MobileScanReportPage() {
   const sections = useMemo(() => {
     if (!report) return null;
     const onView = sourceType ? (file: string, lines: string) => setSource({ file, lines }) : undefined;
+    const suppress = (type: "code" | "manifest") =>
+      canEdit
+        ? (rule: string) => <SuppressActions hash={hash} rule={rule} type={type} onDone={() => setReportVersion((v) => v + 1)} />
+        : undefined;
     return {
       summary: scorecardRows(scorecard),
-      code: codeRows(report.code_analysis, onView),
+      code: codeRows(report.code_analysis, onView, suppress("code")),
       api: codeRows({ findings: report.android_api }, onView),
       behaviour: codeRows({ findings: report.behaviour }, onView),
-      config: configRows(report),
+      config: configRows(report, suppress("manifest")),
       binary: binaryRows(report),
       secrets: asArr(report.secrets).map(str),
+      extras: extraKeys(report).length + (report.malware_permissions ? 1 : 0),
     };
-  }, [report, scorecard, sourceType]);
+  }, [report, scorecard, sourceType, canEdit, hash]);
 
   const tabs = useMemo(() => {
     if (!report || !sections) return [];
@@ -199,6 +206,8 @@ export default function MobileScanReportPage() {
       { id: "network", label: "Network & Privacy", show: true },
       { id: "secrets", label: "Secrets", count: sections.secrets.length, show: true },
       { id: "components", label: "Components", show: isAndroid },
+      { id: "more", label: "More analysis", count: sections.extras, show: true },
+      { id: "suppressions", label: "Suppressions", show: true },
       { id: "logs", label: "Logs", show: true },
     ];
     return list.filter((t) => t.show);
@@ -289,6 +298,12 @@ export default function MobileScanReportPage() {
                 Rescan
               </button>
             )}
+            {completed && platformOf(scan) === "android" && (
+              <Link href={mobileDynamicHref(scan.hash)} className={secondaryButton}>
+                <Activity className="size-4" />
+                Dynamic analysis
+              </Link>
+            )}
             {canEdit && (
               <button className={`${secondaryButton} ml-auto hover:!border-error/40 hover:!bg-error/8 hover:!text-error`} disabled={busy !== null} onClick={() => void act("delete")}>
                 <Trash2 className="size-4" />
@@ -376,6 +391,10 @@ export default function MobileScanReportPage() {
           {tab === "network" && <NetworkPrivacySection report={report} />}
           {tab === "secrets" && <StringList title="Possible hardcoded secrets" items={sections.secrets} />}
           {tab === "components" && <ComponentsSection report={report} />}
+          {tab === "more" && <ExtrasSection report={report} />}
+          {tab === "suppressions" && (
+            <SuppressionsSection hash={hash} canEdit={canEdit} version={reportVersion} onChanged={() => setReportVersion((v) => v + 1)} />
+          )}
           {tab === "logs" && (
             <Section title="Scan logs" actions={<ScrollText className="size-4 text-on-surface-variant" />}>
               <div className="p-4">

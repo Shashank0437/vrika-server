@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, GitCompareArrows, Search, Smartphone, Upload, X } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
@@ -23,7 +23,16 @@ import {
 const PAGE_SIZE = 15;
 
 export default function MobileScansPage() {
+  return (
+    <Suspense fallback={null}>
+      <MobileScansPageInner />
+    </Suspense>
+  );
+}
+
+function MobileScansPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const canExecute = hasPermission(user, "execute", { module: "mobile_security" });
   const canEdit = hasPermission(user, "edit", { module: "mobile_security" });
@@ -31,7 +40,7 @@ export default function MobileScansPage() {
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
-  const [showUpload, setShowUpload] = useState(false);
+  const [showUpload, setShowUpload] = useState(searchParams.get("upload") === "1");
   const [actionError, setActionError] = useState<string | null>(null);
   const { items, total, loading, error, reload } = useMobileScans({ page, pageSize: PAGE_SIZE, q: debounced });
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -51,9 +60,9 @@ export default function MobileScansPage() {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-7 px-5 py-8 sm:px-8 lg:py-10">
       <PageHeader
-        eyebrow="Mobile Security / Scans"
-        title="Scans"
-        description="Every app analysed by your organization. Select two Android scans to compare them."
+        eyebrow="Mobile Security / Static Analysis"
+        title="Static Analysis"
+        description="Upload builds and review every static analysis report for your organization. Select two Android scans to compare them."
         actions={
           <>
             <button
