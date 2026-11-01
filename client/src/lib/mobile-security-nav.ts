@@ -13,8 +13,6 @@ export const MOBILE_SECURITY_NAV: MobileSecurityNavLeaf[] = [
   { id: "static", label: "Static Analysis", icon: "radar", href: `${MOBILE_SECURITY_HREF}/scans` },
   { id: "dynamic", label: "Dynamic Analysis", icon: "insights", href: `${MOBILE_SECURITY_HREF}/dynamic` },
   { id: "compare", label: "Compare", icon: "compare_arrows", href: `${MOBILE_SECURITY_HREF}/compare` },
-  { id: "queue", label: "Scan Queue", icon: "pending_actions", href: `${MOBILE_SECURITY_HREF}/queue` },
-  { id: "console", label: "Classic Console", icon: "terminal", href: `${MOBILE_SECURITY_HREF}/console` },
 ];
 
 export function isMobileNavActive(pathname: string, leaf: MobileSecurityNavLeaf): boolean {

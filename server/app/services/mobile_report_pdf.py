@@ -22,6 +22,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
+    CondPageBreak,
     Image,
     KeepTogether,
     PageBreak,
@@ -148,10 +149,8 @@ class MobileReportPdf:
                 ]
             )
         )
-        band.keepWithNext = True
-        gap = Spacer(1, 8)
-        gap.keepWithNext = True
-        return [Spacer(1, 14), band, gap]
+        # keepWithNext would glue the band to tables taller than a page and leave blank pages.
+        return [CondPageBreak(1.4 * inch), Spacer(1, 14), band, Spacer(1, 8)]
 
     def _sev_cell(self, sev: str) -> Paragraph:
         label, color = SEVERITY[sev]

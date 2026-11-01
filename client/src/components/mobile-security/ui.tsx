@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, Apple, Bot, Box, CheckCircle2, Clock3, Loader2, MonitorSmartphone, XCircle } from "lucide-react";
+import { Icon as BrandIcon } from "@iconify/react";
+import { AlertTriangle, Box, CheckCircle2, Clock3, Loader2, XCircle } from "lucide-react";
 import {
   getAppIcon,
   getEngineStatus,
@@ -172,15 +173,15 @@ export function PlatformAvatar({
     );
   }
   const styles = {
-    android: "bg-gradient-to-br from-tertiary-container/70 to-tertiary-container/30 text-tertiary",
-    ios: "bg-gradient-to-br from-surface-container-highest to-surface-container text-on-surface",
-    windows: "bg-gradient-to-br from-sky-100 to-sky-50 text-sky-700",
+    android: "bg-gradient-to-br from-tertiary-container/40 to-surface-container-low",
+    ios: "bg-gradient-to-br from-surface-container-highest to-surface-container",
+    windows: "bg-gradient-to-br from-sky-100 to-sky-50",
     other: "bg-gradient-to-br from-primary-container to-surface-container-low text-primary",
   }[platform];
-  const Icon = { android: Bot, ios: Apple, windows: MonitorSmartphone, other: Box }[platform];
+  const brand = { android: "logos:android-icon", ios: "logos:apple", windows: "logos:microsoft-windows-icon", other: null }[platform];
   return (
     <span className={`inline-flex shrink-0 items-center justify-center ${box} ${styles}`} aria-label={platform}>
-      <Icon className={icon_} />
+      {brand ? <BrandIcon icon={brand} className={icon_} aria-hidden /> : <Box className={icon_} />}
     </span>
   );
 }

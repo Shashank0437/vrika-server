@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Apple, Bot, ChevronDown, Cpu, Smartphone } from "lucide-react";
+import { Icon } from "@iconify/react";
+import { ChevronDown, Cpu, Smartphone } from "lucide-react";
 import { MOBILE_SECURITY_HREF } from "@/lib/mobile-security-nav";
 import { card, EngineStatusBanner, PageHeader, primaryButton } from "@/components/mobile-security/ui";
 
@@ -65,17 +66,17 @@ export default function DynamicAnalysisLandingPage() {
       <EngineStatusBanner />
       <div className="mx-auto grid max-w-3xl gap-5 md:grid-cols-2">
         <AnalyzerCard
-          icon={<Bot className="size-10" />}
+          icon={<Icon icon="logos:android-icon" className="size-12" aria-hidden />}
           title="Android Dynamic Analyzer"
           description="Perform dynamic analysis of Android applications."
-          accent="bg-gradient-to-br from-tertiary-container/70 to-tertiary-container/30 text-tertiary"
+          accent="bg-gradient-to-br from-tertiary-container/50 to-surface-container-low"
         >
           <Link href={`${MOBILE_SECURITY_HREF}/dynamic/android`} className={primaryButton}>
             Android Dynamic Analyzer
           </Link>
         </AnalyzerCard>
         <AnalyzerCard
-          icon={<Apple className="size-10" />}
+          icon={<Icon icon="logos:apple" className="size-11" aria-hidden />}
           title="iOS Dynamic Analyzer"
           description="Perform dynamic analysis of iOS applications."
           accent="bg-gradient-to-br from-surface-container-highest to-surface-container text-on-surface"
