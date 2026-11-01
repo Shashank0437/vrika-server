@@ -10,13 +10,18 @@ import {
   Camera,
   Code2,
   FileBarChart2,
+  Globe,
   Loader2,
   Lock,
   Pause,
   Play,
   ScrollText,
+  ShieldCheck,
+  ShieldOff,
   Square,
   Terminal,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { hasPermission } from "@/lib/access";
 import { useAuth } from "@/lib/auth-context";
@@ -165,7 +170,7 @@ function LiveScreen({ canExecute }: { canExecute: boolean }) {
   );
 }
 
-function Screens({ hash, canExecute }: { hash: string; canExecute: boolean }) {
+function Screens({ hash, canExecute, version }: { hash: string; canExecute: boolean; version: number }) {
   const { busy, error, run } = useEngine();
   const [shots, setShots] = useState<{ name: string; data: string }[]>([]);
   const load = useCallback(async () => {
@@ -174,12 +179,11 @@ function Screens({ hash, canExecute }: { hash: string; canExecute: boolean }) {
   }, [hash, run]);
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hash]);
+  }, [load, version]);
   return (
     <Panel
       title="Screen"
-      description="Capture the device screen during testing."
+      description="Live device screen — click to tap, drag to swipe. Capture screenshots for the report."
       icon={<Camera className="size-4" />}
       actions={
         canExecute && (
@@ -219,15 +223,19 @@ function Screens({ hash, canExecute }: { hash: string; canExecute: boolean }) {
   );
 }
 
-function FridaPanel({ hash }: { hash: string }) {
+type LogFn = (label: string, ok: boolean, detail?: unknown) => void;
+
+const FRIDA_TEMPLATE = "Java.perform(function() {\n  // Use send() for logging\n});\n";
+
+function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
   const [defaults, setDefaults] = useState<string[]>(DEFAULT_HOOKS.map(([v]) => v));
   const [aux, setAux] = useState<string[]>([]);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(FRIDA_TEMPLATE);
   const [cls, setCls] = useState({ class_name: "", class_search: "", class_trace: "" });
-  const [mode, setMode] = useState<"spawn" | "session">("spawn");
   const [scripts, setScripts] = useState<string[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
-  const [result, setResult] = useState<unknown>(null);
+  const [procs, setProcs] = useState<{ pid: number; name: string; identifier: string }[] | null>(null);
+  const [target, setTarget] = useState("");
   const { busy, error, run } = useEngine();
 
   useEffect(() => {
@@ -299,7 +307,7 @@ function FridaPanel({ hash }: { hash: string }) {
           disabled={!picked.length || busy !== null}
           onClick={async () => {
             const r = await run<{ content?: string }>("frida.get_script", { device: "android", "scripts[]": picked }, "load");
-            if (r) setCode((c) => `${c}${c ? "\n" : ""}${str(r.content)}`);
+            if (r) setCode((c) => `${c}${c.endsWith("\n") || !c ? "" : "\n"}${str(r.content)}`);
           }}
         >
           Load scripts
@@ -313,40 +321,76 @@ function FridaPanel({ hash }: { hash: string }) {
         spellCheck={false}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <select className="h-10 rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-3 text-sm" value={mode} onChange={(e) => setMode(e.target.value as "spawn" | "session")}>
-          <option value="spawn">Spawn &amp; inject</option>
-          <option value="session">Inject into running session</option>
-        </select>
+        {(
+          [
+            ["spawn", "Spawn & Inject", primaryButton],
+            ["session", "Inject", secondaryButton],
+          ] as const
+        ).map(([action, label, cls_]) => (
+          <button key={action} className={cls_} disabled={busy !== null} onClick={() => void instrument(action)}>
+            {busy === action ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+            {label}
+          </button>
+        ))}
         <button
-          className={primaryButton}
+          className={secondaryButton}
           disabled={busy !== null}
           onClick={async () => {
-            const r = await run(
-              "frida.instrument",
-              {
-                hash,
-                frida_action: mode,
-                default_hooks: defaults.join(","),
-                auxiliary_hooks: aux.join(","),
-                frida_code: code,
-                ...cls,
-              },
-              "instrument",
-            );
-            if (r) setResult(r);
+            const r = await run<{ message?: unknown }>("frida.instrument", { ...hooks(), frida_action: "ps" }, "ps");
+            const list = asArr(r?.message).map(asObj).map((p) => ({ pid: Number(p.pid), name: str(p.name), identifier: str(p.identifier) }));
+            setProcs(list);
+            log("List running apps", Boolean(r), `${list.length} processes`);
           }}
         >
-          {busy === "instrument" ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-          Start instrumentation
+          {busy === "ps" ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4" />}
+          Attach
         </button>
-        <button className={secondaryButton} disabled={busy !== null} onClick={async () => setResult(await run("frida.get_dependencies", { hash }, "deps"))}>
-          Runtime dependencies
+        <button
+          className={secondaryButton}
+          disabled={busy !== null}
+          onClick={async () => {
+            const r = await run("frida.get_dependencies", { hash }, "deps");
+            log("Get dependencies", Boolean(r), r);
+          }}
+        >
+          Get dependencies
         </button>
       </div>
+      {procs && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-container-low p-3">
+          <select className="h-10 min-w-64 flex-1 rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-3 text-sm" value={target} onChange={(e) => setTarget(e.target.value)}>
+            <option value="">{procs.length ? "Select a running app…" : "No running apps found"}</option>
+            {procs.map((p) => (
+              <option key={p.pid} value={`${p.pid}|${p.identifier}`}>
+                {p.name} — {p.identifier} (PID {p.pid})
+              </option>
+            ))}
+          </select>
+          <button
+            className={primaryButton}
+            disabled={!target || busy !== null}
+            onClick={() => {
+              const [pid, pkg] = target.split("|");
+              void instrument("session", { pid, new_package: pkg });
+            }}
+          >
+            Attach &amp; inject
+          </button>
+        </div>
+      )}
       {error && <ErrorBanner message={error} />}
-      {result !== null && <ResultView value={result} />}
     </Panel>
   );
+
+  function hooks() {
+    return { hash, default_hooks: defaults.join(","), auxiliary_hooks: aux.join(","), frida_code: code, ...cls };
+  }
+
+  async function instrument(action: "spawn" | "session", extra: Record<string, string> = {}) {
+    const r = await run("frida.instrument", { ...hooks(), frida_action: action, ...extra }, action);
+    const label = extra.pid ? `Attach to ${extra.new_package} (PID ${extra.pid})` : action === "spawn" ? "Spawn & inject" : "Inject into session";
+    log(label, Boolean(r), r ?? undefined);
+  }
 }
 
 function PollingPanel({ title, description, icon, action, hash }: { title: string; description: string; icon: React.ReactNode; action: string; hash: string }) {
@@ -446,7 +490,12 @@ export default function AndroidDynamicSessionPage() {
   const [scan, setScan] = useState<MobileScan | null>(null);
   const [report, setReport] = useState<MobileReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [entries, setEntries] = useState<LogEntry[]>([]);
+  const [shotVersion, setShotVersion] = useState(0);
   const { busy, error: actionError, run } = useEngine();
+  const log = useCallback<LogFn>((label, ok, detail) => {
+    setEntries((list) => [{ at: new Date().toLocaleTimeString(), label, ok, detail }, ...list].slice(0, 100));
+  }, []);
 
   useEffect(() => {
     getScan(hash).then(setScan).catch((e) => setError(e instanceof Error ? e.message : "Scan not found"));
@@ -492,27 +541,25 @@ export default function AndroidDynamicSessionPage() {
       {error && <ErrorBanner message={error} />}
       {actionError && <ErrorBanner message={actionError} />}
 
-      <Screens hash={hash} canExecute={canExecute} />
-      {canExecute && <FridaPanel hash={hash} />}
+      {canExecute && <SessionToolbar hash={hash} log={log} onShot={() => setShotVersion((v) => v + 1)} />}
+      <SessionLog entries={entries} />
+
+      <Screens version={shotVersion} hash={hash} canExecute={canExecute} />
+      {canExecute && <FridaPanel hash={hash} log={log} />}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <PollingPanel title="API monitor" description="Live Android API calls captured by Frida." icon={<Activity className="size-4" />} action="frida.api_monitor" hash={hash} />
         <PollingPanel title="Frida logs" description="Output from your Frida scripts." icon={<Bug className="size-4" />} action="frida.logs" hash={hash} />
       </div>
 
+      <div id="web-traffic">
+        <WebTrafficPanel hash={hash} />
+      </div>
+
       {canExecute && (
         <div className="grid gap-5 lg:grid-cols-2">
           <ActionForm
-            title="Activity tester"
-            description="Launch every activity (or only exported ones) and capture screens."
-            icon={<Activity className="size-4" />}
-            action="android.activity"
-            fixed={{ hash }}
-            fields={[{ name: "test", label: "Test", type: "select", options: [{ value: "exported", label: "Exported activities" }, { value: "activity", label: "All activities" }], defaultValue: "exported", required: true }]}
-            submitLabel="Run tester"
-          />
-          <ActionForm
-            title="Start activity"
+            title="User interface — start activity"
             description="Launch a specific activity on the device."
             icon={<Play className="size-4" />}
             action="android.start_activity"
@@ -528,15 +575,8 @@ export default function AndroidDynamicSessionPage() {
                   }
                 : { name: "activity", label: "Activity", placeholder: "com.example.MainActivity", required: true },
             ]}
-            submitLabel="Start"
-          />
-          <ActionForm
-            title="TLS / SSL security tests"
-            description="Checks cleartext traffic, certificate pinning and transparency."
-            icon={<Lock className="size-4" />}
-            action="android.tls_tests"
-            fixed={{ hash }}
-            submitLabel="Run TLS tests"
+            submitLabel="Start activity"
+            onResult={(r) => log("Start activity", true, r)}
           />
           <ActionForm
             title="ADB shell"
@@ -549,7 +589,175 @@ export default function AndroidDynamicSessionPage() {
         </div>
       )}
 
-      <LogcatPanel pkg={pkg} />
+      <div id="logcat">
+        <LogcatPanel pkg={pkg} />
+      </div>
     </section>
+  );
+}
+
+type LogEntry = { at: string; label: string; ok: boolean; detail?: unknown };
+
+const TOOLBAR: { key: string; label: string; action: string; params?: Record<string, string>; icon: React.ReactNode }[] = [
+  { key: "ca-install", label: "Install Root CA", action: "android.root_ca", params: { action: "install" }, icon: <ShieldCheck className="size-4" /> },
+  { key: "ca-remove", label: "Remove Root CA", action: "android.root_ca", params: { action: "remove" }, icon: <ShieldOff className="size-4" /> },
+  { key: "proxy-set", label: "Set HTTP(S) Proxy", action: "android.global_proxy", params: { action: "set" }, icon: <Wifi className="size-4" /> },
+  { key: "proxy-unset", label: "Unset HTTP(S) Proxy", action: "android.global_proxy", params: { action: "unset" }, icon: <WifiOff className="size-4" /> },
+  { key: "tls", label: "TLS/SSL Security Tester", action: "android.tls_tests", icon: <Lock className="size-4" /> },
+  { key: "exported", label: "Exported Activity Tester", action: "android.activity", params: { test: "exported" }, icon: <Activity className="size-4" /> },
+  { key: "activity", label: "Activity Tester", action: "android.activity", params: { test: "activity" }, icon: <Activity className="size-4" /> },
+  { key: "deps", label: "Get Dependencies", action: "frida.get_dependencies", icon: <Code2 className="size-4" /> },
+  { key: "shot", label: "Take a Screenshot", action: "android.screenshot", icon: <Camera className="size-4" /> },
+];
+
+function SessionToolbar({ hash, log, onShot }: { hash: string; log: LogFn; onShot: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  async function run(item: (typeof TOOLBAR)[number]) {
+    setBusy(item.key);
+    try {
+      const needsHash = !["android.root_ca", "android.global_proxy"].includes(item.action);
+      const r = await engineAction(item.action, { ...(needsHash ? { hash } : {}), ...item.params }, false);
+      log(item.label, true, r);
+      if (item.key === "shot") onShot();
+    } catch (e) {
+      log(item.label, false, e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+  const btn = `${secondaryButton} h-9 px-3 text-xs`;
+  return (
+    <div className="flex flex-wrap gap-2 rounded-2xl border border-outline-variant/70 bg-surface-container-lowest p-3 shadow-sm">
+      {TOOLBAR.map((item) => (
+        <button key={item.key} className={btn} disabled={busy !== null} onClick={() => void run(item)}>
+          {busy === item.key ? <Loader2 className="size-4 animate-spin" /> : item.icon}
+          {item.label}
+        </button>
+      ))}
+      <a href="#logcat" className={btn}>
+        <ScrollText className="size-4" /> Logcat Stream
+      </a>
+      <a href="#web-traffic" className={btn}>
+        <Globe className="size-4" /> Live Web Traffic
+      </a>
+    </div>
+  );
+}
+
+function SessionLog({ entries }: { entries: LogEntry[] }) {
+  const [tab, setTab] = useState<"all" | "errors">("all");
+  const [open, setOpen] = useState<number | null>(null);
+  const shown = tab === "errors" ? entries.filter((e) => !e.ok) : entries;
+  const errors = entries.filter((e) => !e.ok).length;
+  return (
+    <Panel
+      title="Dynamic analyzer"
+      description="Results of actions run in this session."
+      icon={<ScrollText className="size-4" />}
+      actions={
+        <div className="flex gap-1">
+          {(["all", "errors"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${tab === t ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container"}`}
+            >
+              {t === "all" ? "Activity" : `Errors${errors ? ` (${errors})` : ""}`}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {shown.length ? (
+        <ul className="terminal-scroll max-h-72 space-y-1 overflow-auto">
+          {shown.map((e, i) => (
+            <li key={`${e.at}-${i}`} className="rounded-lg bg-surface-container-low px-3 py-2 text-xs">
+              <button className="flex w-full items-center gap-2 text-left" onClick={() => setOpen(open === i ? null : i)}>
+                <span className={`size-1.5 rounded-full ${e.ok ? "bg-tertiary" : "bg-error"}`} />
+                <span className="font-mono text-on-surface-variant">{e.at}</span>
+                <span className="font-semibold text-on-surface">{e.label}</span>
+                <span className={e.ok ? "text-tertiary" : "text-error"}>{e.ok ? "done" : "failed"}</span>
+              </button>
+              {open === i && e.detail !== undefined && (
+                <div className="mt-2">
+                  <ResultView value={e.detail} maxHeight="max-h-64" />
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-on-surface-variant">{tab === "errors" ? "No errors." : "Run an action above — results will be listed here."}</p>
+      )}
+    </Panel>
+  );
+}
+
+type FlowMeta = { id: string; method: string; relative: string; url: string; status_code?: number | string };
+
+function WebTrafficPanel({ hash }: { hash: string }) {
+  const [flows, setFlows] = useState<Record<string, FlowMeta[]> | null>(null);
+  const [selected, setSelected] = useState<unknown>(null);
+  const [live, setLive] = useState(false);
+  const { error, run } = useEngine();
+
+  const load = useCallback(async () => {
+    const r = await run<{ sorted_flows?: Record<string, FlowMeta[]> }>("android.web_traffic", { hash }, "flows");
+    if (r) setFlows(asObj(r.sorted_flows) as Record<string, FlowMeta[]>);
+  }, [hash, run]);
+
+  useEffect(() => {
+    if (!live) return;
+    void load();
+    const t = setInterval(() => void load(), 4000);
+    return () => clearInterval(t);
+  }, [live, load]);
+
+  const domains = Object.entries(flows ?? {});
+  return (
+    <Panel
+      title="Live web traffic"
+      description="HTTP(S) requests captured through the analysis proxy (set the proxy and install the Root CA first)."
+      icon={<Globe className="size-4" />}
+      actions={
+        <button className={secondaryButton} onClick={() => setLive((v) => !v)}>
+          {live ? <Pause className="size-4" /> : <Play className="size-4" />}
+          {live ? "Pause" : "Live"}
+        </button>
+      }
+    >
+      {error && !/not found/i.test(error) && <ErrorBanner message={error} />}
+      {domains.length ? (
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <ul className="terminal-scroll max-h-96 space-y-3 overflow-auto">
+            {domains.map(([domain, list]) => (
+              <li key={domain}>
+                <p className="mb-1 font-mono text-xs font-semibold text-on-surface">{domain}</p>
+                <ul className="space-y-0.5">
+                  {asArr(list).map((f) => {
+                    const flow = f as FlowMeta;
+                    return (
+                      <li key={flow.id}>
+                        <button
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left font-mono text-[11px] hover:bg-surface-container"
+                          onClick={async () => setSelected(await run("android.web_traffic", { hash, flow_id: flow.id }, "flow"))}
+                        >
+                          <span className="w-12 shrink-0 font-semibold text-primary">{flow.method}</span>
+                          <span className="w-9 shrink-0 text-on-surface-variant">{str(flow.status_code)}</span>
+                          <span className="truncate text-on-surface">{flow.relative}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ul>
+          <div>{selected ? <ResultView value={selected} maxHeight="max-h-96" /> : <p className="text-sm text-on-surface-variant">Select a request to inspect headers and bodies.</p>}</div>
+        </div>
+      ) : (
+        <p className="text-sm text-on-surface-variant">{live ? "Waiting for traffic — use the app on the device." : "Press Live to load captured traffic."}</p>
+      )}
+    </Panel>
   );
 }

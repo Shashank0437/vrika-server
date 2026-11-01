@@ -34,6 +34,7 @@ ENGINE_ACTIONS: dict[str, EngineAction] = {
     "android.screenshots": _a("android/screenshots", "view", owned=H),
     "android.screen_cast": _a("android/screen_cast", "execute"),
     "android.touch_events": _a("android/touch_events", "execute"),
+    "android.web_traffic": _a("android/web_traffic", "view", owned=H),
     "android.adb_command": _a("android/adb_command", "execute"),
     "android.root_ca": _a("android/root_ca", "execute"),
     "android.global_proxy": _a("android/global_proxy", "execute"),
