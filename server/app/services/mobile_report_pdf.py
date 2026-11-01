@@ -55,7 +55,8 @@ SEVERITY = {
 SEVERITY_ORDER = ["high", "warning", "hotspot", "info", "secure"]
 
 PAGE_MARGIN = 0.6 * inch
-CONTENT_W = A4[0] - 2 * PAGE_MARGIN
+# SimpleDocTemplate frames add 6pt padding on each side.
+CONTENT_W = A4[0] - 2 * PAGE_MARGIN - 12
 
 
 def _register_font() -> str:
