@@ -35,8 +35,9 @@ export default function AndroidDynamicPage() {
     void load();
   }, [load]);
 
-  const online = asArr(info?.online_devices).map(str);
-  const devices = asArr(info?.devices).map((d) => (Array.isArray(d) ? d.map(str).join(" · ") : str(d)));
+  const deviceId = (d: unknown) => (typeof d === "object" && d !== null ? str(asObj(d).identifier) : str(d));
+  const online = asArr(info?.online_devices).map(deviceId);
+  const devices = asArr(info?.devices).map(deviceId);
   const apps = asArr(info?.apps).map(asObj);
   const deviceReady = Boolean(info?.identifier);
   const packages = Object.keys(asObj(info?.device_packages));
