@@ -16,6 +16,7 @@ from app.routers import (
     contact,
     internal_config,
     invitations,
+    mobile_security,
     org_settings,
     sso,
     tenant,
@@ -47,6 +48,7 @@ if origins:
 
 app.include_router(auth.router)
 app.include_router(cloud_security.router)
+app.include_router(mobile_security.router)
 app.include_router(sso.router)
 app.include_router(tenant.router)
 app.include_router(invitations.router)

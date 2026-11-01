@@ -84,6 +84,11 @@ async def require_cloud_access(user: dict = Depends(require_auth_user)) -> dict:
         raise HTTPException(403, "Cloud Security access required")
     return user
 
+async def require_mobile_access(user: dict = Depends(require_auth_user)) -> dict:
+    if not can_enter_module(user, "mobile_security"):
+        raise HTTPException(403, "Mobile Security access required")
+    return user
+
 
 async def require_web_module_access(
     request: Request, user: dict = Depends(require_auth_user)

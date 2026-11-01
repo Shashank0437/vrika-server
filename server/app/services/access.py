@@ -22,7 +22,7 @@ def effective_bindings(user: dict) -> list[dict]:
     if "tenant_member" in roles:
         return [
             {"role": "analyst", "scope_type": "module", "scope_id": module}
-            for module in ("web_security", "cloud_security")
+            for module in ("web_security", "cloud_security", "mobile_security")
         ]
     return []
 

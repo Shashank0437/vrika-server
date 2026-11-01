@@ -12,7 +12,7 @@ export type AccessAction =
   | "edit"
   | "manage_members"
   | "manage_roles";
-export type AccessModule = "web_security" | "cloud_security";
+export type AccessModule = "web_security" | "cloud_security" | "mobile_security";
 export type AccessScope = { module?: AccessModule; projectId?: string | null };
 type AccessUser = Pick<AuthUser, "roles" | "role_bindings"> | null | undefined;
 
@@ -23,7 +23,7 @@ export function getRoleBindings(user: AccessUser): RoleBinding[] {
       binding.role === "viewer" &&
       binding.scope_type === "global" &&
       binding.scope_id === null
-        ? ["web_security", "cloud_security"].map((scope_id) => ({
+        ? ["web_security", "cloud_security", "mobile_security"].map((scope_id) => ({
             role: "viewer",
             scope_type: "module",
             scope_id,
@@ -33,7 +33,7 @@ export function getRoleBindings(user: AccessUser): RoleBinding[] {
   if (user.roles?.some((role) => role === "tenant_admin" || role === "admin"))
     return [{ role: "admin", scope_type: "global", scope_id: null }];
   if (user.roles?.some((role) => ["member", "tenant_member"].includes(role)))
-    return ["web_security", "cloud_security"].map((scope_id) => ({
+    return ["web_security", "cloud_security", "mobile_security"].map((scope_id) => ({
       role: "analyst",
       scope_type: "module",
       scope_id,
@@ -64,7 +64,7 @@ export function hasPermission(
       (binding.role === "analyst" || binding.role === "viewer") &&
       binding.scope_type === "module" &&
       binding.scope_id === scope.module &&
-      ["web_security", "cloud_security"].includes(binding.scope_id ?? "")
+      ["web_security", "cloud_security", "mobile_security"].includes(binding.scope_id ?? "")
     )
       return true;
     if (
@@ -113,6 +113,8 @@ export function landingRoute(user: AccessUser): string {
   if (canEnterModule(user, "web_security")) return "/dashboard";
   if (canEnterModule(user, "cloud_security"))
     return "/dashboard/cloud-security";
+  if (canEnterModule(user, "mobile_security"))
+    return "/dashboard/mobile-security";
   return "/dashboard/no-access";
 }
 
@@ -123,8 +125,11 @@ export function canVisitDashboard(user: AccessUser, pathname: string): boolean {
   if (pathname.startsWith("/dashboard/projects"))
     return (
       canEnterModule(user, "web_security") ||
-      canEnterModule(user, "cloud_security")
+      canEnterModule(user, "cloud_security") ||
+      canEnterModule(user, "mobile_security")
     );
+  if (pathname.startsWith("/dashboard/mobile-security"))
+    return canEnterModule(user, "mobile_security");
   return canEnterModule(
     user,
     pathname.startsWith("/dashboard/cloud-security")

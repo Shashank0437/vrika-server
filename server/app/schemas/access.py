@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Action = Literal["view", "execute", "edit", "manage_members", "manage_roles"]
-Module = Literal["web_security", "cloud_security"]
+Module = Literal["web_security", "cloud_security", "mobile_security"]
 
 
 class RoleBinding(BaseModel):
@@ -23,7 +23,7 @@ class RoleBinding(BaseModel):
         elif self.role in {"viewer", "analyst"}:
             valid = (
                 self.scope_type == "module"
-                and self.scope_id in {"web_security", "cloud_security"}
+                and self.scope_id in {"web_security", "cloud_security", "mobile_security"}
             ) or (self.scope_type == "project" and bool(self.scope_id))
         else:
             valid = self.scope_type == "project" and bool(self.scope_id)

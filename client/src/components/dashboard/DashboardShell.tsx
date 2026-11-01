@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, type ReactNode } from "react";
 import { CloudSecuritySidebarSection } from "@/components/dashboard/CloudSecuritySidebarSection";
+import { MobileSecuritySidebarSection } from "@/components/dashboard/MobileSecuritySidebarSection";
 import { DashboardHeaderProfile } from "@/components/dashboard/DashboardHeaderProfile";
 import { SettingsSidebarSection } from "@/components/dashboard/SettingsSidebarSection";
 import { WebSecuritySidebarSection } from "@/components/dashboard/WebSecuritySidebarSection";
@@ -23,6 +24,7 @@ type NavMain = {
   adminOnly?: boolean;
   webSecurity?: boolean;
   cloudSecurity?: boolean;
+  mobileSecurity?: boolean;
   settingsNav?: boolean;
 };
 
@@ -40,6 +42,13 @@ const MAIN_NAV: NavMain[] = [
     icon: "cloud",
     match: "prefix",
     cloudSecurity: true,
+  },
+  {
+    href: "/dashboard/mobile-security",
+    label: "Mobile Security",
+    icon: "smartphone",
+    match: "prefix",
+    mobileSecurity: true,
   },
   {
     href: "/dashboard/projects",
@@ -75,6 +84,9 @@ function navActive(pathname: string, item: NavMain): boolean {
     );
   }
   if (item.cloudSecurity) {
+    return pathname.startsWith(item.href);
+  }
+  if (item.mobileSecurity) {
     return pathname.startsWith(item.href);
   }
   if (item.match === "exact") return pathname === item.href;
@@ -117,6 +129,7 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
     () => MAIN_NAV.filter((n) =>
       n.webSecurity ? canEnterModule(user, "web_security") :
       n.cloudSecurity ? canEnterModule(user, "cloud_security") :
+      n.mobileSecurity ? canEnterModule(user, "mobile_security") :
       canVisitDashboard(user, n.href)),
     [user],
   );
@@ -195,6 +208,20 @@ function DashboardShellInner({ children }: { children: ReactNode }) {
                 );
               }
 
+              if (item.mobileSecurity) {
+                return (
+                  <Suspense
+                    key={item.href}
+                    fallback={
+                      <div className="px-6 py-3 text-sm text-on-surface-variant">
+                        Mobile Security
+                      </div>
+                    }
+                  >
+                    <MobileSecuritySidebarSection />
+                  </Suspense>
+                );
+              }
               if (item.settingsNav) {
                 return (
                   <Suspense
