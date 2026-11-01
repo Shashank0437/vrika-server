@@ -43,7 +43,7 @@ ENGINE_ACTIONS: dict[str, EngineAction] = {
     "frida.api_monitor": _a("frida/api_monitor", "view", owned=H),
     "frida.get_dependencies": _a("frida/get_dependencies", "execute", owned=H),
     "frida.logs": _a("frida/logs", "view", owned=H),
-    "frida.list_scripts": _a("frida/list_frida_scripts", "view"),
+    "frida.list_scripts": _a("frida/list_scripts", "view"),
     "frida.get_script": _a("frida/get_script", "view"),
     "frida.ios_instrument": _a("frida/ios_instrument", "execute", owned=H),
     # iOS dynamic analysis (Corellium)

@@ -52,7 +52,7 @@ async def _request(
     except httpx.HTTPError as exc:
         raise MobileSecurityApiError("Mobile Security engine is unreachable", 502) from exc
     if resp.status_code >= 400:
-        message = "Mobile Security engine request failed"
+        message = f"Mobile Security engine request failed (HTTP {resp.status_code})"
         try:
             body = resp.json()
             if isinstance(body, dict):

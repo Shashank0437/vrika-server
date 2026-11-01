@@ -250,8 +250,14 @@ function PollingPanel({ title, description, icon, action, hash }: { title: strin
         </button>
       }
     >
-      {error && <ErrorBanner message={error} />}
-      {data !== null ? <ResultView value={data} /> : <p className="text-sm text-on-surface-variant">Press Live to start polling.</p>}
+      {error && !/does not exist|no data/i.test(error) && <ErrorBanner message={error} />}
+      {data !== null ? (
+        <ResultView value={data} />
+      ) : (
+        <p className="text-sm text-on-surface-variant">
+          {live ? "Waiting for data — start instrumentation with the matching hook enabled." : "Press Live to start polling."}
+        </p>
+      )}
     </Panel>
   );
 }
