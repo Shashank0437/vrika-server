@@ -55,8 +55,12 @@ def test_multiple_bindings_union_does_not_expand_write_scope():
     assert has_permission(combined, "edit", module="cloud_security", project_id="p1")
 
 
-def test_existing_members_keep_both_modules_but_explicit_empty_overrides_legacy_roles():
-    assert len(effective_bindings({"roles": ["tenant_member"]})) == 2
+def test_existing_members_keep_all_modules_but_explicit_empty_overrides_legacy_roles():
+    assert {b["scope_id"] for b in effective_bindings({"roles": ["tenant_member"]})} == {
+        "web_security",
+        "cloud_security",
+        "mobile_security",
+    }
     assert has_permission({"roles": ["tenant_admin"]}, "manage_roles")
     assert not has_permission({"roles": ["tenant_admin"], "role_bindings": []}, "view")
 
