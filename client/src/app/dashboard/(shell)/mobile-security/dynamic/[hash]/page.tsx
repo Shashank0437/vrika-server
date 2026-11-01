@@ -343,7 +343,15 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
         >
           Load scripts
         </button>
+        <button className={secondaryButton} disabled={!code || busy !== null} onClick={() => setCode("")}>
+          Clear editor
+        </button>
       </div>
+      {scriptWarnings(code).map((w) => (
+        <div key={w} className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+          {w}
+        </div>
+      ))}
       <textarea
         className="min-h-40 w-full rounded-xl border border-outline-variant/70 bg-[#17151f] p-3 font-mono text-xs text-[#e9e6f5] outline-none focus:border-primary"
         placeholder="// Custom Frida script (JavaScript)"
@@ -424,6 +432,15 @@ function FridaPanel({ hash, log }: { hash: string; log: LogFn }) {
     const label = extra.pid ? `Attach to ${extra.new_package} (PID ${extra.pid})` : action === "spawn" ? "Spawn & inject" : "Inject into session";
     log(label, r.ok, r.ok ? r.data : r.error);
   }
+}
+
+function scriptWarnings(code: string): string[] {
+  const out: string[] = [];
+  if (/\{(className|classMethod|args|methodSignature)\}|some\.package\./.test(code))
+    out.push("The editor contains template placeholders (e.g. {className}, some.package.Activity). Replace them with real class/method names or remove that script, otherwise it throws errors in the app.");
+  if (/SDK_INT\.value\s*=/.test(code))
+    out.push("helper-android-change-sdk-version spoofs the Android API level (15). Modern apps (OkHttp, etc.) crash at startup with it, so the app will not open. Remove it unless you need it.");
+  return out;
 }
 
 function PollingPanel({ title, description, icon, action, hash }: { title: string; description: string; icon: React.ReactNode; action: string; hash: string }) {
